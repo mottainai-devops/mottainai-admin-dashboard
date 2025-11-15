@@ -158,3 +158,21 @@
 - [x] Deploy to server
 - [x] Test /dashboard - HTTP Basic Auth protecting correctly
 - [ ] Test /fieldops still works
+
+
+## Phase 20: Fix Nginx Configuration for Base Path
+- [ ] Update Nginx to properly serve React app with /dashboard/ base
+- [ ] Fix try_files directive for SPA routing
+- [ ] Ensure field ops app still proxies correctly
+- [ ] Reload Nginx
+- [ ] Test /dashboard loads
+- [ ] Test /fieldops loads
+
+
+## Phase 21: Fix Login Credentials
+- [x] Check field ops backend on port 3000 - Running correctly
+- [x] Verify original login system is intact - Working
+- [x] Test field ops login with existing credentials - Available at /fieldops
+- [x] Debug dashboard HTTP Basic Auth - Fixed redirect issue
+- [x] Test dashboard access with admin/Mottainai2025! - Working with trailing slash
+- [x] Verify both apps working independently
