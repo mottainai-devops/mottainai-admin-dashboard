@@ -139,3 +139,13 @@
 - [x] Update Nginx configuration
 - [x] Test both paths
 - [x] Deploy to production
+
+
+## Phase 18: Remove React Authentication Code
+- [x] Remove ProtectedRoute component usage from App.tsx
+- [x] Remove auth.checkAuth query calls
+- [x] Remove Login page import
+- [x] Simplify routing to direct access
+- [x] Rebuild production files
+- [x] Deploy to server
+- [x] Test dashboard - HTTP Basic Auth working
