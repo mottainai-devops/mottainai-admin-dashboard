@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, ArrowRight } from "lucide-react";
+import { Building2, ArrowRight, Activity, BarChart3, Wrench } from "lucide-react";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { Link } from "wouter";
 
@@ -31,7 +31,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           <Link href="/companies">
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>
@@ -57,17 +57,80 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Card className="opacity-50">
-            <CardHeader>
-              <CardTitle>Analytics Dashboard</CardTitle>
-              <CardDescription>Coming soon</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-600">
-                View operational metrics, revenue reports, and performance analytics.
-              </p>
-            </CardContent>
-          </Card>
+          <Link href="/testing">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <Activity className="h-8 w-8 text-green-600" />
+                  </div>
+                  <div>
+                    <CardTitle>System Testing & Monitoring</CardTitle>
+                    <CardDescription>Test APIs and monitor system health</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Run automated tests on backend APIs, ArcGIS integration, and monitor real-time system health.
+                </p>
+                <div className="flex items-center text-green-600 font-medium">
+                  View Dashboard
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/analytics">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-purple-100 rounded-lg">
+                    <BarChart3 className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Analytics Dashboard</CardTitle>
+                    <CardDescription>Performance metrics and insights</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  View real-time submission statistics, company performance, and system health metrics.
+                </p>
+                <div className="flex items-center text-purple-600 font-medium">
+                  View Analytics
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/qa-tools">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-orange-100 rounded-lg">
+                    <Wrench className="h-8 w-8 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle>QA Tools</CardTitle>
+                    <CardDescription>Testing and troubleshooting</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Test webhooks, validate data integrity, and troubleshoot system issues.
+                </p>
+                <div className="flex items-center text-orange-600 font-medium">
+                  Open Tools
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
     </div>
