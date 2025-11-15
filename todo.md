@@ -130,3 +130,12 @@
 - [ ] Rebuild and redeploy
 - [ ] Test browser login prompt
 - [ ] Verify dashboard access after login
+
+
+## Phase 17: Dual-Path Routing
+- [x] Check what was originally at upwork.kowope.xyz
+- [x] Configure /dashboard for admin dashboard (password protected)
+- [x] Configure /fieldops for original field operations app
+- [x] Update Nginx configuration
+- [x] Test both paths
+- [x] Deploy to production
