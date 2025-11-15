@@ -4,11 +4,11 @@ import NotFound from "@/pages/NotFound";
 import SystemTesting from "@/pages/SystemTesting";
 import Analytics from "@/pages/Analytics";
 import QATools from "@/pages/QATools";
+import Companies from "@/pages/Companies";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
-import Companies from "./pages/Companies";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -18,6 +18,7 @@ function Router() {
       <Route path={"/testing"} component={SystemTesting} />
       <Route path={"/analytics"} component={Analytics} />
       <Route path={"/qa-tools"} component={QATools} />
+      <Route path={"/companies"} component={Companies} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

@@ -39,7 +39,7 @@ export const appRouter = router({
         return data.data;
       }),
     
-    create: protectedProcedure
+    create: publicProcedure
       .input(z.object({
         companyId: z.string(),
         companyName: z.string(),
@@ -60,7 +60,7 @@ export const appRouter = router({
         return data.data;
       }),
     
-    update: protectedProcedure
+    update: publicProcedure
       .input(z.object({
         id: z.string(),
         companyId: z.string().optional(),
@@ -84,7 +84,7 @@ export const appRouter = router({
         return data.data;
       }),
     
-    delete: protectedProcedure
+    delete: publicProcedure
       .input(z.object({ id: z.string() }))
       .mutation(async ({ input }) => {
         const response = await fetch(`http://172.232.24.180:3000/companies/${input.id}`, {
