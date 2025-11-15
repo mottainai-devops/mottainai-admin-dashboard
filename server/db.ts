@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { companies, customers, InsertUser, monthlyBills, pickups, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,124 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Analytics Query Helpers
+
+export async function getOverviewMetrics() {
+  const db = await getDb();
+  if (!db) return null;
+
+  const totalCustomers = await db.select({ count: sql<number>`count(*)` }).from(customers);
+  const totalPickups = await db.select({ count: sql<number>`count(*)` }).from(pickups);
+  const totalRevenue = await db.select({ sum: sql<number>`sum(amount)` }).from(pickups).where(eq(pickups.paymentStatus, 'paid'));
+  const pendingPayments = await db.select({ count: sql<number>`count(*)` }).from(pickups).where(eq(pickups.paymentStatus, 'pending'));
+
+  return {
+    totalCustomers: totalCustomers[0]?.count || 0,
+    totalPickups: totalPickups[0]?.count || 0,
+    totalRevenue: totalRevenue[0]?.sum || 0,
+    pendingPayments: pendingPayments[0]?.count || 0,
+  };
+}
+
+export async function getRevenueByType() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select({
+      pickupType: pickups.pickupType,
+      customerType: pickups.customerType,
+      totalRevenue: sql<number>`sum(${pickups.amount})`,
+      count: sql<number>`count(*)`,
+    })
+    .from(pickups)
+    .where(eq(pickups.paymentStatus, 'paid'))
+    .groupBy(pickups.pickupType, pickups.customerType);
+}
+
+export async function getCompanyPerformance() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select({
+      companyId: pickups.companyId,
+      companyName: companies.name,
+      totalRevenue: sql<number>`sum(${pickups.amount})`,
+      pickupCount: sql<number>`count(*)`,
+    })
+    .from(pickups)
+    .leftJoin(companies, eq(pickups.companyId, companies.id))
+    .where(eq(pickups.paymentStatus, 'paid'))
+    .groupBy(pickups.companyId, companies.name);
+}
+
+export async function getRecentPickups(limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select({
+      id: pickups.id,
+      customerName: customers.name,
+      customerEmail: customers.email,
+      companyName: companies.name,
+      pickupType: pickups.pickupType,
+      customerType: pickups.customerType,
+      amount: pickups.amount,
+      paymentStatus: pickups.paymentStatus,
+      pickupDate: pickups.pickupDate,
+    })
+    .from(pickups)
+    .leftJoin(customers, eq(pickups.customerId, customers.id))
+    .leftJoin(companies, eq(pickups.companyId, companies.id))
+    .orderBy(desc(pickups.pickupDate))
+    .limit(limit);
+}
+
+export async function getCustomersByType() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select({
+      customerType: customers.customerType,
+      count: sql<number>`count(*)`,
+    })
+    .from(customers)
+    .where(eq(customers.status, 'active'))
+    .groupBy(customers.customerType);
+}
+
+export async function getMonthlyBillingSummary(month: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db
+    .select()
+    .from(monthlyBills)
+    .where(eq(monthlyBills.billingMonth, month))
+    .orderBy(desc(monthlyBills.createdAt));
+}
+
+export async function getAllCompanies() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(companies).where(eq(companies.status, 'active'));
+}
+
+export async function getAllCustomers() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select().from(customers).orderBy(desc(customers.createdAt));
+}
+
+export async function getCustomerById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
+  return result[0] || null;
+}

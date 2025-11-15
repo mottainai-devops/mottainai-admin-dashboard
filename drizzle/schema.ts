@@ -25,4 +25,76 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// Analytics and Management Tables
+
+/**
+ * Companies table - Waste management companies
+ */
+export const companies = mysqlTable("companies", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  residentialSplitCode: varchar("residentialSplitCode", { length: 50 }),
+  commercialSplitCode: varchar("commercialSplitCode", { length: 50 }),
+  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/**
+ * Customers table - End customers using waste management services
+ */
+export const customers = mysqlTable("customers", {
+  id: int("id").autoincrement().primaryKey(),
+  zohoCustomerId: varchar("zohoCustomerId", { length: 100 }),
+  email: varchar("email", { length: 320 }).notNull(),
+  name: text("name"),
+  phone: varchar("phone", { length: 20 }),
+  customerType: mysqlEnum("customerType", ["residential", "commercial"]).notNull(),
+  address: text("address"),
+  companyId: int("companyId"),
+  buildingId: varchar("buildingId", { length: 100 }),
+  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/**
+ * Pickups table - Waste collection records
+ */
+export const pickups = mysqlTable("pickups", {
+  id: int("id").autoincrement().primaryKey(),
+  customerId: int("customerId").notNull(),
+  companyId: int("companyId").notNull(),
+  pickupType: mysqlEnum("pickupType", ["payt", "monthly"]).notNull(),
+  customerType: mysqlEnum("customerType", ["residential", "commercial"]).notNull(),
+  amount: int("amount").notNull(), // Amount in kobo/cents
+  paymentStatus: mysqlEnum("paymentStatus", ["pending", "paid", "failed"]).default("pending").notNull(),
+  paystackReference: varchar("paystackReference", { length: 100 }),
+  surveyId: varchar("surveyId", { length: 100 }),
+  pickupDate: timestamp("pickupDate").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/**
+ * Monthly bills table - Monthly billing records
+ */
+export const monthlyBills = mysqlTable("monthlyBills", {
+  id: int("id").autoincrement().primaryKey(),
+  customerId: int("customerId").notNull(),
+  companyId: int("companyId").notNull(),
+  buildingId: varchar("buildingId", { length: 100 }),
+  billingMonth: varchar("billingMonth", { length: 7 }).notNull(), // Format: YYYY-MM
+  totalAmount: int("totalAmount").notNull(), // Amount in kobo/cents
+  pickupCount: int("pickupCount").notNull(),
+  invoiceId: varchar("invoiceId", { length: 100 }),
+  zohoInvoiceId: varchar("zohoInvoiceId", { length: 100 }),
+  status: mysqlEnum("status", ["pending", "sent", "paid", "failed"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Company = typeof companies.$inferSelect;
+export type Customer = typeof customers.$inferSelect;
+export type Pickup = typeof pickups.$inferSelect;
+export type MonthlyBill = typeof monthlyBills.$inferSelect;
