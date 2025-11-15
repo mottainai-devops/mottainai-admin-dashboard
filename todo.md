@@ -149,3 +149,12 @@
 - [x] Rebuild production files
 - [x] Deploy to server
 - [x] Test dashboard - HTTP Basic Auth working
+
+
+## Phase 19: Fix Base Path for Subdirectory Deployment
+- [x] Configure Vite base path to '/dashboard/'
+- [x] Update Nginx alias configuration
+- [x] Rebuild production files
+- [x] Deploy to server
+- [x] Test /dashboard - HTTP Basic Auth protecting correctly
+- [ ] Test /fieldops still works
