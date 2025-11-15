@@ -121,3 +121,12 @@
 - [x] Set up API proxy (/api/trpc → localhost:4000)
 - [x] Test dashboard - ALL 13 COMPANIES LOADING SUCCESSFULLY
 - [x] Live URL: https://upwork.kowope.xyz
+
+
+## Phase 16: Implement HTTP Basic Authentication (Nginx)
+- [ ] Configure Nginx HTTP Basic Auth
+- [ ] Create htpasswd file with admin credentials
+- [ ] Remove React authentication components
+- [ ] Rebuild and redeploy
+- [ ] Test browser login prompt
+- [ ] Verify dashboard access after login
