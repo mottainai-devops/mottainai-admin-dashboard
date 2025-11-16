@@ -360,6 +360,61 @@ pm2 logs admin-dashboard-backend --lines 100
 
 ---
 
+## Critical Fix Applied (November 16, 2025)
+
+### Issue: Companies Not Displaying in Production Dashboard
+
+**Symptom:** After initial deployment, the dashboard loaded successfully but showed an empty company list despite the API returning 13 companies correctly.
+
+**Root Cause:** The tRPC client in `client/src/main.tsx` was configured with an incorrect API URL:
+
+```typescript
+// INCORRECT (before fix)
+url: "/dashboard/api/trpc"
+
+// CORRECT (after fix)
+url: "/api/trpc"
+```
+
+The frontend was attempting to call `/dashboard/api/trpc` which resulted in 404 errors, while the actual API endpoint was `/api/trpc`. This mismatch prevented the React Query client from successfully fetching company data.
+
+**Resolution Steps:**
+
+1. **Identified the issue** by testing the API endpoint directly:
+   ```bash
+   curl -s 'https://admin.kowope.xyz/api/trpc/companies.list'
+   # Returned 13 companies successfully
+   ```
+
+2. **Fixed the tRPC client URL** in `client/src/main.tsx`:
+   ```typescript
+   const trpcClient = trpc.createClient({
+     links: [
+       httpBatchLink({
+         url: "/api/trpc",  // Fixed from "/dashboard/api/trpc"
+         transformer: superjson,
+       }),
+     ],
+   });
+   ```
+
+3. **Rebuilt and redeployed** the frontend:
+   ```bash
+   pnpm run build
+   tar -czf dashboard-deploy-fixed.tar.gz dist/ package.json pnpm-lock.yaml server/ shared/
+   scp dashboard-deploy-fixed.tar.gz root@172.232.24.180:/tmp/
+   ssh root@172.232.24.180 "cd /root/admin-dashboard && tar -xzf /tmp/dashboard-deploy-fixed.tar.gz && pm2 restart admin-dashboard-backend"
+   ```
+
+4. **Verified the fix** - All 13 companies now display correctly in the dashboard.
+
+**Lessons Learned:**
+- Always verify API endpoint URLs match between frontend and backend
+- Test API endpoints independently before debugging frontend issues
+- Check browser network tab for 404 errors when data isn't loading
+
+---
+
 ## Conclusion
 
 The migration to MongoDB has successfully aligned the admin dashboard with the production infrastructure, enabling direct database access and eliminating the need for HTTP API intermediaries. The addition of PIN-based authentication provides a secure and user-friendly method for mobile app access control.
