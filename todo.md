@@ -176,3 +176,12 @@
 - [x] Debug dashboard HTTP Basic Auth - Fixed redirect issue
 - [x] Test dashboard access with admin/Mottainai2025! - Working with trailing slash
 - [x] Verify both apps working independently
+
+
+## Phase 22: Fix tRPC API Path for Subdirectory
+- [ ] Update tRPC client configuration to use /dashboard/api/trpc
+- [ ] Rebuild production files
+- [ ] Deploy to server
+- [ ] Test dashboard loads and connects to API
+- [ ] Test field ops still works
+- [ ] Verify all dashboard modules functional
