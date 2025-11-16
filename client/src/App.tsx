@@ -5,6 +5,9 @@ import SystemTesting from "@/pages/SystemTesting";
 import Analytics from "@/pages/Analytics";
 import QATools from "@/pages/QATools";
 import Companies from "@/pages/Companies";
+import Login from "@/pages/Login";
+import Users from "@/pages/Users";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -14,11 +17,37 @@ import Home from "./pages/Home";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/testing" component={SystemTesting} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/qa-tools" component={QATools} />
-      <Route path="/companies" component={Companies} />
+      <Route path="/login" component={Login} />
+      <Route path="/">
+        <ProtectedRoute>
+          <Home />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/testing">
+        <ProtectedRoute>
+          <SystemTesting />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/analytics">
+        <ProtectedRoute>
+          <Analytics />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/qa-tools">
+        <ProtectedRoute>
+          <QATools />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/companies">
+        <ProtectedRoute>
+          <Companies />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/users">
+        <ProtectedRoute>
+          <Users />
+        </ProtectedRoute>
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

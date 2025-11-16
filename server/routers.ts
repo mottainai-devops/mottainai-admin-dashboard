@@ -3,6 +3,8 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { testingRouter } from "./routers/testing";
 import { analyticsRouter } from "./routers/analytics";
+import { authRouter } from "./routers/auth";
+import { usersRouter } from "./routers/users";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -12,44 +14,8 @@ export const appRouter = router({
   system: systemRouter,
   testing: testingRouter,
   analytics: analyticsRouter,
-  auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    login: publicProcedure
-      .input(z.object({
-        username: z.string(),
-        password: z.string(),
-      }))
-      .mutation(({ input, ctx }) => {
-        // Simple password check - credentials from environment
-        const validUsername = process.env.ADMIN_USERNAME || 'admin';
-        const validPassword = process.env.ADMIN_PASSWORD || 'admin123';
-
-        if (input.username !== validUsername || input.password !== validPassword) {
-          throw new Error('Invalid credentials');
-        }
-
-        // Set session cookie
-        const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie('admin_session', 'authenticated', {
-          ...cookieOptions,
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        });
-
-        return { success: true };
-      }),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie('admin_session', { ...cookieOptions, maxAge: -1 });
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
-    }),
-    checkAuth: publicProcedure.query(({ ctx }) => {
-      const isAuthenticated = ctx.req.cookies['admin_session'] === 'authenticated';
-      return { isAuthenticated };
-    }),
-  }),
+  auth: authRouter,
+  users: usersRouter,
 
   // Company management router - now using MongoDB directly
   companies: router({

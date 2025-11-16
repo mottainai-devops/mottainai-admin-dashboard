@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, ArrowRight, Activity, BarChart3, Wrench } from "lucide-react";
+import { Building2, ArrowRight, Activity, BarChart3, Wrench, Users } from "lucide-react";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { Link } from "wouter";
 
@@ -126,6 +126,31 @@ export default function Home() {
                 </p>
                 <div className="flex items-center text-orange-600 font-medium">
                   Open Tools
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/users">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-red-100 rounded-lg">
+                    <Users className="h-8 w-8 text-red-600" />
+                  </div>
+                  <div>
+                    <CardTitle>User Management</CardTitle>
+                    <CardDescription>Manage admin users and permissions</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Create, edit, and manage admin users with role-based access control.
+                </p>
+                <div className="flex items-center text-red-600 font-medium">
+                  Manage Users
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </div>
               </CardContent>

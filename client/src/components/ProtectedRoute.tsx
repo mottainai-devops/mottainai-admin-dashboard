@@ -4,13 +4,13 @@ import { useLocation } from "wouter";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
-  const { data: authData, isLoading } = trpc.auth.checkAuth.useQuery();
+  const { data: user, isLoading } = trpc.auth.me.useQuery();
 
   useEffect(() => {
-    if (!isLoading && authData && !authData.isAuthenticated) {
+    if (!isLoading && !user) {
       setLocation("/login");
     }
-  }, [authData, isLoading, setLocation]);
+  }, [user, isLoading, setLocation]);
 
   if (isLoading) {
     return (
@@ -23,7 +23,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!authData?.isAuthenticated) {
+  if (!user) {
     return null;
   }
 

@@ -148,21 +148,136 @@ export async function hardDeleteCompany(id: string): Promise<boolean> {
  */
 
 export interface InsertUser {
-  openId: string;
+  openId?: string | null; // Optional for password-based users
+  username?: string;
   name?: string | null;
   email?: string | null;
-  loginMethod?: string | null;
-  role?: 'user' | 'admin';
+  password?: string | null;
+  loginMethod?: 'password' | 'oauth' | null;
+  role?: 'superadmin' | 'admin' | 'user';
+  active?: boolean;
   lastSignedIn?: Date;
 }
 
 export async function getUserByOpenId(openId: string): Promise<IUser | null> {
   try {
     await connectToMongoDB();
-    return await User.findOne({ openId });
+    return await User.findOne({ openId }).exec();
   } catch (error) {
     console.error('[Database] Failed to get user by openId:', error);
     return null;
+  }
+}
+
+export async function getUserByUsername(username: string): Promise<IUser | null> {
+  try {
+    await connectToMongoDB();
+    return await User.findOne({ username: username.toLowerCase() }).exec();
+  } catch (error) {
+    console.error('[Database] Failed to get user by username:', error);
+    return null;
+  }
+}
+
+export async function getUserById(id: string): Promise<IUser | null> {
+  try {
+    await connectToMongoDB();
+    return await User.findById(id).exec();
+  } catch (error) {
+    console.error('[Database] Failed to get user by ID:', error);
+    return null;
+  }
+}
+
+export async function getAllUsers(): Promise<IUser[]> {
+  try {
+    await connectToMongoDB();
+    return await User.find().select('-password').sort({ createdAt: -1 }).exec();
+  } catch (error) {
+    console.error('[Database] Failed to get all users:', error);
+    return [];
+  }
+}
+
+export async function createUser(userData: InsertUser): Promise<IUser> {
+  if (!userData.username) {
+    throw new Error('Username is required');
+  }
+  if (!userData.password) {
+    throw new Error('Password is required');
+  }
+
+  try {
+    await connectToMongoDB();
+
+    // Check if username already exists
+    const existing = await User.findOne({ username: userData.username.toLowerCase() });
+    if (existing) {
+      throw new Error('Username already exists');
+    }
+
+    const user = new User({
+      username: userData.username.toLowerCase(),
+      password: userData.password, // Will be hashed by pre-save hook
+      email: userData.email || null,
+      name: userData.name || null,
+      role: userData.role || 'admin',
+      active: userData.active !== undefined ? userData.active : true,
+      loginMethod: 'password',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date()
+    });
+
+    await user.save();
+    return user;
+  } catch (error: any) {
+    console.error('[Database] Failed to create user:', error);
+    throw error;
+  }
+}
+
+export async function updateUser(id: string, userData: Partial<InsertUser>): Promise<IUser | null> {
+  try {
+    await connectToMongoDB();
+
+    const updateData: any = {
+      updatedAt: new Date()
+    };
+
+    if (userData.name !== undefined) updateData.name = userData.name;
+    if (userData.email !== undefined) updateData.email = userData.email;
+    if (userData.role !== undefined) updateData.role = userData.role;
+    if (userData.active !== undefined) updateData.active = userData.active;
+
+    // If password is being updated, hash it
+    if (userData.password) {
+      const bcrypt = await import('bcryptjs');
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(userData.password, salt);
+    }
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true }
+    ).select('-password').exec();
+
+    return user;
+  } catch (error) {
+    console.error('[Database] Failed to update user:', error);
+    throw error;
+  }
+}
+
+export async function deleteUser(id: string): Promise<boolean> {
+  try {
+    await connectToMongoDB();
+    const result = await User.findByIdAndDelete(id).exec();
+    return !!result;
+  } catch (error) {
+    console.error('[Database] Failed to delete user:', error);
+    return false;
   }
 }
 
@@ -180,7 +295,9 @@ export async function upsertUser(userData: InsertUser): Promise<void> {
 
     if (userData.name !== undefined) updateData.name = userData.name;
     if (userData.email !== undefined) updateData.email = userData.email;
-    if (userData.loginMethod !== undefined) updateData.loginMethod = userData.loginMethod;
+    if (userData.loginMethod !== undefined) {
+      updateData.loginMethod = userData.loginMethod as 'password' | 'oauth' | null;
+    }
     if (userData.lastSignedIn !== undefined) updateData.lastSignedIn = userData.lastSignedIn;
     
     // Set role to admin if this is the owner
