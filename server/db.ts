@@ -1,212 +1,244 @@
-import { desc, eq, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { companies, customers, InsertUser, monthlyBills, pickups, users } from "../drizzle/schema";
+import { connectToMongoDB } from './mongodb';
+import { Company, ICompany } from './models/Company';
+import { User, IUser } from './models/User';
 import { ENV } from './_core/env';
 
-let _db: ReturnType<typeof drizzle> | null = null;
-
-// Lazily create the drizzle instance so local tooling can run without a DB.
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
-  }
-  return _db;
-}
-
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
-
+/**
+ * Initialize database connection
+ * Call this at server startup
+ */
+export async function initializeDatabase() {
   try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
-    const updateSet: Record<string, unknown> = {};
-
-    const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
+    await connectToMongoDB();
+    console.log('[Database] MongoDB initialized successfully');
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    console.error('[Database] Failed to initialize:', error);
     throw error;
   }
 }
 
-export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
+/**
+ * Company Management Functions
+ */
+
+export async function getAllCompanies(): Promise<ICompany[]> {
+  try {
+    await connectToMongoDB();
+    return await Company.find({ active: true }).sort({ companyName: 1 });
+  } catch (error) {
+    console.error('[Database] Failed to get companies:', error);
+    return [];
+  }
+}
+
+export async function getCompanyById(id: string): Promise<ICompany | null> {
+  try {
+    await connectToMongoDB();
+    return await Company.findById(id);
+  } catch (error) {
+    console.error('[Database] Failed to get company by ID:', error);
+    return null;
+  }
+}
+
+export async function getCompanyByPin(pin: string): Promise<ICompany | null> {
+  try {
+    await connectToMongoDB();
+    return await Company.findOne({ pin, active: true });
+  } catch (error) {
+    console.error('[Database] Failed to get company by PIN:', error);
+    return null;
+  }
+}
+
+export async function getCompanyByCompanyId(companyId: string): Promise<ICompany | null> {
+  try {
+    await connectToMongoDB();
+    return await Company.findOne({ companyId, active: true });
+  } catch (error) {
+    console.error('[Database] Failed to get company by companyId:', error);
+    return null;
+  }
+}
+
+export async function createCompany(data: {
+  companyId: string;
+  companyName: string;
+  pin: string;
+  operationalLots: Array<{
+    lotCode: string;
+    lotName: string;
+    paytWebhook: string;
+    monthlyWebhook: string;
+  }>;
+}): Promise<ICompany> {
+  try {
+    await connectToMongoDB();
+    const company = new Company({
+      ...data,
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    return await company.save();
+  } catch (error) {
+    console.error('[Database] Failed to create company:', error);
+    throw error;
+  }
+}
+
+export async function updateCompany(
+  id: string,
+  data: Partial<{
+    companyId: string;
+    companyName: string;
+    pin: string;
+    operationalLots: Array<{
+      lotCode: string;
+      lotName: string;
+      paytWebhook: string;
+      monthlyWebhook: string;
+    }>;
+    active: boolean;
+  }>
+): Promise<ICompany | null> {
+  try {
+    await connectToMongoDB();
+    return await Company.findByIdAndUpdate(
+      id,
+      { ...data, updatedAt: new Date() },
+      { new: true }
+    );
+  } catch (error) {
+    console.error('[Database] Failed to update company:', error);
+    throw error;
+  }
+}
+
+export async function deleteCompany(id: string): Promise<boolean> {
+  try {
+    await connectToMongoDB();
+    // Soft delete - set active to false
+    const result = await Company.findByIdAndUpdate(
+      id,
+      { active: false, updatedAt: new Date() },
+      { new: true }
+    );
+    return result !== null;
+  } catch (error) {
+    console.error('[Database] Failed to delete company:', error);
+    return false;
+  }
+}
+
+export async function hardDeleteCompany(id: string): Promise<boolean> {
+  try {
+    await connectToMongoDB();
+    const result = await Company.findByIdAndDelete(id);
+    return result !== null;
+  } catch (error) {
+    console.error('[Database] Failed to hard delete company:', error);
+    return false;
+  }
+}
+
+/**
+ * User Management Functions
+ * For Manus OAuth authentication
+ */
+
+export interface InsertUser {
+  openId: string;
+  name?: string | null;
+  email?: string | null;
+  loginMethod?: string | null;
+  role?: 'user' | 'admin';
+  lastSignedIn?: Date;
+}
+
+export async function getUserByOpenId(openId: string): Promise<IUser | null> {
+  try {
+    await connectToMongoDB();
+    return await User.findOne({ openId });
+  } catch (error) {
+    console.error('[Database] Failed to get user by openId:', error);
+    return null;
+  }
+}
+
+export async function upsertUser(userData: InsertUser): Promise<void> {
+  if (!userData.openId) {
+    throw new Error('User openId is required for upsert');
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  try {
+    await connectToMongoDB();
 
-  return result.length > 0 ? result[0] : undefined;
+    const updateData: Partial<IUser> = {
+      updatedAt: new Date()
+    };
+
+    if (userData.name !== undefined) updateData.name = userData.name;
+    if (userData.email !== undefined) updateData.email = userData.email;
+    if (userData.loginMethod !== undefined) updateData.loginMethod = userData.loginMethod;
+    if (userData.lastSignedIn !== undefined) updateData.lastSignedIn = userData.lastSignedIn;
+    
+    // Set role to admin if this is the owner
+    if (userData.role !== undefined) {
+      updateData.role = userData.role;
+    } else if (userData.openId === ENV.ownerOpenId) {
+      updateData.role = 'admin';
+    }
+
+    await User.findOneAndUpdate(
+      { openId: userData.openId },
+      { $set: updateData, $setOnInsert: { openId: userData.openId, createdAt: new Date() } },
+      { upsert: true, new: true }
+    );
+  } catch (error) {
+    console.error('[Database] Failed to upsert user:', error);
+    throw error;
+  }
 }
 
-// Analytics Query Helpers
+/**
+ * Analytics and Statistics Functions
+ * These will be implemented later when we have pickup/customer data
+ */
 
-export async function getOverviewMetrics() {
-  const db = await getDb();
-  if (!db) return null;
-
-  const totalCustomers = await db.select({ count: sql<number>`count(*)` }).from(customers);
-  const totalPickups = await db.select({ count: sql<number>`count(*)` }).from(pickups);
-  const totalRevenue = await db.select({ sum: sql<number>`sum(amount)` }).from(pickups).where(eq(pickups.paymentStatus, 'paid'));
-  const pendingPayments = await db.select({ count: sql<number>`count(*)` }).from(pickups).where(eq(pickups.paymentStatus, 'pending'));
-
-  return {
-    totalCustomers: totalCustomers[0]?.count || 0,
-    totalPickups: totalPickups[0]?.count || 0,
-    totalRevenue: totalRevenue[0]?.sum || 0,
-    pendingPayments: pendingPayments[0]?.count || 0,
-  };
+export async function getCompanyCount(): Promise<number> {
+  try {
+    await connectToMongoDB();
+    return await Company.countDocuments({ active: true });
+  } catch (error) {
+    console.error('[Database] Failed to get company count:', error);
+    return 0;
+  }
 }
 
-export async function getRevenueByType() {
-  const db = await getDb();
-  if (!db) return [];
+export async function getCompanyStatistics() {
+  try {
+    await connectToMongoDB();
+    const totalCompanies = await Company.countDocuments({ active: true });
+    const inactiveCompanies = await Company.countDocuments({ active: false });
+    
+    // Count total operational lots across all companies
+    const companies = await Company.find({ active: true });
+    const totalLots = companies.reduce((sum, company) => sum + company.operationalLots.length, 0);
 
-  return db
-    .select({
-      pickupType: pickups.pickupType,
-      customerType: pickups.customerType,
-      totalRevenue: sql<number>`sum(${pickups.amount})`,
-      count: sql<number>`count(*)`,
-    })
-    .from(pickups)
-    .where(eq(pickups.paymentStatus, 'paid'))
-    .groupBy(pickups.pickupType, pickups.customerType);
-}
-
-export async function getCompanyPerformance() {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db
-    .select({
-      companyId: pickups.companyId,
-      companyName: companies.name,
-      totalRevenue: sql<number>`sum(${pickups.amount})`,
-      pickupCount: sql<number>`count(*)`,
-    })
-    .from(pickups)
-    .leftJoin(companies, eq(pickups.companyId, companies.id))
-    .where(eq(pickups.paymentStatus, 'paid'))
-    .groupBy(pickups.companyId, companies.name);
-}
-
-export async function getRecentPickups(limit: number = 10) {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db
-    .select({
-      id: pickups.id,
-      customerName: customers.name,
-      customerEmail: customers.email,
-      companyName: companies.name,
-      pickupType: pickups.pickupType,
-      customerType: pickups.customerType,
-      amount: pickups.amount,
-      paymentStatus: pickups.paymentStatus,
-      pickupDate: pickups.pickupDate,
-    })
-    .from(pickups)
-    .leftJoin(customers, eq(pickups.customerId, customers.id))
-    .leftJoin(companies, eq(pickups.companyId, companies.id))
-    .orderBy(desc(pickups.pickupDate))
-    .limit(limit);
-}
-
-export async function getCustomersByType() {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db
-    .select({
-      customerType: customers.customerType,
-      count: sql<number>`count(*)`,
-    })
-    .from(customers)
-    .where(eq(customers.status, 'active'))
-    .groupBy(customers.customerType);
-}
-
-export async function getMonthlyBillingSummary(month: string) {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db
-    .select()
-    .from(monthlyBills)
-    .where(eq(monthlyBills.billingMonth, month))
-    .orderBy(desc(monthlyBills.createdAt));
-}
-
-export async function getAllCompanies() {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db.select().from(companies).where(eq(companies.status, 'active'));
-}
-
-export async function getAllCustomers() {
-  const db = await getDb();
-  if (!db) return [];
-
-  return db.select().from(customers).orderBy(desc(customers.createdAt));
-}
-
-export async function getCustomerById(id: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  const result = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
-  return result[0] || null;
+    return {
+      totalCompanies,
+      inactiveCompanies,
+      totalLots,
+      averageLotsPerCompany: totalCompanies > 0 ? (totalLots / totalCompanies).toFixed(2) : 0
+    };
+  } catch (error) {
+    console.error('[Database] Failed to get company statistics:', error);
+    return {
+      totalCompanies: 0,
+      inactiveCompanies: 0,
+      totalLots: 0,
+      averageLotsPerCompany: 0
+    };
+  }
 }

@@ -21,6 +21,7 @@ interface Company {
   _id: string;
   companyId: string;
   companyName: string;
+  pin: string; // PIN for mobile app authentication
   operationalLots: OperationalLot[];
   active: boolean;
 }
@@ -69,10 +70,9 @@ export default function Companies() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
     const operationalLots: OperationalLot[] = [];
-    const lotCount = parseInt(formData.get('lotCount') as string) || 1;
     
+    const lotCount = parseInt(formData.get('lotCount') as string);
     for (let i = 0; i < lotCount; i++) {
       operationalLots.push({
         lotCode: formData.get(`lotCode_${i}`) as string,
@@ -85,6 +85,7 @@ export default function Companies() {
     createMutation.mutate({
       companyId: formData.get('companyId') as string,
       companyName: formData.get('companyName') as string,
+      pin: formData.get('pin') as string,
       operationalLots,
     });
   };
@@ -113,6 +114,7 @@ export default function Companies() {
     updateMutation.mutate({
       id: selectedCompany._id,
       companyName: formData.get('companyName') as string,
+      pin: formData.get('pin') as string,
       operationalLots,
     });
   };
@@ -167,6 +169,12 @@ export default function Companies() {
                 <div className="space-y-2">
                   <Label htmlFor="companyName">Company Name</Label>
                   <Input id="companyName" name="companyName" required placeholder="e.g., MOTTAINAI" />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="pin">PIN (4-6 digits)</Label>
+                  <Input id="pin" name="pin" required placeholder="e.g., 1234" minLength={4} maxLength={6} />
+                  <p className="text-sm text-muted-foreground">Used for mobile app authentication</p>
                 </div>
                 
                 <div className="space-y-2">
@@ -281,6 +289,19 @@ export default function Companies() {
                     defaultValue={selectedCompany.companyName}
                     required
                   />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-pin">PIN (4-6 digits)</Label>
+                  <Input
+                    id="edit-pin"
+                    name="pin"
+                    defaultValue={selectedCompany.pin}
+                    required
+                    minLength={4}
+                    maxLength={6}
+                  />
+                  <p className="text-sm text-muted-foreground">Used for mobile app authentication</p>
                 </div>
                 
                 <div className="space-y-2">

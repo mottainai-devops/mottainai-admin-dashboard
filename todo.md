@@ -185,3 +185,17 @@
 - [ ] Test dashboard loads and connects to API
 - [ ] Test field ops still works
 - [ ] Verify all dashboard modules functional
+
+
+## Phase 23: Convert Dashboard to MongoDB
+- [x] Install Mongoose and MongoDB dependencies
+- [x] Remove Drizzle ORM and MySQL dependencies
+- [x] Create Mongoose schema for companies matching production structure
+- [x] Add PIN field to company schema for authentication
+- [x] Update db.ts to use MongoDB connection
+- [x] Convert all database queries from Drizzle to Mongoose
+- [x] Update tRPC procedures to use MongoDB
+- [x] Add PIN field to create company form
+- [x] Add PIN field to edit company form
+- [ ] Deploy to production server
+- [ ] Verify companies load with PINs in dashboard

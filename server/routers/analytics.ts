@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { TRPCError } from '@trpc/server';
+import * as db from '../db';
 
 const BACKEND_API_URL = 'http://172.232.24.180:3000';
 
@@ -30,17 +31,8 @@ export const analyticsRouter = router({
    */
   getCompanyStats: protectedProcedure.query(async (): Promise<CompanyStats[]> => {
     try {
-      // Fetch companies
-      const response = await fetch(`${BACKEND_API_URL}/companies/active`);
-      if (!response.ok) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to fetch companies',
-        });
-      }
-
-      const data = await response.json();
-      const companies = data.data || [];
+      // Fetch companies from MongoDB
+      const companies = await db.getAllCompanies();
 
       // For now, return mock stats since we don't have submission data yet
       // In production, this would query the actual submission database
@@ -68,17 +60,8 @@ export const analyticsRouter = router({
    */
   getSystemMetrics: protectedProcedure.query(async () => {
     try {
-      // Fetch companies to count
-      const response = await fetch(`${BACKEND_API_URL}/companies/active`);
-      if (!response.ok) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to fetch system metrics',
-        });
-      }
-
-      const data = await response.json();
-      const companies = data.data || [];
+      // Fetch companies from MongoDB
+      const companies = await db.getAllCompanies();
 
       // Calculate metrics
       const totalCompanies = companies.length;
@@ -138,17 +121,8 @@ export const analyticsRouter = router({
    */
   getWebhookHealth: protectedProcedure.query(async (): Promise<WebhookStatus[]> => {
     try {
-      // Fetch companies with webhooks
-      const response = await fetch(`${BACKEND_API_URL}/companies/active`);
-      if (!response.ok) {
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Failed to fetch webhook health',
-        });
-      }
-
-      const data = await response.json();
-      const companies = data.data || [];
+      // Fetch companies from MongoDB
+      const companies = await db.getAllCompanies();
 
       // Extract unique webhooks
       const webhooks: Set<string> = new Set();
@@ -265,16 +239,8 @@ export const analyticsRouter = router({
     }))
     .query(async ({ input }) => {
       try {
-        const response = await fetch(`${BACKEND_API_URL}/companies/active`);
-        if (!response.ok) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Failed to fetch companies',
-          });
-        }
-
-        const data = await response.json();
-        const companies = data.data || [];
+        // Fetch companies from MongoDB
+        const companies = await db.getAllCompanies();
 
         // Generate mock stats and sort
         const stats = companies.map((company: any) => ({
