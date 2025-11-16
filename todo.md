@@ -197,5 +197,5 @@
 - [x] Update tRPC procedures to use MongoDB
 - [x] Add PIN field to create company form
 - [x] Add PIN field to edit company form
-- [ ] Deploy to production server
-- [ ] Verify companies load with PINs in dashboard
+- [x] Deploy to production server
+- [x] Verify companies load with PINs in dashboard (13 companies with PIN='0000')
