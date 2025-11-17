@@ -19,6 +19,7 @@ interface User {
   email: string | null;
   role: 'superadmin' | 'admin' | 'user';
   active: boolean;
+  companyId: string | null;
   loginMethod: 'password' | 'oauth' | null;
   createdAt: Date;
   lastSignedIn: Date;
@@ -38,11 +39,13 @@ export default function Users() {
     name: "",
     email: "",
     role: "admin" as 'superadmin' | 'admin' | 'user',
+    companyId: "",
     active: true,
   });
 
   const utils = trpc.useUtils();
   const { data: users, isLoading } = trpc.users.list.useQuery();
+  const { data: companies } = trpc.companies.list.useQuery();
 
   const createMutation = trpc.users.create.useMutation({
     onSuccess: () => {
@@ -88,6 +91,7 @@ export default function Users() {
       name: "",
       email: "",
       role: "admin",
+      companyId: "",
       active: true,
     });
   };
@@ -97,7 +101,10 @@ export default function Users() {
       toast.error("Username and password are required");
       return;
     }
-    createMutation.mutate(formData);
+    createMutation.mutate({
+      ...formData,
+      companyId: formData.companyId || undefined,
+    });
   };
 
   const handleEdit = (user: User) => {
@@ -108,6 +115,7 @@ export default function Users() {
       name: user.name || "",
       email: user.email || "",
       role: user.role,
+      companyId: user.companyId || "",
       active: user.active,
     });
     setIsEditDialogOpen(true);
@@ -121,6 +129,7 @@ export default function Users() {
       name: formData.name || null,
       email: formData.email || null,
       role: formData.role,
+      companyId: formData.companyId || null,
       active: formData.active,
     };
 
@@ -204,6 +213,9 @@ export default function Users() {
               <div className="flex items-center justify-between">
                 <div className="text-sm text-gray-600 space-y-1">
                   {user.email && <div>Email: {user.email}</div>}
+                  {user.companyId && (
+                    <div>Company: {companies?.find(c => c._id === user.companyId)?.companyName || 'Unknown'}</div>
+                  )}
                   <div>Login Method: {user.loginMethod || 'N/A'}</div>
                   <div>Last Sign In: {new Date(user.lastSignedIn).toLocaleDateString()}</div>
                 </div>
@@ -292,6 +304,22 @@ export default function Users() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label htmlFor="create-company">Assigned Company (Optional)</Label>
+              <Select value={formData.companyId || "none"} onValueChange={(value) => setFormData({ ...formData, companyId: value === "none" ? "" : value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a company" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {companies?.map((company) => (
+                    <SelectItem key={company._id} value={company._id}>
+                      {company.companyName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -360,6 +388,22 @@ export default function Users() {
                   {isSuperAdmin && <SelectItem value="superadmin">Super Admin</SelectItem>}
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-company">Assigned Company (Optional)</Label>
+              <Select value={formData.companyId || "none"} onValueChange={(value) => setFormData({ ...formData, companyId: value === "none" ? "" : value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a company" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {companies?.map((company) => (
+                    <SelectItem key={company._id} value={company._id}>
+                      {company.companyName}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -13,6 +13,7 @@ export interface IUser extends Document {
   name: string | null;
   role: 'superadmin' | 'admin' | 'user';
   active: boolean; // Can be disabled without deletion
+  companyId: string | null; // Assigned company for regular users
   openId: string | null; // For OAuth compatibility (optional)
   loginMethod: 'password' | 'oauth' | null;
   createdAt: Date;
@@ -37,6 +38,7 @@ const userSchema = new Schema<IUser>({
     required: true 
   },
   active: { type: Boolean, default: true },
+  companyId: { type: String, default: null }, // Reference to Company _id
   openId: { type: String, default: null, sparse: true }, // OAuth compatibility
   loginMethod: { type: String, enum: ['password', 'oauth'], default: 'password' },
   createdAt: { type: Date, default: Date.now },

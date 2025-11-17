@@ -153,6 +153,7 @@ export interface InsertUser {
   name?: string | null;
   email?: string | null;
   password?: string | null;
+  companyId?: string | null; // Assigned company for regular users
   loginMethod?: 'password' | 'oauth' | null;
   role?: 'superadmin' | 'admin' | 'user';
   active?: boolean;

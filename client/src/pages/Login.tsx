@@ -14,22 +14,33 @@ export default function Login() {
   const [, setLocation] = useLocation();
 
   const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("[Login] Success callback triggered", data);
       toast.success("Login successful!");
       setLocation("/");
     },
     onError: (error) => {
+      console.error("[Login] Error callback triggered", error);
       toast.error(error.message || "Invalid credentials");
+    },
+    onMutate: (variables) => {
+      console.log("[Login] Mutation started", variables);
+    },
+    onSettled: (data, error) => {
+      console.log("[Login] Mutation settled", { data, error, isPending: loginMutation.isPending });
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[Login] Form submitted", { username, hasPassword: !!password });
     if (!username || !password) {
       toast.error("Please enter username and password");
       return;
     }
+    console.log("[Login] Calling mutation.mutate");
     loginMutation.mutate({ username, password });
+    console.log("[Login] Mutation.mutate called, isPending:", loginMutation.isPending);
   };
 
   return (

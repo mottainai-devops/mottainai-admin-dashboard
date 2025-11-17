@@ -229,3 +229,56 @@
 - [ ] Remove nginx HTTP Basic Auth
 - [ ] Test authentication flow
 - [ ] Create admin user guide
+
+
+## Phase 26: Fix Login Authentication Issue
+- [ ] Inspect browser network request/response for login mutation
+- [ ] Check if tRPC response format matches expected structure
+- [ ] Verify frontend receives success response
+- [ ] Fix any response parsing or callback issues
+- [ ] Test login redirects to dashboard correctly
+- [ ] Verify session persistence after login
+
+
+## Phase 27: Update Company PINs for Mobile App
+- [x] Update all company PINs from "0000" (4 digits) to "000000" (6 digits)
+- [x] Verify PIN update in MongoDB - Added PIN to 12 companies, 13 total now have PINs
+- [ ] Test mobile app authentication with 6-digit PIN
+- [ ] Document test credentials for mobile app
+
+
+## Phase 28: User-Company Association Analysis & Fix
+- [ ] Check all users in database and their company associations
+- [ ] Find Urban Spirit's companyId
+- [ ] Identify users without companyId
+- [ ] Match users to companies based on data patterns
+- [ ] Link adeyadewuyi@gmail.com to Urban Spirit
+- [ ] Export all user data to CSV/JSON for review
+- [ ] Verify user-company relationships are correct
+
+
+## Phase 29: Fix Login Credentials Issue
+- [ ] Check what credentials are in the database
+- [ ] Verify password hashing is working correctly
+- [ ] Test login with admin/Mottainai2025! credentials
+- [ ] Create test user if needed
+- [ ] Verify session cookie is set correctly
+
+
+## Phase 30: Fix Critical Production Issues
+- [ ] Fix mobile app "no company assigned" error
+- [ ] Fix admin.kowope.xyz not loading companies
+- [ ] Add missing 5 modules to admin dashboard
+- [ ] Resolve conflict between admin.kowope.xyz and upwork.kowope.xyz
+- [ ] Test mobile app with company assignment
+- [ ] Verify all admin dashboard modules working
+
+
+## Phase 31: Company Assignment Feature for User Management
+- [x] Update user schema to include companyId field
+- [x] Add backend API to fetch companies list for dropdown
+- [x] Update user creation form to include company dropdown
+- [x] Update user edit form to include company dropdown
+- [x] Display assigned company name in user list table
+- [x] Test company assignment functionality locally
+- [x] Deploy updated feature to production

@@ -23,6 +23,7 @@ export const usersRouter = router({
         email: user.email,
         role: user.role,
         active: user.active,
+        companyId: user.companyId,
         loginMethod: user.loginMethod,
         createdAt: user.createdAt,
         lastSignedIn: user.lastSignedIn,
@@ -53,6 +54,7 @@ export const usersRouter = router({
         email: user.email,
         role: user.role,
         active: user.active,
+        companyId: user.companyId,
         loginMethod: user.loginMethod,
         createdAt: user.createdAt,
         lastSignedIn: user.lastSignedIn,
@@ -69,6 +71,7 @@ export const usersRouter = router({
       name: z.string().optional(),
       email: z.string().email().optional(),
       role: z.enum(['superadmin', 'admin', 'user']).default('admin'),
+      companyId: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       try {
@@ -78,6 +81,7 @@ export const usersRouter = router({
           name: input.name || null,
           email: input.email || null,
           role: input.role,
+          companyId: input.companyId || null,
           active: true,
         });
 
@@ -115,6 +119,7 @@ export const usersRouter = router({
       email: z.string().email().optional(),
       role: z.enum(['superadmin', 'admin', 'user']).optional(),
       active: z.boolean().optional(),
+      companyId: z.string().optional(),
       password: z.string().min(6).optional(),
     }))
     .mutation(async ({ input }) => {

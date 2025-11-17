@@ -17,10 +17,12 @@ export const authRouter = router({
       password: z.string().min(6, 'Password must be at least 6 characters'),
     }))
     .mutation(async ({ input, ctx }) => {
+      console.log('[Auth] Login attempt:', { username: input?.username, hasPassword: !!input?.password });
       const { username, password } = input;
 
       // Find user by username
       const user = await db.getUserByUsername(username);
+      console.log('[Auth] User lookup result:', !!user, user ? { id: user._id, username: user.username, hasPassword: !!user.password, active: user.active } : null);
       
       if (!user) {
         throw new TRPCError({
@@ -38,7 +40,9 @@ export const authRouter = router({
       }
 
       // Verify password
+      console.log('[Auth] Comparing password...');
       const isValid = await user.comparePassword(password);
+      console.log('[Auth] Password comparison result:', isValid);
       
       if (!isValid) {
         throw new TRPCError({
@@ -48,17 +52,21 @@ export const authRouter = router({
       }
 
       // Update last signed in
+      console.log('[Auth] Updating lastSignedIn...');
       await db.updateUser(user._id, { lastSignedIn: new Date() });
+      console.log('[Auth] Updated successfully');
 
       // Set session cookie (using user ID as session identifier)
+      console.log('[Auth] Setting session cookie...');
       ctx.res.cookie('session_user_id', user._id, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: true, // Always use secure for HTTPS
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       });
 
+      console.log('[Auth] Login successful, returning response');
       return {
         success: true,
         user: {
@@ -78,7 +86,7 @@ export const authRouter = router({
     .mutation(({ ctx }) => {
       ctx.res.clearCookie('session_user_id', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: true, // Always use secure for HTTPS
         sameSite: 'lax',
         path: '/',
       });
@@ -97,19 +105,25 @@ export const authRouter = router({
         return null;
       }
 
-      const user = await db.getUserById(userId);
+      try {
+        const user = await db.getUserById(userId);
 
-      if (!user || !user.active) {
+        if (!user || !user.active) {
+          return null;
+        }
+
+        return {
+          id: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        };
+      } catch (error) {
+        console.error('[Auth] me query failed:', error);
+        // Return null if database is unavailable (dev environment)
         return null;
       }
-
-      return {
-        id: user._id,
-        username: user.username,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      };
     }),
 
   /**
