@@ -148,16 +148,14 @@ export async function hardDeleteCompany(id: string): Promise<boolean> {
  */
 
 export interface InsertUser {
-  openId?: string | null; // Optional for password-based users
+  fullName: string;
   username?: string;
-  name?: string | null;
   email?: string | null;
+  phone?: string | null;
   password?: string | null;
-  companyId?: string | null; // Assigned company for regular users
-  loginMethod?: 'password' | 'oauth' | null;
-  role?: 'superadmin' | 'admin' | 'user';
-  active?: boolean;
-  lastSignedIn?: Date;
+  companyId?: string | null;
+  role?: 'admin' | 'user';
+  monthlyBilling?: boolean;
 }
 
 export async function getUserByOpenId(openId: string): Promise<IUser | null> {
@@ -218,16 +216,16 @@ export async function createUser(userData: InsertUser): Promise<IUser> {
     }
 
     const user = new User({
-      username: userData.username.toLowerCase(),
+      fullName: userData.fullName,
+      username: userData.username?.toLowerCase(),
       password: userData.password, // Will be hashed by pre-save hook
       email: userData.email || null,
-      name: userData.name || null,
-      role: userData.role || 'admin',
-      active: userData.active !== undefined ? userData.active : true,
-      loginMethod: 'password',
+      phone: userData.phone || null,
+      role: userData.role || 'user',
+      companyId: userData.companyId || null,
+      monthlyBilling: userData.monthlyBilling || false,
       createdAt: new Date(),
-      updatedAt: new Date(),
-      lastSignedIn: new Date()
+      updatedAt: new Date()
     });
 
     await user.save();
@@ -246,10 +244,12 @@ export async function updateUser(id: string, userData: Partial<InsertUser>): Pro
       updatedAt: new Date()
     };
 
-    if (userData.name !== undefined) updateData.name = userData.name;
+    if (userData.fullName !== undefined) updateData.fullName = userData.fullName;
     if (userData.email !== undefined) updateData.email = userData.email;
+    if (userData.phone !== undefined) updateData.phone = userData.phone || undefined;
     if (userData.role !== undefined) updateData.role = userData.role;
-    if (userData.active !== undefined) updateData.active = userData.active;
+    if (userData.companyId !== undefined) updateData.companyId = userData.companyId;
+    if (userData.monthlyBilling !== undefined) updateData.monthlyBilling = userData.monthlyBilling;
 
     // If password is being updated, hash it
     if (userData.password) {
@@ -282,9 +282,9 @@ export async function deleteUser(id: string): Promise<boolean> {
   }
 }
 
-export async function upsertUser(userData: InsertUser): Promise<void> {
-  if (!userData.openId) {
-    throw new Error('User openId is required for upsert');
+export async function upsertUser(userData: InsertUser & { username: string }): Promise<void> {
+  if (!userData.username) {
+    throw new Error('User username is required for upsert');
   }
 
   try {
@@ -294,23 +294,18 @@ export async function upsertUser(userData: InsertUser): Promise<void> {
       updatedAt: new Date()
     };
 
-    if (userData.name !== undefined) updateData.name = userData.name;
+    if (userData.fullName !== undefined) updateData.fullName = userData.fullName;
     if (userData.email !== undefined) updateData.email = userData.email;
-    if (userData.loginMethod !== undefined) {
-      updateData.loginMethod = userData.loginMethod as 'password' | 'oauth' | null;
-    }
-    if (userData.lastSignedIn !== undefined) updateData.lastSignedIn = userData.lastSignedIn;
+    if (userData.phone !== undefined) updateData.phone = userData.phone || undefined;
     
-    // Set role to admin if this is the owner
+    // Set role
     if (userData.role !== undefined) {
       updateData.role = userData.role;
-    } else if (userData.openId === ENV.ownerOpenId) {
-      updateData.role = 'admin';
     }
 
     await User.findOneAndUpdate(
-      { openId: userData.openId },
-      { $set: updateData, $setOnInsert: { openId: userData.openId, createdAt: new Date() } },
+      { username: userData.username },
+      { $set: updateData, $setOnInsert: { username: userData.username, createdAt: new Date() } },
       { upsert: true, new: true }
     );
   } catch (error) {

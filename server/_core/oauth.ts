@@ -28,13 +28,8 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
-      await db.upsertUser({
-        openId: userInfo.openId,
-        name: userInfo.name || null,
-        email: userInfo.email ?? null,
-        loginMethod: 'oauth' as const,
-        lastSignedIn: new Date(),
-      });
+      // OAuth upsert removed - production uses password-based auth
+      // await db.upsertUser({ ... });
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {
         name: userInfo.name || "",

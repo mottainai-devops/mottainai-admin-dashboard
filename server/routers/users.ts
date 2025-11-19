@@ -26,14 +26,14 @@ export const usersRouter = router({
         return users.map(user => ({
           id: user._id,
           username: user.username,
-          name: user.name,
+          fullName: user.fullName,
           email: user.email,
+          phone: user.phone,
           role: user.role,
-          active: user.active,
           companyId: user.companyId,
-          loginMethod: user.loginMethod,
+          monthlyBilling: user.monthlyBilling,
           createdAt: user.createdAt,
-          lastSignedIn: user.lastSignedIn,
+          updatedAt: user.updatedAt,
         }));
       } catch (error) {
         console.error('[Users] Failed to get users from database:', error);
@@ -62,14 +62,14 @@ export const usersRouter = router({
       return {
         id: user._id,
         username: user.username,
-        name: user.name,
+        fullName: user.fullName,
         email: user.email,
+        phone: user.phone,
         role: user.role,
-        active: user.active,
         companyId: user.companyId,
-        loginMethod: user.loginMethod,
+        monthlyBilling: user.monthlyBilling,
         createdAt: user.createdAt,
-        lastSignedIn: user.lastSignedIn,
+        updatedAt: user.updatedAt,
       };
     }),
 
@@ -78,23 +78,24 @@ export const usersRouter = router({
    */
   create: adminProcedure
     .input(z.object({
-      username: z.string().min(3, 'Username must be at least 3 characters'),
+      fullName: z.string().min(1, 'Full name is required'),
+      username: z.string().min(3, 'Username must be at least 3 characters').optional(),
       password: z.string().min(6, 'Password must be at least 6 characters'),
-      name: z.string().optional(),
       email: z.string().email().optional(),
-      role: z.enum(['superadmin', 'admin', 'user']).default('admin'),
+      phone: z.string().optional(),
+      role: z.enum(['admin', 'user']).default('user'),
       companyId: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       try {
         const user = await db.createUser({
+          fullName: input.fullName,
           username: input.username,
           password: input.password,
-          name: input.name || null,
           email: input.email || null,
+          phone: input.phone || null,
           role: input.role,
           companyId: input.companyId || null,
-          active: true,
         });
 
         return {
@@ -102,7 +103,7 @@ export const usersRouter = router({
           user: {
             id: user._id,
             username: user.username,
-            name: user.name,
+            fullName: user.fullName,
             email: user.email,
             role: user.role,
           },
@@ -127,10 +128,10 @@ export const usersRouter = router({
   update: adminProcedure
     .input(z.object({
       id: z.string(),
-      name: z.string().optional(),
+      fullName: z.string().optional(),
       email: z.string().email().optional(),
-      role: z.enum(['superadmin', 'admin', 'user']).optional(),
-      active: z.boolean().optional(),
+      phone: z.string().optional(),
+      role: z.enum(['admin', 'user']).optional(),
       companyId: z.string().optional(),
       password: z.string().min(6).optional(),
     }))
@@ -152,10 +153,10 @@ export const usersRouter = router({
           user: {
             id: user._id,
             username: user.username,
-            name: user.name,
+            fullName: user.fullName,
             email: user.email,
             role: user.role,
-            active: user.active,
+            phone: user.phone,
           },
         };
       } catch (error) {
@@ -174,13 +175,18 @@ export const usersRouter = router({
       id: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Prevent non-superadmins from deleting superadmins
+      // Prevent deleting admin users (optional safety check)
       const targetUser = await db.getUserById(input.id);
-      if (targetUser?.role === 'superadmin' && ctx.user?.role !== 'superadmin') {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Only superadmins can delete superadmin users',
-        });
+      if (targetUser?.role === 'admin') {
+        // Count remaining admins
+        const allUsers = await db.getAllUsers();
+        const adminCount = allUsers.filter(u => u.role === 'admin').length;
+        if (adminCount <= 1) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot delete the last admin user',
+          });
+        }
       }
       const success = await db.deleteUser(input.id);
 

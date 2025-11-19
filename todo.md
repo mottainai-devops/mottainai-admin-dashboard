@@ -556,3 +556,24 @@
 - [ ] Test MongoDB connection with production database - Requires user to update MONGODB_URI
 - [ ] Test email notifications for password reset - Requires testing
 - [ ] Test audit log export downloads correctly - Requires testing
+
+
+## Phase 44: Adapt Dashboard to Production MongoDB Schema
+- [ ] Update Mongoose schema to match production database (fullName, phone, etc.)
+- [ ] Update authentication to work with production user schema
+- [ ] Test login with production admin credentials
+- [ ] Update Users page to display production user fields
+- [ ] Configure MongoDB connection for production deployment
+- [ ] Test all 109 users are visible in dashboard
+
+
+## Phase 44: Adapt Dashboard to Production MongoDB Schema
+- [x] Update User model to match production schema (fullName, phone, companyId, monthlyBilling)
+- [x] Remove openId field (OAuth-specific, not used in production)
+- [x] Remove active field (not used in production)
+- [x] Remove loginMethod field (not used in production)
+- [x] Remove superadmin role (only admin and user in production)
+- [x] Update all routers to use new schema fields
+- [x] Update all database functions to use new schema
+- [x] Fix all TypeScript errors from schema changes (21 → 0 errors)
+- [ ] Test dashboard with production MongoDB connection

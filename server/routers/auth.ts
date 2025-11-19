@@ -22,7 +22,7 @@ export const authRouter = router({
 
       // Find user by username
       const user = await db.getUserByUsername(username);
-      console.log('[Auth] User lookup result:', !!user, user ? { id: user._id, username: user.username, hasPassword: !!user.password, active: user.active } : null);
+      console.log('[Auth] User lookup result:', !!user, user ? { id: user._id, username: user.username, hasPassword: !!user.password } : null);
       
       if (!user) {
         throw new TRPCError({
@@ -31,13 +31,7 @@ export const authRouter = router({
         });
       }
 
-      // Check if user is active
-      if (!user.active) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Your account has been disabled. Please contact an administrator.',
-        });
-      }
+      // Active status check removed - production schema doesn't have active field
 
       // Verify password
       console.log('[Auth] Comparing password...');
@@ -51,10 +45,7 @@ export const authRouter = router({
         });
       }
 
-      // Update last signed in
-      console.log('[Auth] Updating lastSignedIn...');
-      await db.updateUser(user._id, { lastSignedIn: new Date() });
-      console.log('[Auth] Updated successfully');
+      // Update last signed in removed - production schema uses timestamps
 
       // Set session cookie (using user ID as session identifier)
       console.log('[Auth] Setting session cookie...');
@@ -76,7 +67,7 @@ export const authRouter = router({
         user: {
           id: user._id,
           username: user.username,
-          name: user.name,
+          fullName: user.fullName,
           email: user.email,
           role: user.role,
         },
@@ -112,14 +103,14 @@ export const authRouter = router({
       try {
         const user = await db.getUserById(userId);
 
-        if (!user || !user.active) {
+        if (!user) {
           return null;
         }
 
         return {
           id: user._id,
           username: user.username,
-          name: user.name,
+          fullName: user.fullName,
           email: user.email,
           role: user.role,
         };

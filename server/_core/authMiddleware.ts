@@ -25,10 +25,9 @@ async function getUserFromContext(ctx: any) {
       return {
         _id: decoded.id.toString(),
         username: decoded.username,
-        name: decoded.username,
+        fullName: decoded.username,
         email: null,
         role: decoded.role,
-        active: true,
       };
     } catch (error) {
       // Token invalid, fall through to cookie check
@@ -55,7 +54,7 @@ const t = initTRPC.context<TrpcContext>().create({
 export const isAuthenticated = t.middleware(async ({ ctx, next }: any) => {
   const user = await getUserFromContext(ctx);
 
-  if (!user || !user.active) {
+  if (!user) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'Not authenticated. Please log in.',
@@ -68,7 +67,7 @@ export const isAuthenticated = t.middleware(async ({ ctx, next }: any) => {
       user: {
         id: user._id,
         username: user.username,
-        name: user.name,
+        fullName: user.fullName,
         email: user.email,
         role: user.role,
       },
@@ -83,14 +82,14 @@ export const isAuthenticated = t.middleware(async ({ ctx, next }: any) => {
 export const isAdmin = t.middleware(async ({ ctx, next }: any) => {
   const user = await getUserFromContext(ctx);
 
-  if (!user || !user.active) {
+  if (!user) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
       message: 'Not authenticated.',
     });
   }
 
-  if (user.role !== 'admin' && user.role !== 'superadmin') {
+  if (user.role !== 'admin') {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'Admin access required.',
@@ -103,7 +102,7 @@ export const isAdmin = t.middleware(async ({ ctx, next }: any) => {
       user: {
         id: user._id,
         username: user.username,
-        name: user.name,
+        fullName: user.fullName,
         email: user.email,
         role: user.role,
       },
@@ -118,14 +117,14 @@ export const isAdmin = t.middleware(async ({ ctx, next }: any) => {
 export const isSuperAdmin = t.middleware(async ({ ctx, next }: any) => {
   const user = await getUserFromContext(ctx);
 
-  if (!user || !user.active) {
+  if (!user) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
-      message: 'User not found or inactive.',
+      message: 'User not found.',
     });
   }
 
-  if (user.role !== 'superadmin') {
+  if (user.role !== 'admin') {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'Superadmin access required.',
@@ -138,7 +137,7 @@ export const isSuperAdmin = t.middleware(async ({ ctx, next }: any) => {
       user: {
         id: user._id,
         username: user.username,
-        name: user.name,
+        fullName: user.fullName,
         email: user.email,
         role: user.role,
       },
