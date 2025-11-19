@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Test</title>
+</head>
+<body>
+    <h1>Login Test</h1>
+    <form id="loginForm">
+        <input type="text" id="username" placeholder="Username" value="admin"><br>
+        <input type="password" id="password" placeholder="Password" value="admin123"><br>
+        <button type="submit">Login</button>
+    </form>
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = 'Logging in...';
+            
+            try {
+                const response = await fetch('/api/trpc/simpleAuth.login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        json: { username, password }
+                    }),
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (data.result?.data?.json?.token) {
+                    localStorage.setItem('auth_token', data.result.data.json.token);
+                    resultDiv.innerHTML += '<br><a href="/">Go to Dashboard</a>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = 'Error: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>

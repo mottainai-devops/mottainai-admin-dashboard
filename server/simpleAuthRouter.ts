@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
 const JWT_SECRET = process.env.JWT_SECRET || "mottainai-secret-key-change-in-production";
 
@@ -19,20 +20,26 @@ type SimpleUser = {
   lastSignedIn: Date;
 };
 
-const USERS: SimpleUser[] = [
-  {
-    id: 1,
-    username: "admin",
-    password: "admin123", // In production, use hashed passwords
-    name: "Administrator",
-    email: "admin@mottainai.com",
-    role: "admin",
-    active: true,
-    companyId: null,
-    createdAt: new Date(),
-    lastSignedIn: new Date(),
-  },
-];
+// Initialize with hashed password for admin user
+const USERS: SimpleUser[] = [];
+
+// Initialize admin user with hashed password
+(async () => {
+  if (USERS.length === 0) {
+    USERS.push({
+      id: 1,
+      username: "admin",
+      password: await bcrypt.hash("admin123", 10),
+      name: "Administrator",
+      email: "admin@mottainai.com",
+      role: "admin",
+      active: true,
+      companyId: null,
+      createdAt: new Date(),
+      lastSignedIn: new Date(),
+    });
+  }
+})();
 
 let nextUserId = 2;
 
@@ -45,12 +52,20 @@ export const simpleAuthRouter = router({
         password: z.string(),
       })
     )
-    .mutation(({ input }) => {
-      const user = USERS.find(
-        (u) => u.username === input.username && u.password === input.password
-      );
+    .mutation(async ({ input }) => {
+      const user = USERS.find((u) => u.username === input.username);
 
       if (!user) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Invalid username or password",
+        });
+      }
+
+      // Verify password using bcrypt
+      const passwordMatch = await bcrypt.compare(input.password, user.password);
+      
+      if (!passwordMatch) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Invalid username or password",
@@ -147,7 +162,7 @@ export const simpleAuthRouter = router({
         companyId: z.string().optional(),
       })
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       // Check if username already exists
       if (USERS.find(u => u.username === input.username)) {
         throw new TRPCError({
@@ -156,10 +171,13 @@ export const simpleAuthRouter = router({
         });
       }
 
+      // Hash password before storing
+      const hashedPassword = await bcrypt.hash(input.password, 10);
+
       const newUser: SimpleUser = {
         id: nextUserId++,
         username: input.username,
-        password: input.password,
+        password: hashedPassword,
         name: input.name || null,
         email: input.email || null,
         role: input.role,
@@ -197,7 +215,7 @@ export const simpleAuthRouter = router({
         companyId: z.string().optional(),
       })
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const userIndex = USERS.findIndex(u => String(u.id) === input.id);
       
       if (userIndex === -1) {
@@ -219,7 +237,10 @@ export const simpleAuthRouter = router({
 
       // Update user fields
       if (input.username) USERS[userIndex].username = input.username;
-      if (input.password) USERS[userIndex].password = input.password;
+      if (input.password) {
+        // Hash password before updating
+        USERS[userIndex].password = await bcrypt.hash(input.password, 10);
+      }
       if (input.name !== undefined) USERS[userIndex].name = input.name || null;
       if (input.email !== undefined) USERS[userIndex].email = input.email || null;
       if (input.role) USERS[userIndex].role = input.role;
@@ -245,7 +266,7 @@ export const simpleAuthRouter = router({
         id: z.string(),
       })
     )
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const userIndex = USERS.findIndex(u => String(u.id) === input.id);
       
       if (userIndex === -1) {
