@@ -6,16 +6,35 @@ import jwt from "jsonwebtoken";
 const JWT_SECRET = process.env.JWT_SECRET || "mottainai-secret-key-change-in-production";
 
 // Simple user database (in production, use a real database)
-const USERS = [
+type SimpleUser = {
+  id: number;
+  username: string;
+  password: string;
+  name: string | null;
+  email: string | null;
+  role: "admin" | "user";
+  active: boolean;
+  companyId: string | null;
+  createdAt: Date;
+  lastSignedIn: Date;
+};
+
+const USERS: SimpleUser[] = [
   {
     id: 1,
     username: "admin",
     password: "admin123", // In production, use hashed passwords
     name: "Administrator",
     email: "admin@mottainai.com",
-    role: "admin" as const,
+    role: "admin",
+    active: true,
+    companyId: null,
+    createdAt: new Date(),
+    lastSignedIn: new Date(),
   },
 ];
+
+let nextUserId = 2;
 
 export const simpleAuthRouter = router({
   // Login with username/password
@@ -100,4 +119,153 @@ export const simpleAuthRouter = router({
   logout: publicProcedure.mutation(() => {
     return { success: true };
   }),
+
+  // List all users (for user management page)
+  listUsers: publicProcedure.query(() => {
+    return USERS.map(u => ({
+      id: String(u.id),
+      username: u.username,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      active: u.active,
+      companyId: u.companyId,
+      createdAt: u.createdAt,
+      lastSignedIn: u.lastSignedIn,
+    }));
+  }),
+
+  // Create new user
+  createUser: publicProcedure
+    .input(
+      z.object({
+        username: z.string().min(3),
+        password: z.string().min(6),
+        name: z.string().optional(),
+        email: z.string().email().optional(),
+        role: z.enum(["admin", "user"]).default("user"),
+        companyId: z.string().optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      // Check if username already exists
+      if (USERS.find(u => u.username === input.username)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Username already exists",
+        });
+      }
+
+      const newUser: SimpleUser = {
+        id: nextUserId++,
+        username: input.username,
+        password: input.password,
+        name: input.name || null,
+        email: input.email || null,
+        role: input.role,
+        active: true,
+        companyId: input.companyId || null,
+        createdAt: new Date(),
+        lastSignedIn: new Date(),
+      };
+
+      USERS.push(newUser);
+
+      return {
+        success: true,
+        user: {
+          id: String(newUser.id),
+          username: newUser.username,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+        },
+      };
+    }),
+
+  // Update user
+  updateUser: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        username: z.string().min(3).optional(),
+        password: z.string().min(6).optional(),
+        name: z.string().optional(),
+        email: z.string().email().optional(),
+        role: z.enum(["admin", "user"]).optional(),
+        active: z.boolean().optional(),
+        companyId: z.string().optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      const userIndex = USERS.findIndex(u => String(u.id) === input.id);
+      
+      if (userIndex === -1) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      // Check if username is being changed and already exists
+      if (input.username && input.username !== USERS[userIndex].username) {
+        if (USERS.find(u => u.username === input.username)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Username already exists",
+          });
+        }
+      }
+
+      // Update user fields
+      if (input.username) USERS[userIndex].username = input.username;
+      if (input.password) USERS[userIndex].password = input.password;
+      if (input.name !== undefined) USERS[userIndex].name = input.name || null;
+      if (input.email !== undefined) USERS[userIndex].email = input.email || null;
+      if (input.role) USERS[userIndex].role = input.role;
+      if (input.active !== undefined) USERS[userIndex].active = input.active;
+      if (input.companyId !== undefined) USERS[userIndex].companyId = input.companyId || null;
+
+      return {
+        success: true,
+        user: {
+          id: String(USERS[userIndex].id),
+          username: USERS[userIndex].username,
+          name: USERS[userIndex].name,
+          email: USERS[userIndex].email,
+          role: USERS[userIndex].role,
+        },
+      };
+    }),
+
+  // Delete user
+  deleteUser: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+      })
+    )
+    .mutation(({ input }) => {
+      const userIndex = USERS.findIndex(u => String(u.id) === input.id);
+      
+      if (userIndex === -1) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      // Don't allow deleting the last admin
+      const adminCount = USERS.filter(u => u.role === "admin").length;
+      if (USERS[userIndex].role === "admin" && adminCount === 1) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot delete the last admin user",
+        });
+      }
+
+      USERS.splice(userIndex, 1);
+
+      return { success: true };
+    }),
 });

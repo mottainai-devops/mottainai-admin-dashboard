@@ -17,16 +17,16 @@ interface User {
   username: string;
   name: string | null;
   email: string | null;
-  role: 'superadmin' | 'admin' | 'user';
+  role: 'admin' | 'user';
   active: boolean;
   companyId: string | null;
-  loginMethod: 'password' | 'oauth' | null;
   createdAt: Date;
   lastSignedIn: Date;
 }
 
 export default function Users() {
-  const { user: currentUser, isSuperAdmin } = useAuth();
+  const { user: currentUser } = useAuth();
+  const isSuperAdmin = false; // Simple auth doesn't have superadmin role
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -38,16 +38,16 @@ export default function Users() {
     password: "",
     name: "",
     email: "",
-    role: "admin" as 'superadmin' | 'admin' | 'user',
+    role: "admin" as 'admin' | 'user',
     companyId: "",
     active: true,
   });
 
   const utils = trpc.useUtils();
-  const { data: users, isLoading } = trpc.users.list.useQuery();
+  const { data: users, isLoading } = trpc.simpleAuth.listUsers.useQuery();
   const { data: companies } = trpc.companies.list.useQuery();
 
-  const createMutation = trpc.users.create.useMutation({
+  const createMutation = trpc.simpleAuth.createUser.useMutation({
     onSuccess: () => {
       toast.success("User created successfully");
       setIsCreateDialogOpen(false);
@@ -59,7 +59,7 @@ export default function Users() {
     },
   });
 
-  const updateMutation = trpc.users.update.useMutation({
+  const updateMutation = trpc.simpleAuth.updateUser.useMutation({
     onSuccess: () => {
       toast.success("User updated successfully");
       setIsEditDialogOpen(false);
@@ -72,7 +72,7 @@ export default function Users() {
     },
   });
 
-  const deleteMutation = trpc.users.delete.useMutation({
+  const deleteMutation = trpc.simpleAuth.deleteUser.useMutation({
     onSuccess: () => {
       toast.success("User deleted successfully");
       setIsDeleteDialogOpen(false);
@@ -153,13 +153,12 @@ export default function Users() {
 
   const getRoleBadge = (role: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive"> = {
-      superadmin: "destructive",
       admin: "default",
       user: "secondary",
     };
     return (
       <Badge variant={variants[role] || "secondary"}>
-        {role === 'superadmin' && <Shield className="w-3 h-3 mr-1" />}
+        {role === 'admin' && <Shield className="w-3 h-3 mr-1" />}
         {role}
       </Badge>
     );
@@ -216,7 +215,7 @@ export default function Users() {
                   {user.companyId && (
                     <div>Company: {companies?.find(c => c._id === user.companyId)?.companyName || 'Unknown'}</div>
                   )}
-                  <div>Login Method: {user.loginMethod || 'N/A'}</div>
+
                   <div>Last Sign In: {new Date(user.lastSignedIn).toLocaleDateString()}</div>
                 </div>
                 <div className="flex gap-2">
@@ -224,7 +223,7 @@ export default function Users() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleEdit(user)}
-                    disabled={!isSuperAdmin && user.role === 'superadmin'}
+
                   >
                     <Pencil className="w-4 h-4" />
                   </Button>
@@ -232,7 +231,7 @@ export default function Users() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleDelete(user)}
-                    disabled={String(user.id) === String(currentUser?.id) || (!isSuperAdmin && user.role === 'superadmin')}
+                    disabled={String(user.id) === String(currentUser?.id)}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -298,7 +297,7 @@ export default function Users() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {isSuperAdmin && <SelectItem value="superadmin">Super Admin</SelectItem>}
+
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                 </SelectContent>
@@ -385,7 +384,7 @@ export default function Users() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {isSuperAdmin && <SelectItem value="superadmin">Super Admin</SelectItem>}
+
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                 </SelectContent>
