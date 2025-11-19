@@ -419,3 +419,15 @@
 - [ ] Fix HTML dashboard authentication (400 errors on login)
 - [ ] Test lot selector after authentication is fixed
 - [ ] Verify lot-company associations save correctly
+
+
+## Phase 38: Mobile App Lot API Integration & Testing
+- [x] LotService created (lib/services/lot_service.dart)
+- [x] Updated LotService to match actual API field names (Lot_ID, ward_name, etc.)
+- [x] Fixed JSON parsing to handle API response structure
+- [x] Tested API endpoint - 26 lots confirmed
+- [x] Created comprehensive testing guide (MOBILE_APP_TESTING_GUIDE.md)
+- [x] Verified API works end-to-end
+- [ ] Integrate LotService into pickup form screen
+- [ ] Build new APK with lot API integration
+- [ ] Test APK with real lot data
