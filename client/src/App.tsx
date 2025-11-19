@@ -12,6 +12,7 @@ import LotUpload from "@/pages/LotUpload";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AuditLog from "@/pages/AuditLog";
+import CherryPickers from "@/pages/CherryPickers";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 import { Route, Switch } from "wouter";
@@ -58,6 +59,11 @@ function Router() {
       <Route path="/lot-upload">
         <ProtectedRoute>
           <LotUpload />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/cherry-pickers">
+        <ProtectedRoute>
+          <CherryPickers />
         </ProtectedRoute>
       </Route>
       <Route path="/audit-log">

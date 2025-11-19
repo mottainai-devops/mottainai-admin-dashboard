@@ -231,6 +231,7 @@ export default function Users() {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="cherry_picker">Cherry Picker</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -368,6 +369,7 @@ export default function Users() {
 
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="cherry_picker">Cherry Picker</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -455,6 +457,7 @@ export default function Users() {
 
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="cherry_picker">Cherry Picker</SelectItem>
                 </SelectContent>
               </Select>
             </div>

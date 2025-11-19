@@ -12,7 +12,7 @@ export interface IUser extends Document {
   email: string | null;
   phone?: string; // Phone number
   password: string | null; // Hashed password (bcrypt)
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'cherry_picker';
   companyId?: string | null; // Assigned company for regular users
   monthlyBilling?: boolean; // Monthly billing flag
   createdAt: Date;
@@ -32,7 +32,7 @@ const userSchema = new Schema<IUser>({
   password: { type: String, default: null }, // Hashed with bcrypt
   role: { 
     type: String, 
-    enum: ['admin', 'user'], 
+    enum: ['admin', 'user', 'cherry_picker'], 
     default: 'user', 
     required: true 
   },

@@ -675,3 +675,60 @@
 - [x] Create mobile app API testing tool
 - [x] Document all API endpoints for mobile app developers (MOBILE_APP_API_TESTING.md)
 - [x] Verified all backend APIs working correctly
+
+
+## Phase 54: Build Mobile App APK with Updated API
+- [ ] Extract Mottainai Flutter app source code (v2.6)
+- [ ] Inspect project structure and identify lot fetching code
+- [ ] Install Android SDK and build tools
+- [ ] Update app to use new lots API (https://admin.kowope.xyz/api/trpc/lots.list)
+- [ ] Update lot model to match API response format
+- [ ] Implement caching for lot data
+- [ ] Build APK file for testing
+- [ ] Test APK installation and functionality
+- [ ] Document changes and version update
+
+
+## Phase 54: Build Mobile App APK with Lots API
+- [x] Extract Flutter project source code (v2.6)
+- [x] Install Android SDK and build tools
+- [x] Create Lot model for API lots
+- [x] Create LotService to fetch lots from API
+- [x] Update pickup form to use API lots instead of company lots
+- [x] Update form validation to check API lot selection
+- [x] Update pubspec.yaml version to 2.9.0
+- [x] Build APK with Flutter (24.4MB, build time: 229s)
+- [x] Created release notes document
+- [x] APK ready for testing: mottainai-v2.9.0.apk
+
+
+## Phase 55: Fix v2.9.0 PIN Authentication Issue
+- [x] Extract v2.8.0 source code to compare authentication
+- [x] Identify differences between v2.6 (has PIN) and v2.8.0 (email only)
+- [x] Copy email authentication from v2.8.0 to v2.9.0
+- [x] Remove PIN authentication screens from v2.9.0
+- [x] Remove pin_auth_screen.dart (deleted successfully)
+- [x] Update login flow to use email only
+- [x] Rebuild v2.9.0 APK with email authentication (24.3MB)
+- [x] Fixed User model to include companyId field
+- [x] Created mottainai-v2.9.0-FIXED.apk
+
+
+## Phase 56: Role-Based Lot Filtering & Cherry Picker System
+- [x] Add cherry_picker role to User model in MongoDB
+- [x] Update backend lots API to filter by user's company
+- [x] Add role check: regular users see only their company's lots
+- [x] Add role check: cherry_pickers see all 26 lots
+- [x] Create lot-company mapping validation (validateAccess endpoint)
+- [x] Build Cherry Picker Management page in admin dashboard
+- [x] Add user role selector in User Management (user/admin/cherry_picker)
+- [x] Create "Lot Assignments" page showing which lots belong to which companies
+- [x] Update mobile app to send user ID with lot requests
+- [x] Update mobile app LotService to filter lots by role
+- [x] Add access validation in LotService
+- [x] Build mobile app v2.9.1 with role-based filtering (in progress)
+- [ ] Test regular user: should only see their company's lots
+- [ ] Test cherry picker: should see all 26 lots
+- [ ] Deploy backend API changes
+- [ ] Deploy admin dashboard updates
+- [ ] Create user guide for cherry picker feature

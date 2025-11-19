@@ -7,6 +7,7 @@ import { authRouter } from "./routers/auth";
 import { usersRouter } from "./routers/users";
 import { uploadRouter } from "./uploadRouter";
 import { mongoAuthRouter } from "./mongoAuthRouter";
+import { lotsRouter } from "./routers/lots";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -22,12 +23,8 @@ export const appRouter = router({
   users: usersRouter,
   upload: uploadRouter,
 
-  // Operational lots from ArcGIS/Excel
-  lots: router({
-    list: publicProcedure.query(() => {
-      return activeLots;
-    }),
-  }),
+  // Operational lots with role-based filtering
+  lots: lotsRouter,
 
   // Company management router - now using MongoDB directly
   companies: router({
