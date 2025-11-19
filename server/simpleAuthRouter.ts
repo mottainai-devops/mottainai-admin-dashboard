@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { addAuditLog } from "./auditLog";
+import { sendPasswordResetEmail } from "./emailNotification";
 
 const JWT_SECRET = process.env.JWT_SECRET || "mottainai-secret-key-change-in-production";
 
@@ -411,11 +412,25 @@ export const simpleAuthRouter = router({
         expiresAt,
       });
 
+      // Try to send email if user has email address
+      let emailSent = false;
+      if (user.email) {
+        emailSent = await sendPasswordResetEmail(
+          user.email,
+          user.username,
+          resetToken,
+          expiresAt
+        );
+      }
+
       return {
         success: true,
-        message: "Reset token generated successfully.",
-        // In production, send this via email. For admin dashboard, display it.
-        resetToken,
+        message: emailSent 
+          ? "Reset token sent to your email" 
+          : "Reset token generated successfully.",
+        // Only show token if email wasn't sent (for admin dashboard)
+        resetToken: emailSent ? undefined : resetToken,
+        emailSent,
         expiresAt,
       };
     }),

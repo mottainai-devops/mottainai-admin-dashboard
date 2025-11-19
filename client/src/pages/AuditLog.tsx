@@ -2,9 +2,9 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { trpc } from "@/lib/trpc";
-import { Shield, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
+import { Download, FileJson, FileSpreadsheet, Shield, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 
 type AuditLogEntry = {
   id: number;
@@ -17,6 +17,41 @@ type AuditLogEntry = {
   userAgent?: string;
   success: boolean;
 };
+
+// Export audit logs to CSV
+function exportToCSV(logs: AuditLogEntry[]) {
+  const headers = ['Timestamp', 'Action', 'User', 'Details', 'IP Address', 'User Agent', 'Status'];
+  const rows = logs.map(log => [
+    new Date(log.timestamp).toLocaleString(),
+    log.action,
+    log.username || 'N/A',
+    log.details || '',
+    log.ipAddress || 'N/A',
+    log.userAgent || 'N/A',
+    log.success ? 'Success' : 'Failed',
+  ]);
+
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `audit-log-${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+}
+
+// Export audit logs to JSON
+function exportToJSON(logs: AuditLogEntry[]) {
+  const jsonContent = JSON.stringify(logs, null, 2);
+  const blob = new Blob([jsonContent], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `audit-log-${new Date().toISOString().split('T')[0]}.json`;
+  link.click();
+}
 
 export default function AuditLog() {
   const { data: logs, isLoading, refetch } = trpc.simpleAuth.getAuditLogs.useQuery({ limit: 100 });
@@ -61,12 +96,36 @@ export default function AuditLog() {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Audit Log</CardTitle>
             <CardDescription>
-              Last 100 audit log entries
+              Track all user actions and security events
             </CardDescription>
-          </CardHeader>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportToCSV(logs || [])}
+              disabled={!logs || logs.length === 0}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportToJSON(logs || [])}
+              disabled={!logs || logs.length === 0}
+            >
+              <FileJson className="h-4 w-4 mr-2" />
+              Export JSON
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">

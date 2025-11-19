@@ -541,3 +541,18 @@
 - [x] Add Audit Log card to dashboard home page
 - [ ] Test complete password reset flow
 - [ ] Test audit logging captures all events correctly
+
+
+## Phase 43: MongoDB Connection, Email Notifications, and Audit Export
+- [x] Create MongoDB connection testing utility
+- [x] Document MongoDB connection setup process (MONGODB_SETUP.md)
+- [ ] Add MongoDB connection status indicator to dashboard - Optional feature
+- [x] Implement email service integration (using Manus built-in notification API)
+- [x] Update password reset to send email with token
+- [ ] Add email configuration settings page - Not needed (uses built-in API)
+- [x] Create audit log CSV export functionality
+- [x] Create audit log JSON export functionality
+- [x] Add export buttons to Audit Log page
+- [ ] Test MongoDB connection with production database - Requires user to update MONGODB_URI
+- [ ] Test email notifications for password reset - Requires testing
+- [ ] Test audit log export downloads correctly - Requires testing
