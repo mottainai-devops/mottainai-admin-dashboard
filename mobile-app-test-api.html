@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lot API Tester - Mobile App Integration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status.loading {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .lot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .lot-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            transition: all 0.3s;
+        }
+
+        .lot-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .lot-id {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .lot-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .lot-info strong {
+            color: #333;
+        }
+
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .badge.low {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge.medium {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge.high {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ Lot API Tester</h1>
+            <p>Test the lot data API endpoint for mobile app integration. This tool simulates how your mobile app will fetch and display lot data.</p>
+        </div>
+
+        <div class="card">
+            <h2>
+                📡 API Status
+                <span id="status" class="status loading">Testing...</span>
+            </h2>
+            
+            <button id="testButton" onclick="testAPI()">
+                <span id="buttonText">Test API Endpoint</span>
+            </button>
+
+            <div id="stats" class="stats" style="display: none;">
+                <div class="stat-card">
+                    <div class="number" id="totalLots">0</div>
+                    <div class="label">Total Lots</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" id="responseTime">0ms</div>
+                    <div class="label">Response Time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" id="dataSize">0 KB</div>
+                    <div class="label">Data Size</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="resultsCard" style="display: none;">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('visual')">📊 Visual View</button>
+                <button class="tab" onclick="switchTab('json')">📄 JSON Response</button>
+                <button class="tab" onclick="switchTab('code')">💻 Sample Code</button>
+            </div>
+
+            <div id="visual" class="tab-content active">
+                <h2>Lot Data</h2>
+                <input type="text" id="searchBox" class="search-box" placeholder="Search by Lot ID, ward name, company, or LGA..." onkeyup="filterLots()">
+                <div id="lotGrid" class="lot-grid"></div>
+            </div>
+
+            <div id="json" class="tab-content">
+                <h2>Raw JSON Response</h2>
+                <pre id="jsonResponse" class="code-block"></pre>
+            </div>
+
+            <div id="code" class="tab-content">
+                <h2>Flutter/Dart Sample Code</h2>
+                <pre class="code-block">import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class LotService {
+  static const String apiUrl = 'https://admin.kowope.xyz/api/trpc/lots.list';
+  
+  Future&lt;List&lt;Lot&gt;&gt; fetchLots() async {
+    final response = await http.get(Uri.parse(apiUrl));
+    
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final lots = data['result']['data']['json'] as List;
+      return lots.map((lot) => Lot.fromJson(lot)).toList();
+    } else {
+      throw Exception('Failed to load lots');
+    }
+  }
+}
+
+class Lot {
+  final int objectId;
+  final int lotId;
+  final String wardName;
+  final String businessName;
+  
+  Lot({
+    required this.objectId,
+    required this.lotId,
+    required this.wardName,
+    required this.businessName,
+  });
+  
+  factory Lot.fromJson(Map&lt;String, dynamic&gt; json) {
+    return Lot(
+      objectId: json['OBJECTID'],
+      lotId: json['Lot_ID'],
+      wardName: json['ward_name'] ?? '',
+      businessName: json['Business_Name'] ?? '',
+    );
+  }
+}</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let lotsData = [];
+
+        async function testAPI() {
+            const statusEl = document.getElementById('status');
+            const buttonEl = document.getElementById('testButton');
+            const buttonTextEl = document.getElementById('buttonText');
+            const statsEl = document.getElementById('stats');
+            const resultsCardEl = document.getElementById('resultsCard');
+
+            // Update UI to loading state
+            statusEl.className = 'status loading';
+            statusEl.textContent = 'Testing...';
+            buttonEl.disabled = true;
+            buttonTextEl.innerHTML = '<span class="loading-spinner"></span> Testing API...';
+
+            const startTime = performance.now();
+
+            try {
+                const response = await fetch('https://admin.kowope.xyz/api/trpc/lots.list');
+                const endTime = performance.now();
+                const responseTime = Math.round(endTime - startTime);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                lotsData = data.result.data.json;
+
+                // Calculate data size
+                const dataSize = (JSON.stringify(data).length / 1024).toFixed(2);
+
+                // Update status
+                statusEl.className = 'status success';
+                statusEl.textContent = '✓ API Working';
+
+                // Show stats
+                statsEl.style.display = 'grid';
+                document.getElementById('totalLots').textContent = lotsData.length;
+                document.getElementById('responseTime').textContent = `${responseTime}ms`;
+                document.getElementById('dataSize').textContent = `${dataSize} KB`;
+
+                // Show results
+                resultsCardEl.style.display = 'block';
+
+                // Render lot grid
+                renderLots(lotsData);
+
+                // Show JSON
+                document.getElementById('jsonResponse').textContent = JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `✗ Error: ${error.message}`;
+                console.error('API Test Error:', error);
+            } finally {
+                buttonEl.disabled = false;
+                buttonTextEl.textContent = 'Test Again';
+            }
+        }
+
+        function renderLots(lots) {
+            const gridEl = document.getElementById('lotGrid');
+            gridEl.innerHTML = lots.map(lot => `
+                <div class="lot-card">
+                    <div class="lot-id">Lot ${lot.Lot_ID}</div>
+                    <div class="lot-info"><strong>Ward:</strong> ${lot.ward_name}</div>
+                    <div class="lot-info"><strong>LGA:</strong> ${lot.lga_name}</div>
+                    <div class="lot-info"><strong>Company:</strong> ${lot.Business_Name}</div>
+                    <div class="lot-info"><strong>State:</strong> ${lot.state_name} (${lot.state_code})</div>
+                    <span class="badge ${lot.socio_economic_groups.toLowerCase()}">${lot.socio_economic_groups}</span>
+                </div>
+            `).join('');
+        }
+
+        function filterLots() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const filtered = lotsData.filter(lot => 
+                lot.Lot_ID.toString().includes(searchTerm) ||
+                lot.ward_name.toLowerCase().includes(searchTerm) ||
+                lot.Business_Name.toLowerCase().includes(searchTerm) ||
+                lot.lga_name.toLowerCase().includes(searchTerm)
+            );
+            renderLots(filtered);
+        }
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testAPI, 500);
+        });
+    </script>
+</body>
+</html>

@@ -380,3 +380,16 @@
 - [x] Provide Flutter/Dart code samples
 - [ ] Implement mobile app changes (requires mobile app developer)
 - [ ] Test lot selector in React dashboard (requires OAuth setup or deploy via Manus)
+
+
+## Phase 35: Automation & Mobile App Integration
+- [x] Create automated lot update script for production server (scripts/update-lots.sh)
+- [x] Create upload endpoint for Excel file updates (trpc.upload router)
+- [x] Create web-based lot upload UI (/lot-upload page)
+- [x] Package mobile app integration materials (MOBILE_APP_INTEGRATION.md)
+- [x] Create mobile app API testing tool (mobile-app-test-api.html)
+- [x] Optimize React dashboard navigation with all pages
+- [x] Document complete deployment workflow (AUTOMATION_GUIDE.md)
+- [ ] Test automated script on production
+- [ ] Test web upload interface
+- [ ] Deploy updated dashboard to Manus platform

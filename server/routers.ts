@@ -5,6 +5,7 @@ import { testingRouter } from "./routers/testing";
 import { analyticsRouter } from "./routers/analytics";
 import { authRouter } from "./routers/auth";
 import { usersRouter } from "./routers/users";
+import { uploadRouter } from "./uploadRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -17,6 +18,7 @@ export const appRouter = router({
   analytics: analyticsRouter,
   auth: authRouter,
   users: usersRouter,
+  upload: uploadRouter,
 
   // Operational lots from ArcGIS/Excel
   lots: router({

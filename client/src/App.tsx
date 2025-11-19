@@ -7,6 +7,7 @@ import QATools from "@/pages/QATools";
 import Companies from "@/pages/Companies";
 import Login from "@/pages/Login";
 import Users from "@/pages/Users";
+import LotUpload from "@/pages/LotUpload";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 import { Route, Switch } from "wouter";
@@ -46,6 +47,11 @@ function Router() {
       <Route path="/users">
         <ProtectedRoute>
           <Users />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/lot-upload">
+        <ProtectedRoute>
+          <LotUpload />
         </ProtectedRoute>
       </Route>
       <Route path="/404" component={NotFound} />
