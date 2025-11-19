@@ -15,7 +15,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "mottainai-secret-key-change-in-pro
 (async () => {
   try {
     await connectToMongoDB();
-    console.log("[SimpleAuth] MongoDB connected successfully");
+    console.log("[MongoAuth] MongoDB connected successfully");
     
     // Ensure admin user exists
     const adminExists = await User.findOne({ username: "admin" });
@@ -29,23 +29,27 @@ const JWT_SECRET = process.env.JWT_SECRET || "mottainai-secret-key-change-in-pro
         role: "admin",
         companyId: null,
       });
-      console.log("[SimpleAuth] Default admin user created");
+      console.log("[MongoAuth] Default admin user created");
     }
+    
+    // Log total user count
+    const userCount = await User.countDocuments();
+    console.log(`[MongoAuth] Total users in database: ${userCount}`);
   } catch (error) {
-    console.error("[SimpleAuth] MongoDB connection failed:", error);
+    console.error("[MongoAuth] MongoDB connection failed:", error);
   }
 })();
 
-// Password reset tokens (in-memory storage)
+// Password reset tokens (in-memory storage - could be moved to MongoDB if needed)
 type ResetToken = {
   token: string;
-  userId: number;
+  userId: string;
   expiresAt: Date;
 };
 
 const RESET_TOKENS: ResetToken[] = [];
 
-export const simpleAuthRouter = router({
+export const mongoAuthRouter = router({
   // Login with username/password
   login: publicProcedure
     .input(
@@ -55,7 +59,7 @@ export const simpleAuthRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const user = USERS.find(u => u.username === input.username);
+      const user = await User.findOne({ username: input.username.toLowerCase() });
       
       if (!user) {
         // Log failed login attempt
@@ -75,14 +79,14 @@ export const simpleAuthRouter = router({
       }
 
       // Verify password with bcrypt
-      const isPasswordValid = await bcrypt.compare(input.password, user.password);
+      const isPasswordValid = await user.comparePassword(input.password);
       
       if (!isPasswordValid) {
         // Log failed login attempt
         addAuditLog({
           action: 'LOGIN_FAILED',
-          userId: user.id,
-          username: user.username,
+          userId: user._id.toString(),
+          username: user.username || '',
           details: `Failed login attempt (invalid password) for user: ${user.username}`,
           ipAddress: ctx.req.ip,
           userAgent: ctx.req.headers['user-agent'],
@@ -98,8 +102,8 @@ export const simpleAuthRouter = router({
       // Log successful login
       addAuditLog({
         action: 'LOGIN_SUCCESS',
-        userId: user.id,
-        username: user.username,
+        userId: user._id.toString(),
+        username: user.username || '',
         details: `Successful login for user: ${user.username}`,
         ipAddress: ctx.req.ip,
         userAgent: ctx.req.headers['user-agent'],
@@ -109,7 +113,7 @@ export const simpleAuthRouter = router({
       // Generate JWT token
       const token = jwt.sign(
         {
-          id: user.id,
+          id: user._id.toString(),
           username: user.username,
           role: user.role,
         },
@@ -121,7 +125,7 @@ export const simpleAuthRouter = router({
         success: true,
         token,
         user: {
-          id: user.id,
+          id: user._id.toString(),
           username: user.username,
           fullName: user.fullName,
           email: user.email,
@@ -131,7 +135,7 @@ export const simpleAuthRouter = router({
     }),
 
   // Get current user from token
-  me: publicProcedure.query(({ ctx }) => {
+  me: publicProcedure.query(async ({ ctx }) => {
     const authHeader = ctx.req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -141,19 +145,19 @@ export const simpleAuthRouter = router({
     try {
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, JWT_SECRET) as {
-        id: number;
+        id: string;
         username: string;
         role: string;
       };
 
-      const user = USERS.find((u) => u.id === decoded.id);
+      const user = await User.findById(decoded.id);
       
       if (!user) {
         return null;
       }
 
       return {
-        id: user.id,
+        id: user._id.toString(),
         username: user.username,
         fullName: user.fullName,
         email: user.email,
@@ -170,16 +174,20 @@ export const simpleAuthRouter = router({
   }),
 
   // List all users (for user management page)
-  listUsers: publicProcedure.query(() => {
-    return USERS.map(u => ({
-      id: String(u.id),
-      username: u.username,
+  listUsers: publicProcedure.query(async () => {
+    const users = await User.find({}).sort({ createdAt: -1 });
+    
+    return users.map(u => ({
+      id: u._id.toString(),
+      username: u.username || '',
       fullName: u.fullName,
       email: u.email,
+      phone: u.phone,
       role: u.role,
       companyId: u.companyId,
+      monthlyBilling: u.monthlyBilling,
       createdAt: u.createdAt,
-      lastSignedIn: u.lastSignedIn,
+      updatedAt: u.updatedAt,
     }));
   }),
 
@@ -189,43 +197,41 @@ export const simpleAuthRouter = router({
       z.object({
         username: z.string().min(3),
         password: z.string().min(6),
-        fullName: z.string().optional(),
+        fullName: z.string(),
         email: z.string().email().optional(),
+        phone: z.string().optional(),
         role: z.enum(["admin", "user"]).default("user"),
         companyId: z.string().optional(),
+        monthlyBilling: z.boolean().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
       // Check if username already exists
-      if (USERS.find(u => u.username === input.username)) {
+      const existingUser = await User.findOne({ username: input.username.toLowerCase() });
+      if (existingUser) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Username already exists",
         });
       }
 
-      // Hash password before storing
-      const hashedPassword = await bcrypt.hash(input.password, 10);
-
-      const newUser: SimpleUser = {
-        id: nextUserId++,
-        username: input.username,
-        password: hashedPassword,
-        fullName: input.fullName || null,
+      // Create new user (password will be hashed by pre-save hook)
+      const newUser = await User.create({
+        username: input.username.toLowerCase(),
+        password: input.password,
+        fullName: input.fullName,
         email: input.email || null,
+        phone: input.phone || null,
         role: input.role,
-          companyId: input.companyId || null,
-        createdAt: new Date(),
-        lastSignedIn: new Date(),
-      };
-
-      USERS.push(newUser);
+        companyId: input.companyId || null,
+        monthlyBilling: input.monthlyBilling || false,
+      });
 
       // Log user creation
       addAuditLog({
         action: 'USER_CREATED',
-        userId: newUser.id,
-        username: newUser.username,
+        userId: newUser._id.toString(),
+        username: newUser.username || '',
         details: `User created: ${newUser.username} (${newUser.role})`,
         ipAddress: ctx.req.ip,
         userAgent: ctx.req.headers['user-agent'],
@@ -235,7 +241,7 @@ export const simpleAuthRouter = router({
       return {
         success: true,
         user: {
-          id: String(newUser.id),
+          id: newUser._id.toString(),
           username: newUser.username,
           fullName: newUser.fullName,
           email: newUser.email,
@@ -253,14 +259,16 @@ export const simpleAuthRouter = router({
         password: z.string().min(6).optional(),
         fullName: z.string().optional(),
         email: z.string().email().optional(),
+        phone: z.string().optional(),
         role: z.enum(["admin", "user"]).optional(),
         companyId: z.string().optional(),
+        monthlyBilling: z.boolean().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const userIndex = USERS.findIndex(u => String(u.id) === input.id);
+      const user = await User.findById(input.id);
       
-      if (userIndex === -1) {
+      if (!user) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "User not found",
@@ -268,8 +276,9 @@ export const simpleAuthRouter = router({
       }
 
       // Check if username is being changed and already exists
-      if (input.username && input.username !== USERS[userIndex].username) {
-        if (USERS.find(u => u.username === input.username)) {
+      if (input.username && input.username.toLowerCase() !== user.username) {
+        const existingUser = await User.findOne({ username: input.username.toLowerCase() });
+        if (existingUser) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: "Username already exists",
@@ -278,31 +287,33 @@ export const simpleAuthRouter = router({
       }
 
       // Update user fields
-      if (input.username) USERS[userIndex].username = input.username;
-      if (input.password) {
-        // Hash password before updating
-        USERS[userIndex].password = await bcrypt.hash(input.password, 10);
-      }
-      if (input.fullName !== undefined) USERS[userIndex].fullName = input.fullName || null;
-      if (input.email !== undefined) USERS[userIndex].email = input.email || null;
-      if (input.role) USERS[userIndex].role = input.role;
-      if (input.companyId !== undefined) USERS[userIndex].companyId = input.companyId || null;
+      if (input.username) user.username = input.username.toLowerCase();
+      if (input.password) user.password = input.password; // Will be hashed by pre-save hook
+      if (input.fullName !== undefined) user.fullName = input.fullName;
+      if (input.email !== undefined) user.email = input.email || null;
+      if (input.phone !== undefined) user.phone = input.phone || null;
+      if (input.role) user.role = input.role;
+      if (input.companyId !== undefined) user.companyId = input.companyId || null;
+      if (input.monthlyBilling !== undefined) user.monthlyBilling = input.monthlyBilling;
+
+      await user.save();
 
       // Log user update
       const changes = [];
       if (input.username) changes.push('username');
       if (input.password) changes.push('password');
-      if (input.fullName !== undefined) changes.push('name');
+      if (input.fullName !== undefined) changes.push('fullName');
       if (input.email !== undefined) changes.push('email');
+      if (input.phone !== undefined) changes.push('phone');
       if (input.role) changes.push('role');
-      if (input !== undefined) changes.push('active');
       if (input.companyId !== undefined) changes.push('companyId');
+      if (input.monthlyBilling !== undefined) changes.push('monthlyBilling');
       
       addAuditLog({
         action: 'USER_UPDATED',
-        userId: USERS[userIndex].id,
-        username: USERS[userIndex].username,
-        details: `User updated: ${USERS[userIndex].username} (Changed: ${changes.join(', ')})`,
+        userId: user._id.toString(),
+        username: user.username || '',
+        details: `User updated: ${user.username} (Changed: ${changes.join(', ')})`,
         ipAddress: ctx.req.ip,
         userAgent: ctx.req.headers['user-agent'],
         success: true,
@@ -311,11 +322,11 @@ export const simpleAuthRouter = router({
       return {
         success: true,
         user: {
-          id: String(USERS[userIndex].id),
-          username: USERS[userIndex].username,
-          fullName: USERS[userIndex].fullName,
-          email: USERS[userIndex].email,
-          role: USERS[userIndex].role,
+          id: user._id.toString(),
+          username: user.username,
+          fullName: user.fullName,
+          email: user.email,
+          role: user.role,
         },
       };
     }),
@@ -328,9 +339,9 @@ export const simpleAuthRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const userIndex = USERS.findIndex(u => String(u.id) === input.id);
+      const user = await User.findById(input.id);
       
-      if (userIndex === -1) {
+      if (!user) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "User not found",
@@ -338,87 +349,99 @@ export const simpleAuthRouter = router({
       }
 
       // Don't allow deleting the last admin
-      const adminCount = USERS.filter(u => u.role === "admin").length;
-      if (USERS[userIndex].role === "admin" && adminCount === 1) {
+      const adminCount = await User.countDocuments({ role: "admin" });
+      if (user.role === "admin" && adminCount === 1) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Cannot delete the last admin user",
         });
       }
 
-      const deletedUser = USERS[userIndex];
-      USERS.splice(userIndex, 1);
-
       // Log user deletion
       addAuditLog({
         action: 'USER_DELETED',
-        userId: deletedUser.id,
-        username: deletedUser.username,
-        details: `User deleted: ${deletedUser.username} (${deletedUser.role})`,
+        userId: user._id.toString(),
+        username: user.username || '',
+        details: `User deleted: ${user.username}`,
         ipAddress: ctx.req.ip,
         userAgent: ctx.req.headers['user-agent'],
         success: true,
       });
 
-      return { success: true };
+      await User.findByIdAndDelete(input.id);
+
+      return {
+        success: true,
+      };
+    }),
+
+  // Search users
+  searchUsers: publicProcedure
+    .input(
+      z.object({
+        query: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      const users = await User.find({
+        $or: [
+          { fullName: { $regex: input.query, $options: 'i' } },
+          { username: { $regex: input.query, $options: 'i' } },
+          { email: { $regex: input.query, $options: 'i' } },
+        ],
+      }).limit(50);
+
+      return users.map(u => ({
+        id: u._id.toString(),
+        username: u.username,
+        fullName: u.fullName,
+        email: u.email,
+        role: u.role,
+        companyId: u.companyId,
+      }));
     }),
 
   // Request password reset
   requestPasswordReset: publicProcedure
     .input(
       z.object({
-        username: z.string(),
+        email: z.string().email(),
       })
     )
-    .mutation(async ({ input }) => {
-      const user = USERS.find(u => u.username === input.username);
+    .mutation(async ({ input, ctx }) => {
+      const user = await User.findOne({ email: input.email });
       
       if (!user) {
-        // Don't reveal if user exists or not for security
-        return {
-          success: true,
-          message: "If the username exists, a reset token has been generated.",
-        };
+        // Don't reveal if email exists
+        return { success: true };
       }
 
-      // Generate secure reset token
+      // Generate reset token
       const resetToken = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-      // Remove any existing tokens for this user
-      const existingIndex = RESET_TOKENS.findIndex(t => t.userId === user.id);
-      if (existingIndex !== -1) {
-        RESET_TOKENS.splice(existingIndex, 1);
-      }
-
-      // Store new token
+      // Store token
       RESET_TOKENS.push({
         token: resetToken,
-        userId: user.id,
+        userId: user._id.toString(),
         expiresAt,
       });
 
-      // Try to send email if user has email address
-      let emailSent = false;
-      if (user.email) {
-        emailSent = await sendPasswordResetEmail(
-          user.email,
-          user.username,
-          resetToken,
-          expiresAt
-        );
-      }
+      // Send email
+      await sendPasswordResetEmail(user.email!, resetToken);
 
-      return {
+      // Log password reset request
+      addAuditLog({
+        action: 'PASSWORD_RESET_REQUESTED',
+        userId: user._id.toString(),
+        username: user.username || '',
+        details: `Password reset requested for user: ${user.username}`,
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers['user-agent'],
         success: true,
-        message: emailSent 
-          ? "Reset token sent to your email" 
-          : "Reset token generated successfully.",
-        // Only show token if email wasn't sent (for admin dashboard)
-        resetToken: emailSent ? undefined : resetToken,
-        emailSent,
-        expiresAt,
-      };
+      });
+
+      return { success: true };
     }),
 
   // Reset password with token
@@ -429,49 +452,49 @@ export const simpleAuthRouter = router({
         newPassword: z.string().min(6),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       // Find valid token
-      const resetTokenIndex = RESET_TOKENS.findIndex(
+      const resetToken = RESET_TOKENS.find(
         t => t.token === input.token && t.expiresAt > new Date()
       );
 
-      if (resetTokenIndex === -1) {
+      if (!resetToken) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Invalid or expired reset token",
         });
       }
 
-      const resetToken = RESET_TOKENS[resetTokenIndex];
-      const userIndex = USERS.findIndex(u => u.id === resetToken.userId);
-
-      if (userIndex === -1) {
+      // Update password
+      const user = await User.findById(resetToken.userId);
+      if (!user) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "User not found",
         });
       }
 
-      // Hash new password
-      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
-      USERS[userIndex].password = hashedPassword;
+      user.password = input.newPassword; // Will be hashed by pre-save hook
+      await user.save();
 
       // Remove used token
-      RESET_TOKENS.splice(resetTokenIndex, 1);
+      const tokenIndex = RESET_TOKENS.findIndex(t => t.token === input.token);
+      if (tokenIndex > -1) {
+        RESET_TOKENS.splice(tokenIndex, 1);
+      }
 
       // Log password reset
       addAuditLog({
-        action: 'PASSWORD_RESET',
-        userId: USERS[userIndex].id,
-        username: USERS[userIndex].username,
-        details: `Password reset for user: ${USERS[userIndex].username}`,
+        action: 'PASSWORD_RESET_COMPLETED',
+        userId: user._id.toString(),
+        username: user.username || '',
+        details: `Password reset completed for user: ${user.username}`,
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers['user-agent'],
         success: true,
       });
 
-      return {
-        success: true,
-        message: "Password reset successfully",
-      };
+      return { success: true };
     }),
 
   // Bulk import users from CSV
@@ -482,78 +505,61 @@ export const simpleAuthRouter = router({
           z.object({
             username: z.string(),
             password: z.string(),
-            fullName: z.string().nullable(),
-            email: z.string().email().nullable(),
-            role: z.enum(["admin", "user"]),
-            companyId: z.string().nullable(),
+            fullName: z.string(),
+            email: z.string().optional(),
+            phone: z.string().optional(),
+            role: z.enum(["admin", "user"]).default("user"),
+            companyId: z.string().optional(),
+            monthlyBilling: z.boolean().optional(),
           })
         ),
       })
     )
-    .mutation(async ({ input }) => {
-      let imported = 0;
-      let failed = 0;
-      const errors: string[] = [];
+    .mutation(async ({ input, ctx }) => {
+      const results = {
+        success: 0,
+        failed: 0,
+        errors: [] as string[],
+      };
 
       for (const userData of input.users) {
         try {
-          // Check if username already exists
-          if (USERS.find(u => u.username === userData.username)) {
-            errors.push(`Username ${userData.username} already exists`);
-            failed++;
+          // Check if user already exists
+          const existingUser = await User.findOne({ username: userData.username.toLowerCase() });
+          if (existingUser) {
+            results.failed++;
+            results.errors.push(`User ${userData.username} already exists`);
             continue;
           }
 
-          // Hash password
-          const hashedPassword = await bcrypt.hash(userData.password, 10);
-
-          // Create new user
-          const newUser: SimpleUser = {
-            id: USERS.length > 0 ? Math.max(...USERS.map(u => u.id)) + 1 : 1,
-            username: userData.username,
-            password: hashedPassword,
+          // Create user
+          await User.create({
+            username: userData.username.toLowerCase(),
+            password: userData.password, // Will be hashed by pre-save hook
             fullName: userData.fullName,
-            email: userData.email,
+            email: userData.email || null,
+            phone: userData.phone || null,
             role: userData.role,
-            companyId: userData.companyId,
-            createdAt: new Date(),
-            lastSignedIn: new Date(),
-          };
-
-          USERS.push(newUser);
-          imported++;
-
-          // Log user creation
-          addAuditLog({
-            action: 'USER_CREATED',
-            userId: newUser.id,
-            username: 'bulk_import',
-            details: `Bulk imported user: ${newUser.username}`,
-            success: true,
+            companyId: userData.companyId || null,
+            monthlyBilling: userData.monthlyBilling || false,
           });
-        } catch (error) {
-          errors.push(`Failed to import ${userData.username}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          failed++;
+
+          results.success++;
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push(`Failed to create ${userData.username}: ${error.message}`);
         }
       }
 
-      return {
-        imported,
-        failed,
-        errors,
-      };
-    }),
+      // Log bulk import
+      addAuditLog({
+        action: 'BULK_IMPORT',
+        details: `Bulk import completed: ${results.success} success, ${results.failed} failed`,
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers['user-agent'],
+        success: results.failed === 0,
+      });
 
-  // Get audit logs (admin only in production)
-  getAuditLogs: publicProcedure
-    .input(
-      z.object({
-        limit: z.number().min(1).max(500).default(100),
-      }).optional()
-    )
-    .query(({ input }) => {
-      const { getAuditLogs } = require('./auditLog');
-      const limit = input?.limit || 100;
-      return getAuditLogs(limit);
+      return results;
     }),
 });

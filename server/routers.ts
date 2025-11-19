@@ -6,7 +6,7 @@ import { analyticsRouter } from "./routers/analytics";
 import { authRouter } from "./routers/auth";
 import { usersRouter } from "./routers/users";
 import { uploadRouter } from "./uploadRouter";
-import { simpleAuthRouter } from "./simpleAuthRouter";
+import { mongoAuthRouter } from "./mongoAuthRouter";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -18,7 +18,7 @@ export const appRouter = router({
   testing: testingRouter,
   analytics: analyticsRouter,
   auth: authRouter,
-  simpleAuth: simpleAuthRouter, // Simple username/password auth without OAuth
+  simpleAuth: mongoAuthRouter, // MongoDB-based username/password auth
   users: usersRouter,
   upload: uploadRouter,
 

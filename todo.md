@@ -610,3 +610,27 @@
 - [ ] Test deployment on admin.kowope.xyz
 - [ ] Verify all 109 users are visible after MongoDB connection
 - [ ] Test all features on production server
+
+
+## Phase 50: Troubleshoot Users Not Appearing After Deployment
+- [ ] Run verification script to diagnose connection issues
+- [ ] Test MongoDB connection on production server
+- [ ] Verify MONGODB_URI is correctly set to mongodb://127.0.0.1:27017/arcgis
+- [ ] Check if listUsers API endpoint returns 109 users
+- [ ] Review authentication flow and JWT token handling
+- [ ] Test frontend-backend communication
+- [ ] Complete systematic feature testing using checklist
+- [ ] Fix any identified issues preventing users from displaying
+
+
+## Phase 50: Troubleshoot User Visibility Issue - ✅ COMPLETED
+- [x] Run verification script to diagnose why 109 users aren't appearing
+- [x] Check MongoDB connection on production server
+- [x] Verify MONGODB_URI environment variable is set correctly
+- [x] Test API endpoints for user listing
+- [x] Fix any authentication or database connection issues
+- [x] Created mongoAuthRouter.ts to replace in-memory storage with MongoDB
+- [x] Deployed new backend to production server
+- [x] Fixed admin user credentials (username + password)
+- [x] Verified all 109 users now visible in dashboard
+- [x] All tests passing: 109 users, 13 companies, 26 lots, authentication, search
