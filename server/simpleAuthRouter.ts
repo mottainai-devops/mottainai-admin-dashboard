@@ -14,10 +14,9 @@ type SimpleUser = {
   id: number;
   username: string;
   password: string;
-  name: string | null;
+  fullName: string | null;
   email: string | null;
   role: "admin" | "user";
-  active: boolean;
   companyId: string | null;
   createdAt: Date;
   lastSignedIn: Date;
@@ -33,10 +32,9 @@ const USERS: SimpleUser[] = [];
       id: 1,
       username: "admin",
       password: await bcrypt.hash("admin123", 10),
-      name: "Administrator",
+      fullName: "Administrator",
       email: "admin@mottainai.com",
       role: "admin",
-      active: true,
       companyId: null,
       createdAt: new Date(),
       lastSignedIn: new Date(),
@@ -133,7 +131,7 @@ export const simpleAuthRouter = router({
         user: {
           id: user.id,
           username: user.username,
-          name: user.name,
+          fullName: user.fullName,
           email: user.email,
           role: user.role,
         },
@@ -165,7 +163,7 @@ export const simpleAuthRouter = router({
       return {
         id: user.id,
         username: user.username,
-        name: user.name,
+        fullName: user.fullName,
         email: user.email,
         role: user.role,
       };
@@ -184,10 +182,9 @@ export const simpleAuthRouter = router({
     return USERS.map(u => ({
       id: String(u.id),
       username: u.username,
-      name: u.name,
+      fullName: u.fullName,
       email: u.email,
       role: u.role,
-      active: u.active,
       companyId: u.companyId,
       createdAt: u.createdAt,
       lastSignedIn: u.lastSignedIn,
@@ -200,7 +197,7 @@ export const simpleAuthRouter = router({
       z.object({
         username: z.string().min(3),
         password: z.string().min(6),
-        name: z.string().optional(),
+        fullName: z.string().optional(),
         email: z.string().email().optional(),
         role: z.enum(["admin", "user"]).default("user"),
         companyId: z.string().optional(),
@@ -222,11 +219,10 @@ export const simpleAuthRouter = router({
         id: nextUserId++,
         username: input.username,
         password: hashedPassword,
-        name: input.name || null,
+        fullName: input.fullName || null,
         email: input.email || null,
         role: input.role,
-        active: true,
-        companyId: input.companyId || null,
+          companyId: input.companyId || null,
         createdAt: new Date(),
         lastSignedIn: new Date(),
       };
@@ -249,7 +245,7 @@ export const simpleAuthRouter = router({
         user: {
           id: String(newUser.id),
           username: newUser.username,
-          name: newUser.name,
+          fullName: newUser.fullName,
           email: newUser.email,
           role: newUser.role,
         },
@@ -263,10 +259,9 @@ export const simpleAuthRouter = router({
         id: z.string(),
         username: z.string().min(3).optional(),
         password: z.string().min(6).optional(),
-        name: z.string().optional(),
+        fullName: z.string().optional(),
         email: z.string().email().optional(),
         role: z.enum(["admin", "user"]).optional(),
-        active: z.boolean().optional(),
         companyId: z.string().optional(),
       })
     )
@@ -296,20 +291,19 @@ export const simpleAuthRouter = router({
         // Hash password before updating
         USERS[userIndex].password = await bcrypt.hash(input.password, 10);
       }
-      if (input.name !== undefined) USERS[userIndex].name = input.name || null;
+      if (input.fullName !== undefined) USERS[userIndex].fullName = input.fullName || null;
       if (input.email !== undefined) USERS[userIndex].email = input.email || null;
       if (input.role) USERS[userIndex].role = input.role;
-      if (input.active !== undefined) USERS[userIndex].active = input.active;
       if (input.companyId !== undefined) USERS[userIndex].companyId = input.companyId || null;
 
       // Log user update
       const changes = [];
       if (input.username) changes.push('username');
       if (input.password) changes.push('password');
-      if (input.name !== undefined) changes.push('name');
+      if (input.fullName !== undefined) changes.push('name');
       if (input.email !== undefined) changes.push('email');
       if (input.role) changes.push('role');
-      if (input.active !== undefined) changes.push('active');
+      if (input !== undefined) changes.push('active');
       if (input.companyId !== undefined) changes.push('companyId');
       
       addAuditLog({
@@ -327,7 +321,7 @@ export const simpleAuthRouter = router({
         user: {
           id: String(USERS[userIndex].id),
           username: USERS[userIndex].username,
-          name: USERS[userIndex].name,
+          fullName: USERS[userIndex].fullName,
           email: USERS[userIndex].email,
           role: USERS[userIndex].role,
         },

@@ -15,10 +15,9 @@ import { useAuth } from "@/hooks/useAuth";
 interface User {
   id: string;
   username: string;
-  name: string | null;
+  fullName: string | null;
   email: string | null;
   role: 'admin' | 'user';
-  active: boolean;
   companyId: string | null;
   createdAt: Date;
   lastSignedIn: Date;
@@ -31,16 +30,20 @@ export default function Users() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
 
   // Form state
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    name: "",
+    fullName: "",
     email: "",
     role: "admin" as 'admin' | 'user',
     companyId: "",
-    active: true,
   });
 
   const utils = trpc.useUtils();
@@ -88,11 +91,10 @@ export default function Users() {
     setFormData({
       username: "",
       password: "",
-      name: "",
+      fullName: "",
       email: "",
       role: "admin",
       companyId: "",
-      active: true,
     });
   };
 
@@ -112,11 +114,10 @@ export default function Users() {
     setFormData({
       username: user.username,
       password: "",
-      name: user.name || "",
+      fullName: user.fullName || "",
       email: user.email || "",
       role: user.role,
       companyId: user.companyId || "",
-      active: user.active,
     });
     setIsEditDialogOpen(true);
   };
@@ -126,11 +127,10 @@ export default function Users() {
     
     const updateData: any = {
       id: selectedUser.id,
-      name: formData.name || null,
+      fullName: formData.fullName || null,
       email: formData.email || null,
       role: formData.role,
       companyId: formData.companyId || null,
-      active: formData.active,
     };
 
     // Only include password if it's been changed
@@ -164,6 +164,19 @@ export default function Users() {
     );
   };
 
+  // Filter users based on search and filters
+  const filteredUsers = users?.filter((user) => {
+    const matchesSearch = searchQuery === "" ||
+      user.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.username?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesRole = roleFilter === "all" || user.role === roleFilter;
+    const matchesCompany = companyFilter === "all" || user.companyId === companyFilter;
+    
+    return matchesSearch && matchesRole && matchesCompany;
+  }) || [];
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -188,8 +201,57 @@ export default function Users() {
         </Button>
       </div>
 
+      {/* Search and Filter Controls */}
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="search">Search</Label>
+              <Input
+                id="search"
+                placeholder="Search by name, email, or username..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="role-filter">Role</Label>
+              <Select value={roleFilter} onValueChange={(value: any) => setRoleFilter(value)}>
+                <SelectTrigger id="role-filter">
+                  <SelectValue placeholder="All Roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="user">User</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="company-filter">Company</Label>
+              <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                <SelectTrigger id="company-filter">
+                  <SelectValue placeholder="All Companies" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Companies</SelectItem>
+                  {companies?.map((company) => (
+                    <SelectItem key={company._id} value={company._id}>
+                      {company.companyName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="mt-4 text-sm text-gray-600">
+            Showing {filteredUsers.length} of {users?.length || 0} users
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4">
-        {users?.map((user) => (
+        {filteredUsers.map((user) => (
           <Card key={user.id}>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
@@ -198,13 +260,12 @@ export default function Users() {
                     <UserIcon className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">{user.name || user.username}</CardTitle>
+                    <CardTitle className="text-lg">{user.fullName || user.username}</CardTitle>
                     <CardDescription>@{user.username}</CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {getRoleBadge(user.role)}
-                  {!user.active && <Badge variant="secondary">Inactive</Badge>}
                 </div>
               </div>
             </CardHeader>
@@ -275,8 +336,8 @@ export default function Users() {
               <Label htmlFor="create-name">Full Name</Label>
               <Input
                 id="create-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                 placeholder="Enter full name"
               />
             </div>
@@ -362,8 +423,8 @@ export default function Users() {
               <Label htmlFor="edit-name">Full Name</Label>
               <Input
                 id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                value={formData.fullName}
+                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                 placeholder="Enter full name"
               />
             </div>
@@ -406,14 +467,7 @@ export default function Users() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="edit-active">Active</Label>
-              <Switch
-                id="edit-active"
-                checked={formData.active}
-                onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
-              />
-            </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -436,7 +490,7 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedUser?.name || selectedUser?.username}? This action cannot be undone.
+              Are you sure you want to delete {selectedUser?.fullName || selectedUser?.username}? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
