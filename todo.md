@@ -408,3 +408,14 @@
 - [x] Create final deployment summary (FINAL_DEPLOYMENT_SUMMARY.md)
 - [ ] Build APK on local machine with Android SDK (instructions provided)
 - [ ] Complete mobile app integration following guide
+
+
+## Phase 37: Integrate Lot API into Old HTML Dashboard
+- [x] Locate HTML dashboard files on production server (/root/simple-admin)
+- [x] Examine company management page structure
+- [x] Create JavaScript lot API integration (lot-api-integration.js)
+- [x] Deploy integration script to production
+- [x] Add script tag to companies.html
+- [ ] Fix HTML dashboard authentication (400 errors on login)
+- [ ] Test lot selector after authentication is fixed
+- [ ] Verify lot-company associations save correctly
