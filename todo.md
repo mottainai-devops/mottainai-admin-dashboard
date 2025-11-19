@@ -393,3 +393,18 @@
 - [ ] Test automated script on production
 - [ ] Test web upload interface
 - [ ] Deploy updated dashboard to Manus platform
+
+
+## Phase 36: Production Deployment & Mobile App Integration
+- [x] Build updated dashboard with automation features
+- [x] Deploy frontend to production server
+- [x] Deploy backend with upload router to production
+- [x] Deploy automation script to production
+- [x] Test lot API endpoint (26 lots confirmed at https://admin.kowope.xyz/api/trpc/lots.list)
+- [x] Locate mobile app source code (/home/ubuntu/mottainai_survey_app)
+- [x] Create lot service for mobile app (lib/services/lot_service.dart)
+- [x] Create comprehensive integration guide (MOBILE_APP_INTEGRATION.md)
+- [x] Create interactive API testing tool (mobile-app-test-api.html)
+- [x] Create final deployment summary (FINAL_DEPLOYMENT_SUMMARY.md)
+- [ ] Build APK on local machine with Android SDK (instructions provided)
+- [ ] Complete mobile app integration following guide
