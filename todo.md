@@ -655,3 +655,12 @@
 - [x] Created Header component with logout button and user info
 - [x] Added Header to all main pages (Home, Users, Companies, Analytics, etc.)
 - [x] Tested logout - successfully redirects to login page
+
+
+## Phase 52: Fix CompanyId Validation Error
+- [x] Diagnose "Invalid input: expected string, received null" error in user update
+- [x] Fix backend validation to allow null/empty companyId values
+- [x] Update tRPC schema to make companyId optional or nullable (changed to z.string().nullable().optional())
+- [x] Test user update with no company assigned
+- [x] Test user update with company assigned
+- [x] Deploy fix to production
