@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Header } from "@/components/Header";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +70,8 @@ export default function QATools() {
   };
 
   return (
+      <>
+        <Header />
     <div className="container py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Quality Assurance Tools</h1>
@@ -380,5 +383,6 @@ export default function QATools() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

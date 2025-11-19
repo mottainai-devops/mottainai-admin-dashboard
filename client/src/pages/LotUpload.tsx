@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Header } from "@/components/Header";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -128,6 +129,8 @@ export default function LotUpload() {
   };
 
   return (
+      <>
+        <Header />
     <div className="container mx-auto py-8 max-w-4xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Lot Data Management</h1>
@@ -298,5 +301,6 @@ export default function LotUpload() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

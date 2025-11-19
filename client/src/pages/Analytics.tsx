@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { Header } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -41,6 +42,8 @@ export default function Analytics() {
   const isLoading = metricsLoading || statsLoading || timelineLoading;
 
   return (
+      <>
+        <Header />
     <div className="container py-8">
       <div className="mb-8">
         <div className="flex items-center justify-between">
@@ -358,5 +361,6 @@ export default function Analytics() {
         </Card>
       )}
     </div>
+    </>
   );
 }

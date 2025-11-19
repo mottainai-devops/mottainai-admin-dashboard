@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Header } from "@/components/Header";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,16 +121,21 @@ export default function Companies() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Loading companies...</p>
+      <>
+        <Header />
+        <div className="container mx-auto py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading companies...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="container mx-auto py-8">
+    <>
+      <Header />
+      <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Company Management</h1>
@@ -292,6 +298,7 @@ export default function Companies() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
