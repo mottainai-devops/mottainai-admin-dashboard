@@ -444,3 +444,14 @@
 - [x] Created comprehensive final delivery documentation
 - [x] Documented all working features and next steps
 - [x] Provided testing checklist and support information
+
+
+## Phase 40: Final APK Build & Standalone Dashboard
+- [ ] Build mobile app APK with lot API integration
+- [ ] Upload APK and provide download link
+- [ ] Test APK loads 26 lots from API
+- [ ] Create simple username/password authentication for React dashboard
+- [ ] Remove Manus OAuth dependencies
+- [ ] Deploy standalone dashboard to production
+- [ ] Test dashboard login and lot selector
+- [ ] Verify end-to-end flow working

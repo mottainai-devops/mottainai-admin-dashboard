@@ -6,6 +6,7 @@ import Analytics from "@/pages/Analytics";
 import QATools from "@/pages/QATools";
 import Companies from "@/pages/Companies";
 import Login from "@/pages/Login";
+import SimpleLogin from "@/pages/SimpleLogin";
 import Users from "@/pages/Users";
 import LotUpload from "@/pages/LotUpload";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -18,7 +19,7 @@ import Home from "./pages/Home";
 function Router() {
   return (
     <Switch>
-      <Route path="/login" component={Login} />
+      <Route path="/login" component={SimpleLogin} />
       <Route path="/">
         <ProtectedRoute>
           <Home />

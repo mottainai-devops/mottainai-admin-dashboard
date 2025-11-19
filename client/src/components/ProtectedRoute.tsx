@@ -1,18 +1,18 @@
-import { trpc } from "@/lib/trpc";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
-  const { data: user, isLoading } = trpc.auth.me.useQuery();
+  const { user, loading, isAuthenticated } = useSimpleAuth();
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (!loading && !isAuthenticated) {
       setLocation("/login");
     }
-  }, [user, isLoading, setLocation]);
+  }, [isAuthenticated, loading, setLocation]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -23,7 +23,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return null;
   }
 
