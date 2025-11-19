@@ -3,6 +3,8 @@ import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
+import { addAuditLog } from "./auditLog";
 
 const JWT_SECRET = process.env.JWT_SECRET || "mottainai-secret-key-change-in-production";
 
@@ -43,6 +45,15 @@ const USERS: SimpleUser[] = [];
 
 let nextUserId = 2;
 
+// Password reset tokens (in-memory storage)
+type ResetToken = {
+  token: string;
+  userId: number;
+  expiresAt: Date;
+};
+
+const RESET_TOKENS: ResetToken[] = [];
+
 export const simpleAuthRouter = router({
   // Login with username/password
   login: publicProcedure
@@ -52,25 +63,57 @@ export const simpleAuthRouter = router({
         password: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
-      const user = USERS.find((u) => u.username === input.username);
-
-      if (!user) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "Invalid username or password",
-        });
-      }
-
-      // Verify password using bcrypt
-      const passwordMatch = await bcrypt.compare(input.password, user.password);
+    .mutation(async ({ input, ctx }) => {
+      const user = USERS.find(u => u.username === input.username);
       
-      if (!passwordMatch) {
+      if (!user) {
+        // Log failed login attempt
+        addAuditLog({
+          action: 'LOGIN_FAILED',
+          username: input.username,
+          details: `Failed login attempt for username: ${input.username}`,
+          ipAddress: ctx.req.ip,
+          userAgent: ctx.req.headers['user-agent'],
+          success: false,
+        });
+        
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Invalid username or password",
         });
       }
+
+      // Verify password with bcrypt
+      const isPasswordValid = await bcrypt.compare(input.password, user.password);
+      
+      if (!isPasswordValid) {
+        // Log failed login attempt
+        addAuditLog({
+          action: 'LOGIN_FAILED',
+          userId: user.id,
+          username: user.username,
+          details: `Failed login attempt (invalid password) for user: ${user.username}`,
+          ipAddress: ctx.req.ip,
+          userAgent: ctx.req.headers['user-agent'],
+          success: false,
+        });
+        
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Invalid username or password",
+        });
+      }
+
+      // Log successful login
+      addAuditLog({
+        action: 'LOGIN_SUCCESS',
+        userId: user.id,
+        username: user.username,
+        details: `Successful login for user: ${user.username}`,
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers['user-agent'],
+        success: true,
+      });
 
       // Generate JWT token
       const token = jwt.sign(
@@ -162,7 +205,7 @@ export const simpleAuthRouter = router({
         companyId: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       // Check if username already exists
       if (USERS.find(u => u.username === input.username)) {
         throw new TRPCError({
@@ -188,6 +231,17 @@ export const simpleAuthRouter = router({
       };
 
       USERS.push(newUser);
+
+      // Log user creation
+      addAuditLog({
+        action: 'USER_CREATED',
+        userId: newUser.id,
+        username: newUser.username,
+        details: `User created: ${newUser.username} (${newUser.role})`,
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers['user-agent'],
+        success: true,
+      });
 
       return {
         success: true,
@@ -215,7 +269,7 @@ export const simpleAuthRouter = router({
         companyId: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const userIndex = USERS.findIndex(u => String(u.id) === input.id);
       
       if (userIndex === -1) {
@@ -247,6 +301,26 @@ export const simpleAuthRouter = router({
       if (input.active !== undefined) USERS[userIndex].active = input.active;
       if (input.companyId !== undefined) USERS[userIndex].companyId = input.companyId || null;
 
+      // Log user update
+      const changes = [];
+      if (input.username) changes.push('username');
+      if (input.password) changes.push('password');
+      if (input.name !== undefined) changes.push('name');
+      if (input.email !== undefined) changes.push('email');
+      if (input.role) changes.push('role');
+      if (input.active !== undefined) changes.push('active');
+      if (input.companyId !== undefined) changes.push('companyId');
+      
+      addAuditLog({
+        action: 'USER_UPDATED',
+        userId: USERS[userIndex].id,
+        username: USERS[userIndex].username,
+        details: `User updated: ${USERS[userIndex].username} (Changed: ${changes.join(', ')})`,
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers['user-agent'],
+        success: true,
+      });
+
       return {
         success: true,
         user: {
@@ -266,7 +340,7 @@ export const simpleAuthRouter = router({
         id: z.string(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const userIndex = USERS.findIndex(u => String(u.id) === input.id);
       
       if (userIndex === -1) {
@@ -285,8 +359,130 @@ export const simpleAuthRouter = router({
         });
       }
 
+      const deletedUser = USERS[userIndex];
       USERS.splice(userIndex, 1);
 
+      // Log user deletion
+      addAuditLog({
+        action: 'USER_DELETED',
+        userId: deletedUser.id,
+        username: deletedUser.username,
+        details: `User deleted: ${deletedUser.username} (${deletedUser.role})`,
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers['user-agent'],
+        success: true,
+      });
+
       return { success: true };
+    }),
+
+  // Request password reset
+  requestPasswordReset: publicProcedure
+    .input(
+      z.object({
+        username: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const user = USERS.find(u => u.username === input.username);
+      
+      if (!user) {
+        // Don't reveal if user exists or not for security
+        return {
+          success: true,
+          message: "If the username exists, a reset token has been generated.",
+        };
+      }
+
+      // Generate secure reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+
+      // Remove any existing tokens for this user
+      const existingIndex = RESET_TOKENS.findIndex(t => t.userId === user.id);
+      if (existingIndex !== -1) {
+        RESET_TOKENS.splice(existingIndex, 1);
+      }
+
+      // Store new token
+      RESET_TOKENS.push({
+        token: resetToken,
+        userId: user.id,
+        expiresAt,
+      });
+
+      return {
+        success: true,
+        message: "Reset token generated successfully.",
+        // In production, send this via email. For admin dashboard, display it.
+        resetToken,
+        expiresAt,
+      };
+    }),
+
+  // Reset password with token
+  resetPassword: publicProcedure
+    .input(
+      z.object({
+        token: z.string(),
+        newPassword: z.string().min(6),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Find valid token
+      const resetTokenIndex = RESET_TOKENS.findIndex(
+        t => t.token === input.token && t.expiresAt > new Date()
+      );
+
+      if (resetTokenIndex === -1) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid or expired reset token",
+        });
+      }
+
+      const resetToken = RESET_TOKENS[resetTokenIndex];
+      const userIndex = USERS.findIndex(u => u.id === resetToken.userId);
+
+      if (userIndex === -1) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+      USERS[userIndex].password = hashedPassword;
+
+      // Remove used token
+      RESET_TOKENS.splice(resetTokenIndex, 1);
+
+      // Log password reset
+      addAuditLog({
+        action: 'PASSWORD_RESET',
+        userId: USERS[userIndex].id,
+        username: USERS[userIndex].username,
+        details: `Password reset for user: ${USERS[userIndex].username}`,
+        success: true,
+      });
+
+      return {
+        success: true,
+        message: "Password reset successfully",
+      };
+    }),
+
+  // Get audit logs (admin only in production)
+  getAuditLogs: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(500).default(100),
+      }).optional()
+    )
+    .query(({ input }) => {
+      const { getAuditLogs } = require('./auditLog');
+      const limit = input?.limit || 100;
+      return getAuditLogs(limit);
     }),
 });

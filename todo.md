@@ -503,3 +503,41 @@
 - [x] Update login to verify hashed passwords
 - [x] Update user creation to hash passwords before storage
 - [x] Test complete authentication flow end-to-end - Working with in-memory users
+
+
+## Phase 40: Production Features - MongoDB, Password Reset, Audit Logging
+- [ ] Set up MongoDB connection configuration
+- [ ] Request MONGODB_URI from user if needed
+- [ ] Test MongoDB connection and verify existing users are loaded
+- [ ] Implement password reset request endpoint
+- [ ] Create password reset token generation and storage
+- [ ] Build password reset UI (request reset page)
+- [ ] Build password reset confirmation page (with token validation)
+- [ ] Add email notification for password reset (or alternative method)
+- [ ] Create audit log database schema
+- [ ] Implement audit logging middleware for tracking user actions
+- [ ] Add audit log entries for: login attempts, user creation, user updates, user deletion
+- [ ] Create audit log viewer UI for admins
+- [ ] Test complete flow: MongoDB connection, password reset, audit logging
+- [ ] Write tests for new features
+
+
+## Phase 42: Password Reset & Audit Logging Implementation
+- [ ] Configure MongoDB connection for production use - Requires user to update MONGODB_URI in Settings
+- [ ] Test MongoDB connection and verify existing users are visible - Pending MongoDB connection
+- [x] Implement password reset request endpoint (generates secure token)
+- [x] Implement password reset confirmation endpoint (validates token and updates password)
+- [x] Create Forgot Password UI page with token display
+- [x] Create Reset Password UI page with token input
+- [x] Add "Forgot Password" link to login page
+- [x] Create audit log storage system (in-memory with 1000 entry limit)
+- [x] Add audit logging to login attempts (success/failure with IP and user agent)
+- [x] Add audit logging to user creation
+- [x] Add audit logging to user updates (tracks changed fields)
+- [x] Add audit logging to user deletion
+- [x] Add audit logging to password resets
+- [x] Create audit log retrieval endpoint (getAuditLogs with limit parameter)
+- [x] Create Audit Log viewer UI page with real-time refresh
+- [x] Add Audit Log card to dashboard home page
+- [ ] Test complete password reset flow
+- [ ] Test audit logging captures all events correctly

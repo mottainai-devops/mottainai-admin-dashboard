@@ -9,6 +9,9 @@ import Login from "@/pages/Login";
 import SimpleLogin from "@/pages/SimpleLogin";
 import Users from "@/pages/Users";
 import LotUpload from "@/pages/LotUpload";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import AuditLog from "@/pages/AuditLog";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 import { Route, Switch } from "wouter";
@@ -20,6 +23,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={SimpleLogin} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/">
         <ProtectedRoute>
           <Home />
@@ -53,6 +58,11 @@ function Router() {
       <Route path="/lot-upload">
         <ProtectedRoute>
           <LotUpload />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/audit-log">
+        <ProtectedRoute>
+          <AuditLog />
         </ProtectedRoute>
       </Route>
       <Route path="/404" component={NotFound} />

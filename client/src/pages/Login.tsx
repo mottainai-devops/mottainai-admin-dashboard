@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import { APP_TITLE } from "@/const";
 
@@ -81,6 +81,12 @@ export default function Login() {
             >
               {isLoading ? "Logging in..." : "Login"}
             </Button>
+
+            <div className="text-center text-sm mt-4">
+              <Link href="/forgot-password" className="text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
           </form>
         </CardContent>
       </Card>

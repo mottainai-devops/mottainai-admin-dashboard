@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, ArrowRight, Activity, BarChart3, Wrench, Users } from "lucide-react";
+import { Building2, ArrowRight, Activity, BarChart3, Wrench, Users, Shield } from "lucide-react";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { Link } from "wouter";
 
@@ -151,6 +151,31 @@ export default function Home() {
                 </p>
                 <div className="flex items-center text-red-600 font-medium">
                   Manage Users
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/audit-log">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-slate-100 rounded-lg">
+                    <Shield className="h-8 w-8 text-slate-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Audit Log</CardTitle>
+                    <CardDescription>Security events and user actions</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Track all user actions, login attempts, and security-related events.
+                </p>
+                <div className="flex items-center text-slate-600 font-medium">
+                  View Logs
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </div>
               </CardContent>
