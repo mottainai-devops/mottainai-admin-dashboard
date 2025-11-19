@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Trash2, UserPlus, Shield, User as UserIcon } from "lucide-react";
+import { BulkUserImport } from "@/components/BulkUserImport";
 import { useAuth } from "@/hooks/useAuth";
 
 interface User {
@@ -195,10 +196,13 @@ export default function Users() {
           <h1 className="text-3xl font-bold">User Management</h1>
           <p className="text-gray-600 mt-1">Manage admin users and their permissions</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <UserPlus className="w-4 h-4 mr-2" />
-          Add User
-        </Button>
+          <div className="flex gap-2">
+            <BulkUserImport onImportComplete={() => utils.simpleAuth.listUsers.invalidate()} />
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
+          </div>
       </div>
 
       {/* Search and Filter Controls */}

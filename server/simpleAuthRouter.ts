@@ -482,6 +482,76 @@ export const simpleAuthRouter = router({
       };
     }),
 
+  // Bulk import users from CSV
+  bulkImportUsers: publicProcedure
+    .input(
+      z.object({
+        users: z.array(
+          z.object({
+            username: z.string(),
+            password: z.string(),
+            fullName: z.string().nullable(),
+            email: z.string().email().nullable(),
+            role: z.enum(["admin", "user"]),
+            companyId: z.string().nullable(),
+          })
+        ),
+      })
+    )
+    .mutation(async ({ input }) => {
+      let imported = 0;
+      let failed = 0;
+      const errors: string[] = [];
+
+      for (const userData of input.users) {
+        try {
+          // Check if username already exists
+          if (USERS.find(u => u.username === userData.username)) {
+            errors.push(`Username ${userData.username} already exists`);
+            failed++;
+            continue;
+          }
+
+          // Hash password
+          const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+          // Create new user
+          const newUser: SimpleUser = {
+            id: USERS.length > 0 ? Math.max(...USERS.map(u => u.id)) + 1 : 1,
+            username: userData.username,
+            password: hashedPassword,
+            fullName: userData.fullName,
+            email: userData.email,
+            role: userData.role,
+            companyId: userData.companyId,
+            createdAt: new Date(),
+            lastSignedIn: new Date(),
+          };
+
+          USERS.push(newUser);
+          imported++;
+
+          // Log user creation
+          addAuditLog({
+            action: 'USER_CREATED',
+            userId: newUser.id,
+            username: 'bulk_import',
+            details: `Bulk imported user: ${newUser.username}`,
+            success: true,
+          });
+        } catch (error) {
+          errors.push(`Failed to import ${userData.username}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          failed++;
+        }
+      }
+
+      return {
+        imported,
+        failed,
+        errors,
+      };
+    }),
+
   // Get audit logs (admin only in production)
   getAuditLogs: publicProcedure
     .input(
