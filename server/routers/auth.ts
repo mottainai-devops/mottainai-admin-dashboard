@@ -58,13 +58,17 @@ export const authRouter = router({
 
       // Set session cookie (using user ID as session identifier)
       console.log('[Auth] Setting session cookie...');
-      ctx.res.cookie('session_user_id', user._id, {
+      ctx.res.cookie('session_user_id', user._id.toString(), {
         httpOnly: true,
-        secure: true, // Always use secure for HTTPS
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
+        domain: undefined, // Let browser determine domain
       });
+      
+      // Also log the cookie value for debugging
+      console.log('[Auth] Cookie set with value:', user._id.toString().substring(0, 8) + '...');
 
       console.log('[Auth] Login successful, returning response');
       return {

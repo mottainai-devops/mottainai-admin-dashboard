@@ -282,3 +282,95 @@
 - [x] Display assigned company name in user list table
 - [x] Test company assignment functionality locally
 - [x] Deploy updated feature to production
+
+
+## Phase 32: Fix "Not Authenticated" Error on User Creation
+- [x] Check why user creation shows "Not authenticated" error
+- [x] Verify if frontend is sending authentication cookie/token
+- [x] Check backend authentication middleware for user creation endpoint
+- [x] Fix authentication flow (re-enabled frontend auth)
+- [ ] Test user creation works correctly
+- [ ] Deploy fix to production
+
+
+## Phase 33: Fix Login Redirect Not Working
+- [ ] Check browser console for login mutation callbacks
+- [ ] Verify tRPC mutation onSuccess is being called
+- [ ] Check if window.location.href redirect is executing
+- [ ] Debug why redirect doesn't happen after "Login successful!" toast
+- [ ] Implement working redirect solution
+- [ ] Test login flow end-to-end
+- [ ] Deploy fix to production
+
+
+## Phase 34: Fix Mobile App Backend Company Lookup
+- [x] Fix company lookup in /var/www/upwork.kowope.xyz/src/Routes/V1/users.js to convert companyId string to ObjectId
+- [x] Fix User model schema to include companyId field
+- [x] Test mobile app login with adeyadewuyi@gmail.com to verify fix - WORKING!
+- [ ] Update deployment documentation with the fix
+
+## Phase 35: Fix Polygon Lines Not Showing on Mobile App Map
+- [ ] Check polygon data configuration for URBAN SPIRIT operational lot
+- [ ] Add or fix polygon coordinates for the operational lot in database
+- [ ] Test mobile app to verify polygons display correctly
+- [ ] Note: Polygons were working before, need to investigate why white borders not visible
+
+## Phase 36: Fix Mobile App Back Button Navigation
+- [x] Investigate back button navigation implementation in Flutter app
+- [x] Fix PopScope to handle back button correctly in all screens
+- [x] Ensure back button navigates within app instead of exiting
+- [x] Fixed files: pin_auth_screen.dart, pickup_form_screen_v2.dart, history_screen.dart
+- [ ] Build and deploy fixed APK (v2.8) - READY TO BUILD
+- [ ] Test back button navigation on all screens - PENDING APK BUILD
+
+
+## Phase 37: Auto-Select Company Based on User Email
+- [x] Modify pickup form to get user's company from login response
+- [x] Pre-select company dropdown based on user's assigned company
+- [x] Company auto-selected from AuthProvider in initState
+- [x] Rebuild APK v2.7.3 with auto-company selection - COMPLETED
+- [ ] Test with adeyadewuyi@gmail.com to verify URBAN SPIRIT auto-selection
+
+
+## Phase 40: Parse Excel Lot Data & Fix Company Display
+- [x] Read Lot_Layer_V4-1.xlsx file
+- [x] Extract 26 active lots with company mappings
+- [x] Create JSON mapping of lot ID -> company name
+- [x] Debug why company name not showing in v2.7.5/v2.7.6/v2.7.7/v2.7.8
+- [x] Check if login API is actually being called
+- [x] Verify company data in API response
+- [x] Fix company display timing issue (moved to didChangeDependencies)
+- [x] Build APK v2.7.7 with timing fix
+- [x] Identify UI condition mismatch (widget.preSelectedCompany vs _selectedCompany)
+- [x] Fix UI condition to check _selectedCompany instead
+- [x] Build APK v2.7.9 with critical UI fix
+- [ ] Test company auto-selection works in v2.7.9
+- [ ] Update admin dashboard with correct 26 lots
+
+
+## Phase 41: Clean Production Build & Lot Integration
+- [x] Remove debug toast messages from AuthProvider
+- [x] Remove console.log statements from pickup form
+- [x] Build clean production APK v2.8.0
+- [ ] Parse 26 active lots from Excel into JSON
+- [ ] Create backend API endpoint to fetch lots
+- [ ] Update admin dashboard Companies page with lot dropdown
+- [ ] Test lot dropdown in company add/edit forms
+- [ ] Deploy admin dashboard with lot integration
+- [ ] Create final release notes for v2.8.0
+
+
+## Phase 34: Integrate 26 Active Lots into Admin Dashboard
+- [x] Parse Excel file with 26 active operational lots
+- [x] Create backend API endpoint to serve lot data (trpc.lots.list)
+- [x] Create LotSelector component with searchable dropdown
+- [x] Update Companies page to use LotSelector in create form
+- [x] Update Companies page to use LotSelector in edit form
+- [x] Build production files
+- [x] Deploy frontend to /var/www/mottainai-dashboard/public
+- [x] Deploy backend and restart PM2 process
+- [ ] Fix nginx configuration for React SPA (redirect cycle issue)
+- [ ] Test lot dropdown loads all 26 lots correctly
+- [ ] Test search/filter functionality
+- [ ] Verify lot-company associations save correctly
+- [ ] Update mobile app to use new lot data structure

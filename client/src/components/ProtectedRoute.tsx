@@ -3,11 +3,6 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  // TEMPORARY: Authentication disabled for 3 days as requested
-  // Just render children without checking auth
-  return <>{children}</>;
-  
-  /* Original auth code - re-enable after 3 days:
   const [, setLocation] = useLocation();
   const { data: user, isLoading } = trpc.auth.me.useQuery();
 
@@ -33,5 +28,4 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
-  */
 }

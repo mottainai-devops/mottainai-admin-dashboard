@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Building2 } from "lucide-react";
 import { toast } from "sonner";
+import { LotSelector } from "@/components/LotSelector";
 
 interface OperationalLot {
   lotCode: string;
@@ -30,6 +31,8 @@ export default function Companies() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [createLots, setCreateLots] = useState<OperationalLot[]>([]);
+  const [editLots, setEditLots] = useState<OperationalLot[]>([]);
   
   const utils = trpc.useUtils();
   const { data: companies, isLoading } = trpc.companies.list.useQuery();
@@ -70,28 +73,23 @@ export default function Companies() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const operationalLots: OperationalLot[] = [];
     
-    const lotCount = parseInt(formData.get('lotCount') as string);
-    for (let i = 0; i < lotCount; i++) {
-      operationalLots.push({
-        lotCode: formData.get(`lotCode_${i}`) as string,
-        lotName: formData.get(`lotName_${i}`) as string,
-        paytWebhook: formData.get(`paytWebhook_${i}`) as string,
-        monthlyWebhook: formData.get(`monthlyWebhook_${i}`) as string,
-      });
+    if (createLots.length === 0) {
+      toast.error("Please add at least one operational lot");
+      return;
     }
     
     createMutation.mutate({
       companyId: formData.get('companyId') as string,
       companyName: formData.get('companyName') as string,
       pin: formData.get('pin') as string,
-      operationalLots,
+      operationalLots: createLots,
     });
   };
 
   const handleEdit = (company: Company) => {
     setSelectedCompany(company);
+    setEditLots(company.operationalLots);
     setIsEditDialogOpen(true);
   };
 
@@ -100,22 +98,17 @@ export default function Companies() {
     if (!selectedCompany) return;
     
     const formData = new FormData(e.currentTarget);
-    const operationalLots: OperationalLot[] = [];
     
-    selectedCompany.operationalLots.forEach((_, i) => {
-      operationalLots.push({
-        lotCode: formData.get(`lotCode_${i}`) as string,
-        lotName: formData.get(`lotName_${i}`) as string,
-        paytWebhook: formData.get(`paytWebhook_${i}`) as string,
-        monthlyWebhook: formData.get(`monthlyWebhook_${i}`) as string,
-      });
-    });
+    if (editLots.length === 0) {
+      toast.error("Please add at least one operational lot");
+      return;
+    }
     
     updateMutation.mutate({
       id: selectedCompany._id,
       companyName: formData.get('companyName') as string,
       pin: formData.get('pin') as string,
-      operationalLots,
+      operationalLots: editLots,
     });
   };
 
@@ -177,34 +170,7 @@ export default function Companies() {
                   <p className="text-sm text-muted-foreground">Used for mobile app authentication</p>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>Operational Lots</Label>
-                  <input type="hidden" name="lotCount" value="1" />
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Lot 1</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <Label htmlFor="lotCode_0">Lot Code</Label>
-                        <Input id="lotCode_0" name="lotCode_0" required placeholder="e.g., MOT-027" />
-                      </div>
-                      <div>
-                        <Label htmlFor="lotName_0">Lot Name</Label>
-                        <Input id="lotName_0" name="lotName_0" required placeholder="e.g., Main Operations" />
-                      </div>
-                      <div>
-                        <Label htmlFor="paytWebhook_0">PAYT Webhook URL</Label>
-                        <Input id="paytWebhook_0" name="paytWebhook_0" required placeholder="https://..." />
-                      </div>
-                      <div>
-                        <Label htmlFor="monthlyWebhook_0">Monthly Webhook URL</Label>
-                        <Input id="monthlyWebhook_0" name="monthlyWebhook_0" required placeholder="https://..." />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                <LotSelector selectedLots={createLots} onLotsChange={setCreateLots} />
               </div>
               
               <DialogFooter>
@@ -304,54 +270,7 @@ export default function Companies() {
                   <p className="text-sm text-muted-foreground">Used for mobile app authentication</p>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>Operational Lots</Label>
-                  {selectedCompany.operationalLots.map((lot, idx) => (
-                    <Card key={idx}>
-                      <CardHeader>
-                        <CardTitle className="text-sm">Lot {idx + 1}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div>
-                          <Label htmlFor={`edit-lotCode_${idx}`}>Lot Code</Label>
-                          <Input
-                            id={`edit-lotCode_${idx}`}
-                            name={`lotCode_${idx}`}
-                            defaultValue={lot.lotCode}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`edit-lotName_${idx}`}>Lot Name</Label>
-                          <Input
-                            id={`edit-lotName_${idx}`}
-                            name={`lotName_${idx}`}
-                            defaultValue={lot.lotName}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`edit-paytWebhook_${idx}`}>PAYT Webhook URL</Label>
-                          <Input
-                            id={`edit-paytWebhook_${idx}`}
-                            name={`paytWebhook_${idx}`}
-                            defaultValue={lot.paytWebhook}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`edit-monthlyWebhook_${idx}`}>Monthly Webhook URL</Label>
-                          <Input
-                            id={`edit-monthlyWebhook_${idx}`}
-                            name={`monthlyWebhook_${idx}`}
-                            defaultValue={lot.monthlyWebhook}
-                            required
-                          />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <LotSelector selectedLots={editLots} onLotsChange={setEditLots} />
               </div>
               
               <DialogFooter>

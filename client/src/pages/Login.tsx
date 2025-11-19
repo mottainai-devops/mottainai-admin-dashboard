@@ -17,7 +17,10 @@ export default function Login() {
     onSuccess: (data) => {
       console.log("[Login] Success callback triggered", data);
       toast.success("Login successful!");
-      setLocation("/");
+      // Use window.location for more reliable redirect
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 500);
     },
     onError: (error) => {
       console.error("[Login] Error callback triggered", error);
