@@ -3,6 +3,46 @@ import { publicProcedure } from './trpc';
 import * as db from '../db';
 import type { TrpcContext } from './context';
 import superjson from 'superjson';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || "mottainai-secret-key-change-in-production";
+
+// Helper function to get user from JWT token or cookie
+async function getUserFromContext(ctx: any) {
+  // First, try JWT token from Authorization header
+  const authHeader = ctx.req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    try {
+      const token = authHeader.substring(7);
+      const decoded = jwt.verify(token, JWT_SECRET) as {
+        id: number;
+        username: string;
+        role: string;
+      };
+      
+      // For simple auth, return the decoded user directly
+      // In production, you'd look up the user in the database
+      return {
+        _id: decoded.id.toString(),
+        username: decoded.username,
+        name: decoded.username,
+        email: null,
+        role: decoded.role,
+        active: true,
+      };
+    } catch (error) {
+      // Token invalid, fall through to cookie check
+    }
+  }
+  
+  // Fall back to cookie-based session
+  const userId = ctx.req.cookies?.session_user_id;
+  if (userId) {
+    return await db.getUserById(userId);
+  }
+  
+  return null;
+}
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -13,21 +53,12 @@ const t = initTRPC.context<TrpcContext>().create({
  * Checks if user is authenticated via session cookie
  */
 export const isAuthenticated = t.middleware(async ({ ctx, next }: any) => {
-  const userId = ctx.req.cookies?.session_user_id;
-
-  if (!userId) {
-    throw new TRPCError({
-      code: 'UNAUTHORIZED',
-      message: 'Not authenticated. Please log in.',
-    });
-  }
-
-  const user = await db.getUserById(userId);
+  const user = await getUserFromContext(ctx);
 
   if (!user || !user.active) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
-      message: 'User not found or inactive.',
+      message: 'Not authenticated. Please log in.',
     });
   }
 
@@ -50,21 +81,12 @@ export const isAuthenticated = t.middleware(async ({ ctx, next }: any) => {
  * Requires user to be authenticated and have admin or superadmin role
  */
 export const isAdmin = t.middleware(async ({ ctx, next }: any) => {
-  const userId = ctx.req.cookies?.session_user_id;
-
-  if (!userId) {
-    throw new TRPCError({
-      code: 'UNAUTHORIZED',
-      message: 'Not authenticated.',
-    });
-  }
-
-  const user = await db.getUserById(userId);
+  const user = await getUserFromContext(ctx);
 
   if (!user || !user.active) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',
-      message: 'User not found or inactive.',
+      message: 'Not authenticated.',
     });
   }
 
@@ -94,16 +116,7 @@ export const isAdmin = t.middleware(async ({ ctx, next }: any) => {
  * Requires user to be authenticated and have superadmin role
  */
 export const isSuperAdmin = t.middleware(async ({ ctx, next }: any) => {
-  const userId = ctx.req.cookies?.session_user_id;
-
-  if (!userId) {
-    throw new TRPCError({
-      code: 'UNAUTHORIZED',
-      message: 'Not authenticated.',
-    });
-  }
-
-  const user = await db.getUserById(userId);
+  const user = await getUserFromContext(ctx);
 
   if (!user || !user.active) {
     throw new TRPCError({

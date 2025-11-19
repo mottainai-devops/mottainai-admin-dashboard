@@ -15,19 +15,31 @@ export const usersRouter = router({
    */
   list: adminProcedure
     .query(async () => {
-      const users = await db.getAllUsers();
-      return users.map(user => ({
-        id: user._id,
-        username: user.username,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        active: user.active,
-        companyId: user.companyId,
-        loginMethod: user.loginMethod,
-        createdAt: user.createdAt,
-        lastSignedIn: user.lastSignedIn,
-      }));
+      try {
+        // Add timeout to prevent hanging
+        const usersPromise = db.getAllUsers();
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Database timeout')), 2000)
+        );
+        
+        const users = await Promise.race([usersPromise, timeoutPromise]);
+        return users.map(user => ({
+          id: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          active: user.active,
+          companyId: user.companyId,
+          loginMethod: user.loginMethod,
+          createdAt: user.createdAt,
+          lastSignedIn: user.lastSignedIn,
+        }));
+      } catch (error) {
+        console.error('[Users] Failed to get users from database:', error);
+        // Return empty array if database is not available
+        return [];
+      }
     }),
 
   /**

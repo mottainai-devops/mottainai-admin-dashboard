@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 
 interface User {
-  id: number;
+  id: string | number; // Support both string (MongoDB) and number (simple auth)
   username: string;
   name: string;
   email: string;
@@ -60,11 +60,30 @@ export function SimpleAuthProvider({ children }: { children: React.ReactNode }) 
   const login = async (username: string, password: string) => {
     try {
       setError(null);
-      const result = await loginMutation.mutateAsync({ username, password });
       
-      if (result.success && result.token) {
+      // Use direct fetch instead of tRPC mutation to avoid batching issues
+      const response = await fetch('/api/trpc/simpleAuth.login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          json: { username, password }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Login failed');
+      }
+
+      const data = await response.json();
+      const result = data.result?.data?.json;
+      
+      if (result && result.success && result.token) {
         localStorage.setItem('auth_token', result.token);
         setUser(result.user);
+      } else {
+        throw new Error('Invalid response from server');
       }
     } catch (err: any) {
       setError(err.message || 'Login failed');

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { trpc } from "@/lib/trpc";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -11,39 +11,29 @@ import { APP_TITLE } from "@/const";
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [, setLocation] = useLocation();
+  const { login } = useSimpleAuth();
 
-  const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: (data) => {
-      console.log("[Login] Success callback triggered", data);
-      toast.success("Login successful!");
-      // Use window.location for more reliable redirect
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 500);
-    },
-    onError: (error) => {
-      console.error("[Login] Error callback triggered", error);
-      toast.error(error.message || "Invalid credentials");
-    },
-    onMutate: (variables) => {
-      console.log("[Login] Mutation started", variables);
-    },
-    onSettled: (data, error) => {
-      console.log("[Login] Mutation settled", { data, error, isPending: loginMutation.isPending });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[Login] Form submitted", { username, hasPassword: !!password });
     if (!username || !password) {
       toast.error("Please enter username and password");
       return;
     }
-    console.log("[Login] Calling mutation.mutate");
-    loginMutation.mutate({ username, password });
-    console.log("[Login] Mutation.mutate called, isPending:", loginMutation.isPending);
+    
+    setIsLoading(true);
+    try {
+      await login(username, password);
+      toast.success("Login successful!");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 500);
+    } catch (error: any) {
+      toast.error(error.message || "Invalid credentials");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,7 +55,7 @@ export default function Login() {
                 placeholder="Enter username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                disabled={loginMutation.isPending}
+                disabled={isLoading}
                 autoComplete="username"
                 required
               />
@@ -78,7 +68,7 @@ export default function Login() {
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={loginMutation.isPending}
+                disabled={isLoading}
                 autoComplete="current-password"
                 required
               />
@@ -87,9 +77,9 @@ export default function Login() {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={loginMutation.isPending}
+              disabled={isLoading}
             >
-              {loginMutation.isPending ? "Logging in..." : "Login"}
+              {isLoading ? "Logging in..." : "Login"}
             </Button>
           </form>
         </CardContent>

@@ -1,22 +1,17 @@
-import { trpc } from "@/lib/trpc";
+import { useSimpleAuth } from "@/contexts/SimpleAuthContext";
 
 /**
  * Custom hook for authentication state and operations
+ * Uses simple JWT-based authentication
  */
 export function useAuth() {
-  const { data: user, isLoading, error } = trpc.auth.me.useQuery();
-  const logoutMutation = trpc.auth.logout.useMutation();
-
-  const logout = async () => {
-    await logoutMutation.mutateAsync();
-    window.location.href = "/login";
-  };
+  const { user, loading, error, isAuthenticated, logout } = useSimpleAuth();
 
   return {
     user,
-    isLoading,
-    error,
-    isAuthenticated: !!user,
+    isLoading: loading,
+    error: error ? new Error(error) : null,
+    isAuthenticated,
     isSuperAdmin: user?.role === 'superadmin',
     isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
     logout,

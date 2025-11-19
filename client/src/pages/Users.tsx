@@ -232,7 +232,7 @@ export default function Users() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleDelete(user)}
-                    disabled={user.id === currentUser?.id || (!isSuperAdmin && user.role === 'superadmin')}
+                    disabled={String(user.id) === String(currentUser?.id) || (!isSuperAdmin && user.role === 'superadmin')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

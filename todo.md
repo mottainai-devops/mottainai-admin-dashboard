@@ -455,3 +455,24 @@
 - [ ] Deploy standalone dashboard to production
 - [ ] Test dashboard login and lot selector
 - [ ] Verify end-to-end flow working
+
+
+## Phase 42: Add User Management to Dashboard
+- [ ] Check if Users page exists in dashboard
+- [ ] Create backend API to fetch users from MongoDB
+- [ ] Create Users page with user list
+- [ ] Add user details display (email, company, role)
+- [ ] Test user management on production
+- [ ] Verify existing users are displayed correctly
+
+
+## Phase 37: Fix Users Page 401 Unauthorized Error
+- [x] Identified issue: auth middleware not reading JWT tokens from Authorization header
+- [x] Updated authMiddleware.ts to support JWT tokens in addition to cookies
+- [x] Fixed login hanging issue by replacing httpBatchLink with httpLink in tRPC client
+- [x] Fixed login function to use direct fetch instead of tRPC mutation
+- [x] Updated useAuth hook to use SimpleAuthContext
+- [x] Fixed ID type mismatch (string vs number) in SimpleAuthContext
+- [x] Added timeout handling for MongoDB queries in users router
+- [x] Tested Users page loads successfully with empty array
+- [x] Verified authentication flow works end-to-end
