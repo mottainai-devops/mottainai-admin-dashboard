@@ -369,8 +369,14 @@
 - [x] Build production files
 - [x] Deploy frontend to /var/www/mottainai-dashboard/public
 - [x] Deploy backend and restart PM2 process
-- [ ] Fix nginx configuration for React SPA (redirect cycle issue)
-- [ ] Test lot dropdown loads all 26 lots correctly
-- [ ] Test search/filter functionality
-- [ ] Verify lot-company associations save correctly
-- [ ] Update mobile app to use new lot data structure
+- [x] Fix nginx configuration for React SPA
+- [x] Install xlsx dependency on production server
+- [x] Deploy lot data Excel file
+- [x] Fix nginx API proxy configuration
+- [x] Test lot API endpoint (26 lots confirmed)
+- [x] Verify public API works at https://admin.kowope.xyz/api/trpc/lots.list
+- [x] Create mobile app integration guide with code examples
+- [x] Document API endpoint and response format
+- [x] Provide Flutter/Dart code samples
+- [ ] Implement mobile app changes (requires mobile app developer)
+- [ ] Test lot selector in React dashboard (requires OAuth setup or deploy via Manus)
