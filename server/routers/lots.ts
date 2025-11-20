@@ -25,11 +25,11 @@ export const lotsRouter = router({
   list: publicProcedure
     .input(z.object({
       userId: z.string().optional(), // User ID for role-based filtering
-    }))
+    }).optional())
     .query(async ({ input }) => {
       try {
         // If no userId provided, return empty array (require authentication)
-        if (!input.userId) {
+        if (!input || !input.userId) {
           return {
             lots: [],
             totalCount: 0,
