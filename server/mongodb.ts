@@ -53,3 +53,34 @@ export async function disconnectFromMongoDB(): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Get user by email from MongoDB
+ * Used for authentication
+ */
+export async function getUserByEmail(email: string) {
+  try {
+    const db = await getMongoConnection();
+    const user = await db.collection('users').findOne({ email });
+    return user;
+  } catch (error) {
+    console.error('[MongoDB] Error getting user by email:', error);
+    return null;
+  }
+}
+
+/**
+ * Get user by ID from MongoDB
+ * Used for token verification
+ */
+export async function getUserById(userId: string) {
+  try {
+    const db = await getMongoConnection();
+    const ObjectId = mongoose.Types.ObjectId;
+    const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+    return user;
+  } catch (error) {
+    console.error('[MongoDB] Error getting user by ID:', error);
+    return null;
+  }
+}
