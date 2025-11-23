@@ -47,7 +47,7 @@ async function startServer() {
   );
   // Production mode - serve static files only
   serveStatic(app);
-  const port = await findAvailablePort(Number(process.env.PORT) || 3000);
+  const port = await findAvailablePort(Number(process.env.PORT) || 3003);
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
