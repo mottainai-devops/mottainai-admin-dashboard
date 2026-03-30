@@ -14,6 +14,7 @@ export interface IUser extends Document {
   password: string | null; // Hashed password (bcrypt)
   role: 'admin' | 'user' | 'cherry_picker';
   companyId?: string | null; // Assigned company for regular users
+  defaultLotCode?: string | null; // Default lot code for mobile app auto-fill
   monthlyBilling?: boolean; // Monthly billing flag
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +38,7 @@ const userSchema = new Schema<IUser>({
     required: true 
   },
   companyId: { type: String, default: null },
+  defaultLotCode: { type: String, default: null }, // Default lot for mobile app
   monthlyBilling: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

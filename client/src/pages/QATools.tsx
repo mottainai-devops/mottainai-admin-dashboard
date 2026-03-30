@@ -24,6 +24,7 @@ import {
   Webhook,
   Database,
   FileCheck,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,8 +33,20 @@ export default function QATools() {
   const [testResult, setTestResult] = useState<any>(null);
   const [isTesting, setIsTesting] = useState(false);
 
+  const [backfillLimit, setBackfillLimit] = useState(100);
+  const [backfillResult, setBackfillResult] = useState<{ total: number; enriched: number; failed: number; message: string } | null>(null);
+
   const { data: companies } = trpc.companies.list.useQuery();
   const testWebhookMutation = trpc.testing.testWebhook.useMutation();
+  const geoBackfillMutation = trpc.propertyEnumeration.triggerGeoBackfill.useMutation({
+    onSuccess: (result) => {
+      setBackfillResult(result);
+      toast.success(`Backfill complete: ${result.enriched} buildings enriched`);
+    },
+    onError: (error) => {
+      toast.error(`Backfill failed: ${error.message}`);
+    },
+  });
 
   const handleTestWebhook = async () => {
     if (!webhookUrl) {
@@ -347,6 +360,64 @@ export default function QATools() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Geographic Backfill Tool */}
+      <Card className="mt-6">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <MapPin className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <CardTitle>Geographic Backfill</CardTitle>
+              <CardDescription>
+                Enrich buildings with LGA, ward, and state data from ArcGIS. Processes buildings that have an ArcGIS Building ID but are missing geographic information.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="backfill-limit">Batch Size (max 500)</Label>
+              <Input
+                id="backfill-limit"
+                type="number"
+                min={1}
+                max={500}
+                value={backfillLimit}
+                onChange={(e) => setBackfillLimit(Math.min(500, Math.max(1, parseInt(e.target.value) || 100)))}
+                className="w-32"
+              />
+            </div>
+            <Button
+              onClick={() => geoBackfillMutation.mutate({ limit: backfillLimit })}
+              disabled={geoBackfillMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {geoBackfillMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <MapPin className="h-4 w-4 mr-2" />
+              )}
+              Run Geo Backfill
+            </Button>
+          </div>
+          {backfillResult && (
+            <Alert className="border-green-200 bg-green-50">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                <strong>{backfillResult.message}</strong>
+                <div className="mt-2 flex gap-4 text-sm">
+                  <span>Total checked: <strong>{backfillResult.total}</strong></span>
+                  <span>Enriched: <strong className="text-green-700">{backfillResult.enriched}</strong></span>
+                  <span>Failed: <strong className="text-red-600">{backfillResult.failed}</strong></span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
       {/* System Diagnostics */}
       <Card className="mt-6">

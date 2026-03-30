@@ -8,6 +8,9 @@ import { usersRouter } from "./routers/users";
 import { uploadRouter } from "./uploadRouter";
 import { mongoAuthRouter } from "./mongoAuthRouter";
 import { lotsRouter } from "./routers/lots";
+import { pickupsRouter } from "./routers/pickups";
+import { customersRouter } from "./routers/customers";
+import { propertyEnumerationRouter } from "./routers/propertyEnumeration";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -25,6 +28,12 @@ export const appRouter = router({
 
   // Operational lots with role-based filtering
   lots: lotsRouter,
+  // Pickup records from form submissions
+  pickups: pickupsRouter,
+  // Customer management
+  customers: customersRouter,
+  // Property enumeration and geographic backfill
+  propertyEnumeration: propertyEnumerationRouter,
 
   // Company management router - now using MongoDB directly
   companies: router({

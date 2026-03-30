@@ -19,6 +19,12 @@ const operationalLotSchema = new Schema<IOperationalLot>({
 }, { _id: false });
 
 /**
+ * Company Type Enum
+ * Defines the hierarchy level of a company
+ */
+export type CompanyType = 'franchisor' | 'franchisee' | 'independent';
+
+/**
  * Company Document Interface
  * Extends MongoDB Document with company-specific fields
  */
@@ -27,7 +33,13 @@ export interface ICompany extends Document {
   companyId: string;
   companyName: string;
   pin: string; // PIN for mobile app authentication
-  operationalLots: IOperationalLot[];
+  
+  // Franchise hierarchy fields
+  companyType: CompanyType; // Franchisor, Franchisee, or Independent
+  parentCompanyId: string | null; // Links franchisee to franchisor
+  canCherryPick: boolean; // Can claim pickups from any lot (franchisor only)
+  
+  operationalLots: IOperationalLot[]; // Lots directly owned/operated by this company
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -35,12 +47,49 @@ export interface ICompany extends Document {
 
 /**
  * Company Schema
- * Matches production MongoDB structure with added PIN field
+ * Matches production MongoDB structure with franchise hierarchy support
  */
 const companySchema = new Schema<ICompany>({
   companyId: { type: String, required: true, unique: true },
   companyName: { type: String, required: true },
-  pin: { type: String, required: true, default: '0000' }, // Default PIN, should be changed
+  pin: { type: String, required: true, default: '000000' }, // 6-digit PIN for mobile app
+  
+  // Franchise hierarchy fields
+  companyType: { 
+    type: String, 
+    enum: ['franchisor', 'franchisee', 'independent'],
+    default: 'independent',
+    required: true 
+  },
+  parentCompanyId: { 
+    type: String, 
+    default: null,
+    validate: {
+      validator: function(this: ICompany, value: string | null) {
+        // Franchisees must have a parent, others must not
+        if (this.companyType === 'franchisee') {
+          return value !== null && value !== '';
+        }
+        return value === null;
+      },
+      message: 'Franchisees must have a parent company, others must not'
+    }
+  },
+  canCherryPick: { 
+    type: Boolean, 
+    default: false,
+    validate: {
+      validator: function(this: ICompany, value: boolean) {
+        // Only franchisors can cherry pick
+        if (value === true && this.companyType !== 'franchisor') {
+          return false;
+        }
+        return true;
+      },
+      message: 'Only franchisors can have cherry pick capability'
+    }
+  },
+  
   operationalLots: [operationalLotSchema],
   active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
