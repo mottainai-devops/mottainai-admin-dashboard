@@ -36,6 +36,21 @@ export async function getMongoConnection() {
 }
 
 /**
+ * Get native MongoDB Db instance (for raw collection access)
+ * Used by routers that need native MongoDB driver operations
+ */
+export async function getMongoDb() {
+  if (!isConnected) {
+    await connectToMongoDB();
+  }
+  const db = mongoose.connection.db;
+  if (!db) {
+    throw new Error('[MongoDB] Database connection not established');
+  }
+  return db;
+}
+
+/**
  * Disconnect from MongoDB
  * Used for cleanup in tests or shutdown
  */
