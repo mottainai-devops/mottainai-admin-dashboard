@@ -13,6 +13,15 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AuditLog from "@/pages/AuditLog";
 import CherryPickers from "@/pages/CherryPickers";
+import Customers from "@/pages/Customers";
+import PickupRecords from "@/pages/PickupRecords";
+import BillingReports from "@/pages/BillingReports";
+import WebhookMonitoring from "@/pages/WebhookMonitoring";
+import FranchiseDashboard from "@/pages/FranchiseDashboard";
+import PEBuildings from "@/pages/PropertyEnumeration/Buildings";
+import PESessions from "@/pages/PropertyEnumeration/Sessions";
+import PEAnalytics from "@/pages/PropertyEnumeration/Analytics";
+import PESyncMonitor from "@/pages/PropertyEnumeration/SyncMonitor";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 import { Route, Switch } from "wouter";
@@ -69,6 +78,51 @@ function Router() {
       <Route path="/audit-log">
         <ProtectedRoute>
           <AuditLog />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/customers">
+        <ProtectedRoute>
+          <Customers />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/pickup-records">
+        <ProtectedRoute>
+          <PickupRecords />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/billing-reports">
+        <ProtectedRoute>
+          <BillingReports />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/webhook-monitoring">
+        <ProtectedRoute>
+          <WebhookMonitoring />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/franchise">
+        <ProtectedRoute>
+          <FranchiseDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/property-enumeration/buildings">
+        <ProtectedRoute>
+          <PEBuildings />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/property-enumeration/sessions">
+        <ProtectedRoute>
+          <PESessions />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/property-enumeration/analytics">
+        <ProtectedRoute>
+          <PEAnalytics />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/property-enumeration/sync-monitor">
+        <ProtectedRoute>
+          <PESyncMonitor />
         </ProtectedRoute>
       </Route>
       <Route path="/404" component={NotFound} />
