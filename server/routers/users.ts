@@ -83,7 +83,7 @@ export const usersRouter = router({
       password: z.string().min(6, 'Password must be at least 6 characters'),
       email: z.string().email().optional(),
       phone: z.string().optional(),
-      role: z.enum(['admin', 'user']).default('user'),
+      role: z.enum(['admin', 'user', 'cherry_picker']).default('user'),
       companyId: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -131,7 +131,7 @@ export const usersRouter = router({
       fullName: z.string().optional(),
       email: z.string().email().optional(),
       phone: z.string().optional(),
-      role: z.enum(['admin', 'user']).optional(),
+      role: z.enum(['admin', 'user', 'cherry_picker']).optional(),
       companyId: z.string().optional(),
       password: z.string().min(6).optional(),
     }))
