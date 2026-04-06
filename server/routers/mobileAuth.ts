@@ -79,6 +79,11 @@ router.post('/login', async (req, res) => {
         phone: user.phone || '',
         role: user.role,
         monthlyBilling: user.monthlyBilling || false,
+        // Company and lot attribution fields
+        // cherry_picker users have null companyId — they operate across all lots
+        companyId: user.companyId || null,
+        companyName: user.companyName || null,
+        defaultLotCode: user.defaultLotCode || null,
       },
     });
   } catch (error) {
@@ -128,6 +133,9 @@ router.get('/me', async (req, res) => {
         phone: user.phone || '',
         role: user.role,
         monthlyBilling: user.monthlyBilling || false,
+        companyId: user.companyId || null,
+        companyName: user.companyName || null,
+        defaultLotCode: user.defaultLotCode || null,
       },
     });
   } catch (error) {
