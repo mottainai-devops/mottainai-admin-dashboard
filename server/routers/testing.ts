@@ -3,7 +3,7 @@ import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { TRPCError } from '@trpc/server';
 
 const BACKEND_API_URL = 'http://172.232.24.180:3000';
-const ARCGIS_BASE_URL = 'https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/New_Footprints_gdb_b1422/FeatureServer/0';
+const ARCGIS_BASE_URL = 'https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/Nigeria_Building_Footprints/FeatureServer/0';
 const ARCGIS_API_KEY = 'AAPTxy8BH1VEsoebNVZXo8HurDkT4HeplNOm_pLCsV2-wHXD7esJFqWCGo3oDxTaOVO68fIzhjQ4gSKqccl-uynuHunhlN5t3E_x5N010mOKYQRyFm3vYXqvila3dJ3Ax81DMK2WyxFt6mqhwzxdkdhmm7USv7-cQi07L_22-MTRC95Rns1BHueP3kR_yXyAyh1WEFAm9Q7KFELPkRpT_5cjWvbDo2rWZhtHOb5xFr_7bOA.AT1_n5wNkDcc';
 
 interface TestResult {
@@ -101,7 +101,7 @@ export const testingRouter = router({
           `&distance=5000` +
           `&units=esriSRUnit_Meter` +
           `&spatialRel=esriSpatialRelIntersects` +
-          `&outFields=building_id,business_name,cust_phone,customer_email,address,Zone,socio_economic_groups` +
+          `&outFields=building_id,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment` +
           `&returnGeometry=true` +
           `&f=json` +
           `&token=${ARCGIS_API_KEY}`;
@@ -152,8 +152,10 @@ export const testingRouter = router({
             featureCount: data.features.length,
             sampleFeatures: data.features.slice(0, 3).map((f: any) => ({
               buildingId: f.attributes?.building_id,
-              businessName: f.attributes?.business_name,
-              address: f.attributes?.address,
+              lgaName: f.attributes?.lga_name,
+              stateCode: f.attributes?.state_code,
+              latitude: f.attributes?.latitude,
+              longitude: f.attributes?.longitude,
               hasGeometry: !!f.geometry,
             })),
           },

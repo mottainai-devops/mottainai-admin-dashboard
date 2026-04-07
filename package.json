@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js",
+    "build": "node -e \"if(!process.env.VITE_APP_TITLE){console.error('\\n ERROR: Do NOT run pnpm build directly!\\n Use: bash /var/www/mottainai-dashboard/deploy.sh\\n');process.exit(1)}\" && vite build && esbuild server/_core/index.prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
