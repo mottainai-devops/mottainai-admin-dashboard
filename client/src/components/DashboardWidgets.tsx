@@ -137,7 +137,7 @@ export function DashboardWidgets() {
             {formatCompactCurrency(revenueStats?.totalRevenue || 0)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            {revenueStats?.totalTransactions.toLocaleString() || "0"} transactions
+            {(revenueStats?.totalTransactions ?? 0).toLocaleString()} transactions
           </p>
         </CardContent>
       </Card>
@@ -303,15 +303,15 @@ export function DashboardWidgets() {
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-right">
                       <div className="text-sm font-bold">
-                        {polygon.count.toLocaleString()} pickups
+                        {(polygon.count ?? 0).toLocaleString()} pickups
                       </div>
-                      {polygon.totalAmount > 0 && (
+                      {(polygon.totalAmount ?? 0) > 0 && (
                         <div className="text-xs text-muted-foreground">
-                          {formatCompactCurrency(polygon.totalAmount)}
+                          {formatCompactCurrency(polygon.totalAmount ?? 0)}
                         </div>
                       )}
                     </div>
-                    {polygon.lastPickup && (
+                    {polygon.lastPickup && !isNaN(new Date(polygon.lastPickup).getTime()) && (
                       <Badge variant="outline" className="text-xs whitespace-nowrap">
                         {new Date(polygon.lastPickup).toLocaleDateString("en-GB", {
                           day: "2-digit",
