@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { initializeDatabase } from "../db";
 import mobileAuthRouter from "../routers/mobileAuth";
+import propertyEnumerationRestRouter from "../routers/propertyEnumerationRest";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -51,6 +52,8 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // Mobile app authentication API (REST endpoints)
   app.use("/api/mobile/users", mobileAuthRouter);
+  // Property Enumeration REST API (used by mobile app)
+  app.use("/api/property-enumeration", propertyEnumerationRestRouter);
   
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
