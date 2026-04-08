@@ -26,6 +26,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build frontend
+        env:
+          VITE_APP_TITLE: "Mottainai Admin Dashboard"
+          VITE_APP_LOGO: "/favicon.ico"
+          VITE_ANALYTICS_ENDPOINT: ""
+          VITE_ANALYTICS_WEBSITE_ID: ""
         run: pnpm build
 
       - name: Bundle server for deployment
