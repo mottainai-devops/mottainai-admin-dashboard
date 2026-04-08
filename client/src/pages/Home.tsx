@@ -303,8 +303,8 @@ export default function Home() {
             </Card>
           </Link>
 
-          {/* SuperAdmin only */}
-          {isSuperAdmin && (
+          {/* Admin + SuperAdmin */}
+          {isAdmin && (
             <Link href="/franchise">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-2 border-amber-200">
                 <CardHeader>
@@ -330,7 +330,7 @@ export default function Home() {
             </Link>
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Link href="/property-enumeration/buildings">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-2 border-amber-200">
                 <CardHeader>
@@ -356,7 +356,7 @@ export default function Home() {
             </Link>
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Link href="/property-enumeration/sessions">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-2 border-amber-200">
                 <CardHeader>
@@ -382,7 +382,7 @@ export default function Home() {
             </Link>
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Link href="/property-enumeration/analytics">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-2 border-amber-200">
                 <CardHeader>
@@ -408,7 +408,7 @@ export default function Home() {
             </Link>
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Link href="/property-enumeration/sync-monitor">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full border-2 border-amber-200">
                 <CardHeader>
