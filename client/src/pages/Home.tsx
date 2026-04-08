@@ -1,5 +1,6 @@
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardWidgets } from "@/components/DashboardWidgets";
 import {
   Building2, ArrowRight, Activity, BarChart3, Wrench, Users, Shield, Cherry,
   UserCheck, Truck, FileText, Webhook, LayoutDashboard, MapPin, ClipboardList,
@@ -26,6 +27,11 @@ export default function Home() {
           <p className="text-xl text-gray-600">
             Waste Management System Administration
           </p>
+        </div>
+
+        {/* Top ArcGIS Polygons by Pickup Frequency widget */}
+        <div className="max-w-7xl mx-auto mb-8">
+          <DashboardWidgets />
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
