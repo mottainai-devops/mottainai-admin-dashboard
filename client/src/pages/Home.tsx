@@ -12,7 +12,7 @@ import { Header } from "@/components/Header";
 export default function Home() {
   const { user } = useAuth();
   const role = (user as any)?.role;
-  const isSuperAdmin = role === 'superadmin';
+  const isSuperAdmin = role === 'superadmin' || role === 'admin';
   const isAdmin = role === 'admin' || isSuperAdmin;
 
   return (
