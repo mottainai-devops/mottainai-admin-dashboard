@@ -17,13 +17,12 @@ export async function getOverallStats(startDate?: Date, endDate?: Date) {
       $group: {
         _id: null,
         totalRevenue: { $sum: '$amount' },
-        totalRecords: { $sum: 1 },
-        avgAmount: { $avg: '$amount' },
-        paidCount: {
-          $sum: { $cond: [{ $eq: ['$status', 'true'] }, 1, 0] },
+        totalTransactions: { $sum: 1 },
+        paytRevenue: {
+          $sum: { $cond: [{ $eq: ['$isMonthly', false] }, '$amount', 0] },
         },
-        unpaidCount: {
-          $sum: { $cond: [{ $ne: ['$status', 'true'] }, 1, 0] },
+        monthlyRevenue: {
+          $sum: { $cond: [{ $eq: ['$isMonthly', true] }, '$amount', 0] },
         },
       },
     },
@@ -32,10 +31,9 @@ export async function getOverallStats(startDate?: Date, endDate?: Date) {
   const result = await collection.aggregate(pipeline).toArray();
   return result[0] ?? {
     totalRevenue: 0,
-    totalRecords: 0,
-    avgAmount: 0,
-    paidCount: 0,
-    unpaidCount: 0,
+    totalTransactions: 0,
+    paytRevenue: 0,
+    monthlyRevenue: 0,
   };
 }
 

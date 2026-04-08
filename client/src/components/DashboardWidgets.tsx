@@ -69,12 +69,12 @@ export function DashboardWidgets() {
   // Fetch webhook health
   const { data: webhooks } = trpc.webhook.getAll.useQuery();
 
-  // Calculate webhook health
+  // Calculate webhook health (status field is 'healthy' | 'unhealthy' | 'degraded')
   const webhookHealth = webhooks
     ? {
         total: webhooks.length,
-        healthy: webhooks.filter((w) => w.isHealthy).length,
-        unhealthy: webhooks.filter((w) => !w.isHealthy).length,
+        healthy: webhooks.filter((w: any) => w.status === 'healthy' || w.isHealthy === true).length,
+        unhealthy: webhooks.filter((w: any) => w.status !== 'healthy' && w.isHealthy !== true).length,
       }
     : { total: 0, healthy: 0, unhealthy: 0 };
 
