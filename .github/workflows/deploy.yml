@@ -62,7 +62,8 @@ jobs:
 
             echo "=== Installing production dependencies ==="
             cd /var/www/mottainai-dashboard-new
-            npm install --production 2>&1 | tail -5
+            npm install --production --legacy-peer-deps 2>&1 | tail -5
+            echo "npm install exit code: $?"
 
             echo "=== Swapping deployment ==="
             # Backup current deployment
