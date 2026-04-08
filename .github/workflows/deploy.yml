@@ -1,0 +1,91 @@
+name: Deploy Admin Dashboard
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Build & Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Bundle server for deployment
+        run: |
+          mkdir -p deploy-package
+          cp -r dist deploy-package/
+          cp package.json pnpm-lock.yaml deploy-package/
+          cp -r server deploy-package/
+          tar -czf dashboard-deploy.tar.gz -C deploy-package .
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload to server
+        run: |
+          scp -i ~/.ssh/deploy_key dashboard-deploy.tar.gz root@${{ secrets.DEPLOY_HOST }}:/tmp/dashboard-deploy.tar.gz
+
+      - name: Deploy on server
+        run: |
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            set -e
+            echo "=== Extracting new build ==="
+            mkdir -p /var/www/mottainai-dashboard-new
+            tar -xzf /tmp/dashboard-deploy.tar.gz -C /var/www/mottainai-dashboard-new
+
+            echo "=== Installing production dependencies ==="
+            cd /var/www/mottainai-dashboard-new
+            npm install --production 2>&1 | tail -5
+
+            echo "=== Swapping deployment ==="
+            # Backup current deployment
+            if [ -d /var/www/mottainai-dashboard ]; then
+              rm -rf /var/www/mottainai-dashboard-backup
+              cp -r /var/www/mottainai-dashboard /var/www/mottainai-dashboard-backup
+            fi
+
+            # Copy env file if it exists
+            if [ -f /var/www/mottainai-dashboard/.env ]; then
+              cp /var/www/mottainai-dashboard/.env /var/www/mottainai-dashboard-new/.env
+            fi
+
+            # Swap
+            rsync -a --delete /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
+
+            echo "=== Restarting PM2 process ==="
+            pm2 restart mottainai-dashboard --update-env
+            pm2 save
+
+            echo "=== Verifying deployment ==="
+            sleep 3
+            pm2 show mottainai-dashboard | grep -E "status|uptime"
+            curl -s http://localhost:4000/api/trpc/companies.list > /dev/null && echo "Health check: OK" || echo "Health check: FAILED"
+
+            echo "=== Cleanup ==="
+            rm -rf /var/www/mottainai-dashboard-new /tmp/dashboard-deploy.tar.gz
+            echo "Deploy complete!"
+          ENDSSH
