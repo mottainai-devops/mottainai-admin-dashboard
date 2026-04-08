@@ -75,6 +75,10 @@ export interface ICustomer extends Document {
   buildingId?: string; // Linked building ID (null if not linked)
   linkedAt?: Date; // When customer was linked to building
   linkedBy?: string; // User ID who linked customer to building
+  // Unit code within the building — composite key with arcgisBuildingId.
+  // Format: R1, R2 (residential) or C1, C2 (commercial).
+  // One record per unit; a building can have many units (1-to-many).
+  unitCode?: string;
 
   // Geographic fields (from ArcGIS enrichment)
   arcgisBuildingId?: string;
@@ -130,6 +134,8 @@ const customerSchema = new Schema<ICustomer>({
   buildingId: { type: String }, // Linked building ID (null if not linked)
   linkedAt: { type: Date }, // When customer was linked to building
   linkedBy: { type: String }, // User ID who linked customer to building
+  // Unit code within the building — composite key with arcgisBuildingId
+  unitCode: { type: String, default: null },
 
   // Geographic fields (from ArcGIS enrichment via backend)
   arcgisBuildingId: { type: String, default: null },
@@ -169,5 +175,7 @@ customerSchema.index({ active: 1 });
 // Compound index for common queries
 customerSchema.index({ ownerCompanyId: 1, active: 1 });
 customerSchema.index({ lotCode: 1, active: 1 });
+// Composite index for building-level unit queries (1-to-many: building → units)
+customerSchema.index({ arcgisBuildingId: 1, unitCode: 1 });
 
 export const Customer = mongoose.model<ICustomer>('Customer', customerSchema);

@@ -423,5 +423,56 @@ export const customersRouter = router({
         residential,
         commercial
       };
-    })
+    }),
+
+  /**
+   * Get all units (customers) for a specific ArcGIS building.
+   *
+   * Implements the 1-to-many relationship between a building polygon and its
+   * customer records using arcgisBuildingId + unitCode as the composite key.
+   * This is the application-layer substitute for the missing formal ArcGIS
+   * relationship class between Nigeria_Building_Footprints and Customer_Layer_gdb.
+   *
+   * Returns all units sorted by unitCode then createdAt, plus aggregate counts.
+   */
+  getUnitsForBuilding: adminProcedure
+    .input(z.object({
+      arcgisBuildingId: z.string().min(1),
+    }))
+    .query(async ({ input }) => {
+      const units = await Customer.find(
+        { arcgisBuildingId: input.arcgisBuildingId },
+        {
+          customerId: 1,
+          customerName: 1,
+          address: 1,
+          phone: 1,
+          customerType: 1,
+          unitCode: 1,
+          active: 1,
+          lotCode: 1,
+          ownerCompanyId: 1,
+          ownerCompanyName: 1,
+          totalPickups: 1,
+          lastPickupDate: 1,
+          createdAt: 1,
+        }
+      )
+        .sort({ unitCode: 1, createdAt: 1 })
+        .lean();
+
+      const totalUnits       = units.length;
+      const residentialUnits = units.filter(u => u.customerType === 'residential').length;
+      const commercialUnits  = units.filter(u => u.customerType === 'commercial' || u.customerType === 'industrial').length;
+      const activeUnits      = units.filter(u => u.active).length;
+
+      return {
+        arcgisBuildingId: input.arcgisBuildingId,
+        totalUnits,
+        residentialUnits,
+        commercialUnits,
+        activeUnits,
+        units,
+      };
+    }),
 });
