@@ -1,4 +1,4 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardWidgets } from "@/components/DashboardWidgets";
 import {
@@ -11,10 +11,7 @@ import { Link } from "wouter";
 import { Header } from "@/components/Header";
 
 export default function Home() {
-  const { user } = useAuth();
-  const role = (user as any)?.role;
-  const isSuperAdmin = role === 'superadmin' || role === 'admin';
-  const isAdmin = role === 'admin' || isSuperAdmin;
+  const { user, isSuperAdmin, isAdmin } = useAuth();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
