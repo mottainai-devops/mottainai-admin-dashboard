@@ -16,6 +16,11 @@ export const webhookRouter = router({
     return await getAllWebhookStatus();
   }),
 
+  // Alias for getAllStatus (used by DashboardWidgets)
+  getAll: publicProcedure.query(async () => {
+    return await getAllWebhookStatus();
+  }),
+
   // Get webhook status for a specific company
   getCompanyStatus: publicProcedure
     .input(z.object({ companyId: z.string() }))
