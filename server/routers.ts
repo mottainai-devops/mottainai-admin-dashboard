@@ -11,6 +11,8 @@ import { lotsRouter } from "./routers/lots";
 import { pickupsRouter } from "./routers/pickups";
 import { customersRouter } from "./routers/customers";
 import { propertyEnumerationRouter } from "./routers/propertyEnumeration";
+import { billingRouter } from "./routers/billing";
+import { webhookRouter } from "./routers/webhook";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -34,6 +36,10 @@ export const appRouter = router({
   customers: customersRouter,
   // Property enumeration and geographic backfill
   propertyEnumeration: propertyEnumerationRouter,
+  // Billing analytics and reports
+  billing: billingRouter,
+  // Webhook monitoring
+  webhook: webhookRouter,
 
   // Company management router - now using MongoDB directly
   companies: router({
