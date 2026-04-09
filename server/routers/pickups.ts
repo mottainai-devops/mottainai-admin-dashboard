@@ -69,7 +69,7 @@ export const pickupsRouter = router({
       
       // Bin type filter
       if (input?.binType) {
-        searchQuery.nameBin = input.binType;
+        searchQuery.binType = input.binType;
       }
       
       // Company filter (get all users for this company and filter by their IDs)
@@ -276,7 +276,7 @@ export const pickupsRouter = router({
       const binTypes = await FormSubmission.distinct('binType');
       
       // Get unique companies
-      const companies = await Company.find({}).select('_id name').lean();
+      const companies = await Company.find({}).select('_id companyName').lean();
       
       // Get unique lots (extract last 3 digits from buildingId)
       const buildingIds = await FormSubmission.distinct('buildingId');
@@ -300,7 +300,7 @@ export const pickupsRouter = router({
       
       return {
         binTypes: binTypes.filter(Boolean),
-        companies: companies.map(c => ({ id: c._id.toString(), name: c.name })),
+        companies: (companies as any[]).map(c => ({ id: c._id.toString(), name: c.companyName || 'Unknown' })),
         lots,
       };
     } catch (error) {

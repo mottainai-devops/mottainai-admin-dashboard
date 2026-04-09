@@ -276,11 +276,16 @@ export default function PickupRecords() {
                       label: "Date",
                       sortable: true,
                       render: (pickup: any) => {
-                        const date = pickup.submittedAt || pickup.pickUpDate || pickup.createdAt;
-                        if (!date) return <span className="text-muted-foreground text-xs">—</span>;
+                        const rawDate = pickup.submittedAt || pickup.pickUpDate || pickup.createdAt;
+                        if (!rawDate) return <span className="text-muted-foreground text-xs">—</span>;
+                        // Handle Unix timestamp stored as string (e.g. "1774987140000")
+                        const dateVal = typeof rawDate === 'string' && /^\d{10,13}$/.test(rawDate.trim())
+                          ? new Date(parseInt(rawDate, 10))
+                          : new Date(rawDate);
+                        if (isNaN(dateVal.getTime())) return <span className="text-muted-foreground text-xs">—</span>;
                         return (
                           <span className="text-sm whitespace-nowrap">
-                            {new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                            {dateVal.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
                           </span>
                         );
                       },

@@ -4,14 +4,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Filter, X } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 export interface PickupFilters {
   paymentType?: "all" | "payt" | "monthly";
-  source?: "all" | "survey123" | "manual";
+  source?: "all" | "webapp_current" | "webapp_old" | "mobile_app" | "unknown";
   arcgisBuildingId?: string;
   dateFrom?: string;
   dateTo?: string;
   companyId?: string;
+  lotId?: string;
+  binType?: string;
 }
 
 interface PickupFiltersComponentProps {
@@ -20,12 +23,17 @@ interface PickupFiltersComponentProps {
 }
 
 export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFiltersComponentProps) {
+  const { data: filterOptions } = trpc.pickups.getFilterOptions.useQuery();
+
   const hasActiveFilters =
     (filters.paymentType && filters.paymentType !== "all") ||
     (filters.source && filters.source !== "all") ||
     filters.arcgisBuildingId ||
     filters.dateFrom ||
-    filters.dateTo;
+    filters.dateTo ||
+    filters.companyId ||
+    filters.lotId ||
+    filters.binType;
 
   const clearFilters = () => {
     onFiltersChange({ paymentType: "all", source: "all" });
@@ -59,7 +67,7 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
           </div>
 
           {/* Source */}
-          <div className="flex flex-col gap-1 min-w-[140px]">
+          <div className="flex flex-col gap-1 min-w-[150px]">
             <Label className="text-xs text-muted-foreground">Source</Label>
             <Select
               value={filters.source || "all"}
@@ -70,8 +78,67 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="survey123">Survey123</SelectItem>
-                <SelectItem value="manual">Manual</SelectItem>
+                <SelectItem value="webapp_current">Webapp (Current)</SelectItem>
+                <SelectItem value="webapp_old">Webapp (Old)</SelectItem>
+                <SelectItem value="mobile_app">Mobile App</SelectItem>
+                <SelectItem value="unknown">Unknown</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Company / MAF */}
+          <div className="flex flex-col gap-1 min-w-[160px]">
+            <Label className="text-xs text-muted-foreground">Company / MAF</Label>
+            <Select
+              value={filters.companyId || "all"}
+              onValueChange={(v) => onFiltersChange({ ...filters, companyId: v === "all" ? undefined : v })}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="All Companies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Companies</SelectItem>
+                {(filterOptions?.companies || []).map((c: { id: string; name: string }) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Lot */}
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <Label className="text-xs text-muted-foreground">Lot</Label>
+            <Select
+              value={filters.lotId || "all"}
+              onValueChange={(v) => onFiltersChange({ ...filters, lotId: v === "all" ? undefined : v })}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="All Lots" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Lots</SelectItem>
+                {(filterOptions?.lots || []).map((lot: string) => (
+                  <SelectItem key={lot} value={lot}>{lot}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Bin Type */}
+          <div className="flex flex-col gap-1 min-w-[160px]">
+            <Label className="text-xs text-muted-foreground">Bin Type</Label>
+            <Select
+              value={filters.binType || "all"}
+              onValueChange={(v) => onFiltersChange({ ...filters, binType: v === "all" ? undefined : v })}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="All Bin Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Bin Types</SelectItem>
+                {(filterOptions?.binTypes || []).map((bt: string) => (
+                  <SelectItem key={bt} value={bt}>{bt}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
