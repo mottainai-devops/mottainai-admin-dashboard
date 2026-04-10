@@ -50,7 +50,7 @@ export default function PickupRecords() {
       <div className="container mx-auto py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Pickup Records</h1>
-          <p className="text-gray-600">View all pickup records synced from the mobile app</p>
+          <p className="text-gray-600">View all pickup records from all channels (web form, mobile app, Survey123)</p>
         </div>
 
         {/* Drill-down banner when navigated from Buildings page */}
@@ -107,7 +107,7 @@ export default function PickupRecords() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Pickup History ({total.toLocaleString()} records)</CardTitle>
-                <CardDescription>All pickup records from mobile app submissions</CardDescription>
+                <CardDescription>All pickup records from all channels (web form, mobile app, Survey123)</CardDescription>
               </div>
               <Button
                 variant="outline"
@@ -256,12 +256,14 @@ export default function PickupRecords() {
                           webapp_current: "default",
                           webapp_old: "secondary",
                           mobile_app: "outline",
+                          survey123: "outline",
                           unknown: "destructive",
                         };
                         const labels: Record<string, string> = {
-                          webapp_current: "Webapp",
-                          webapp_old: "Webapp (Old)",
+                          webapp_current: "Web Form",
+                          webapp_old: "Web Form (Legacy)",
                           mobile_app: "Mobile App",
+                          survey123: "Survey123",
                           unknown: "Unknown",
                         };
                         return (
