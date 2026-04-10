@@ -23,6 +23,8 @@ import PESessions from "@/pages/PropertyEnumeration/Sessions";
 import PEAnalytics from "@/pages/PropertyEnumeration/Analytics";
 import PESyncMonitor from "@/pages/PropertyEnumeration/SyncMonitor";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { SuperAdminRoute } from "@/components/SuperAdminRoute";
+import SystemOverview from "@/pages/SystemOverview";
 
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -124,6 +126,11 @@ function Router() {
         <ProtectedRoute>
           <PESyncMonitor />
         </ProtectedRoute>
+      </Route>
+      <Route path="/system-overview">
+        <SuperAdminRoute>
+          <SystemOverview />
+        </SuperAdminRoute>
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

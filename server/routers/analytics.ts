@@ -133,13 +133,29 @@ export const analyticsRouter = router({
         });
       });
 
-      // Check webhook health (mock for now)
-      const webhookStatuses: WebhookStatus[] = Array.from(webhooks).map(url => ({
-        url,
-        status: Math.random() > 0.1 ? 'active' : 'error',
-        lastChecked: new Date().toISOString(),
-        responseTime: Math.floor(Math.random() * 300) + 100, // 100-400ms
-      }));
+      // Real HTTP HEAD checks with 5-second timeout
+      const checkWebhook = async (url: string): Promise<WebhookStatus> => {
+        const start = Date.now();
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          const response = await fetch(url, {
+            method: 'HEAD',
+            signal: controller.signal,
+            headers: { 'User-Agent': 'Mottainai-HealthCheck/1.0' },
+          });
+          clearTimeout(timeout);
+          const responseTime = Date.now() - start;
+          const status: WebhookStatus['status'] = response.status < 400 ? 'active' : 'error';
+          return { url, status, lastChecked: new Date().toISOString(), responseTime };
+        } catch (err: any) {
+          return { url, status: 'error', lastChecked: new Date().toISOString(), responseTime: Date.now() - start };
+        }
+      };
+
+      const webhookStatuses = await Promise.all(
+        Array.from(webhooks).map(url => checkWebhook(url))
+      );
 
       return webhookStatuses;
     } catch (error) {

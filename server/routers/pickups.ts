@@ -143,6 +143,8 @@ export const pickupsRouter = router({
         wardCode: pickup.wardCode || null,
         wardName: pickup.wardName || null,
         lotCode: pickup.lotCode || null,
+        latitude: pickup.latitude || null,
+        longitude: pickup.longitude || null,
         createdAt: pickup.createdAt,
       }));
       

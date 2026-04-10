@@ -111,6 +111,73 @@ export const appRouter = router({
       return stats;
     }),
   }),
+
+  // Super-admin only operations
+  superAdmin: router({
+    triggerGeoBackfill: protectedProcedure
+      .input(z.object({
+        dryRun: z.boolean().default(false),
+        batchSize: z.number().min(1).max(500).default(100),
+      }).optional())
+      .mutation(async ({ input }) => {
+        const { FormSubmission } = await import('./models/FormSubmission');
+        const dryRun = input?.dryRun ?? false;
+        const batchSize = input?.batchSize ?? 100;
+
+        // Find records with arcgisBuildingId but missing lgaName
+        const eligible = await FormSubmission.find({
+          arcgisBuildingId: { $exists: true, $nin: [null, ''] },
+          lgaName: { $in: [null, undefined, ''] },
+        }).limit(batchSize).lean();
+
+        if (dryRun) {
+          return {
+            success: true,
+            dryRun: true,
+            totalEligible: eligible.length,
+            message: `Dry run: ${eligible.length} records eligible for geo backfill`,
+          };
+        }
+
+        let updated = 0;
+        let failed = 0;
+        const errors: string[] = [];
+
+        for (const record of eligible) {
+          try {
+            const bid: string = (record as any).arcgisBuildingId || '';
+            const parts = bid.trim().split(/\s+/);
+            if (parts.length >= 3) {
+              const middlePart = parts[1]; // e.g. OYSISW08
+              const lastPart = parts[2];   // e.g. 410
+              const stateCode = middlePart.substring(0, 2);
+              const lotCode = lastPart.padStart(3, '0');
+              await FormSubmission.findByIdAndUpdate((record as any)._id, {
+                $set: { stateCode, lotCode, country: 'Nigeria' },
+              });
+              updated++;
+            } else {
+              errors.push(`Skipped ${(record as any)._id}: unexpected format "${bid}"`);
+              failed++;
+            }
+          } catch (err: any) {
+            errors.push(`Error on ${(record as any)._id}: ${err.message}`);
+            failed++;
+          }
+        }
+
+        return {
+          success: true,
+          dryRun: false,
+          totalEligible: eligible.length,
+          processed: eligible.length,
+          updated,
+          failed,
+          errors: errors.slice(0, 10),
+          message: `Geo backfill complete: ${updated} updated, ${failed} failed`,
+        };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
