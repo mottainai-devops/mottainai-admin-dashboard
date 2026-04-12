@@ -39,6 +39,7 @@ jobs:
           cp -r dist deploy-package/
           cp package.json pnpm-lock.yaml deploy-package/
           cp -r server deploy-package/
+          cp -r shared deploy-package/
           tar -czf dashboard-deploy.tar.gz -C deploy-package .
 
       - name: Setup SSH key
