@@ -72,54 +72,50 @@ export const pickupsRouter = router({
         searchQuery.binType = input.binType;
       }
       
-      // Company filter — primary method: match by lot number (last token of buildingId).
+      // Company filter strategy (in priority order):
       //
-      // Background: 99% of FormSubmissions have NO companyId field. Company identity
-      // is encoded in the LAST token of buildingId (the lot number):
-      //   e.g. "10002 LASIKA06 006" → lot "006" → Urban Spirit Venture
-      //   e.g. "401638 OYSISW08 410" → lot "410" → DIC Projects Services
+      // 1. PRIMARY — splitCode field (Paystack webhook split code)
+      //    This is the most accurate identifier: it is the split code from the Survey123
+      //    webhook URL that was used to submit the pickup. It directly determines which
+      //    company's moneybox receives the payment. All 22,327 formsubmissions have been
+      //    backfilled with splitCode via monthlybilldatas join + lot-number fallback.
+      //    Each company document has a splitCodes[] array.
       //
-      // IMPORTANT: ward codes are NOT 1-to-1 with companies. A single ward (e.g. OYSISW12)
-      // can contain lots from multiple different companies. The correct granularity is the
-      // lot number (last token), mapped via active_lots.json.
+      // 2. SECONDARY — lot number (last token of buildingId)
+      //    For companies with no SPL_ codes (Urban Spirit/LASIKA06, Sarobol), or for
+      //    records where splitCode is null, fall back to lot-number matching.
+      //    Each company document has a lotCodes[] array.
       //
-      // Each company document has a lotCodes[] array (set from active_lots.json).
-      // Fallback: also match the 185 records that DO have companyId stored directly.
+      // 3. FALLBACK — explicit companyId/companyName fields
+      //    Only ~185 records have these set directly (mobile app submissions).
+      //
       if (input?.companyId) {
         const company = await Company.findById(input.companyId).lean() as any;
         if (company) {
           const companyConditions: any[] = [];
 
-          // PRIMARY: match by lot number — last token of buildingId
+          // PRIMARY: match by splitCode (Paystack webhook split code)
+          if (company.splitCodes && company.splitCodes.length > 0) {
+            companyConditions.push({ splitCode: { $in: company.splitCodes } });
+          }
+
+          // SECONDARY: match by lot number in buildingId (covers LASIKA06/Urban Spirit
+          // and any records where splitCode is null)
           if (company.lotCodes && company.lotCodes.length > 0) {
-            // Build OR conditions for each lot code this company operates
             company.lotCodes.forEach((lotCode: string) => {
-              // Match buildingId ending with " LOTCODE" (space + lot number at end)
               companyConditions.push({
                 buildingId: { $regex: `\\s${lotCode}$`, $options: 'i' }
               });
             });
           }
 
-          // FALLBACK: match the minority of records with explicit companyId stored
-          companyConditions.push({ companyId: input.companyId });        // ObjectId string
+          // FALLBACK: match the minority of records with explicit companyId/companyName
+          companyConditions.push({ companyId: input.companyId });
           if (company.companyId) {
-            companyConditions.push({ companyId: company.companyId });    // String code
+            companyConditions.push({ companyId: company.companyId });
           }
           if (company.companyName) {
-            companyConditions.push({ companyName: company.companyName }); // Name string
-          }
-
-          // Also match by userId for records submitted by this company's users
-          const companyUsers = await User.find({
-            $or: [
-              { companyId: input.companyId },
-              { companyId: company.companyId },
-            ]
-          }).select('_id').lean();
-          const userIds = companyUsers.map((u: any) => u._id.toString());
-          if (userIds.length > 0) {
-            companyConditions.push({ userId: { $in: userIds } });
+            companyConditions.push({ companyName: company.companyName });
           }
 
           if (companyConditions.length > 0) {
