@@ -72,14 +72,38 @@ export const pickupsRouter = router({
         searchQuery.binType = input.binType;
       }
       
-      // Company filter (get all users for this company and filter by their IDs)
+      // Company filter — matches FormSubmissions using all stored companyId formats.
+      // Background: FormSubmission.companyId is stored inconsistently across records:
+      //   - As the MongoDB ObjectId string of the Company document (e.g. "69185eebf21dfa8ce0f9a7ab")
+      //   - As the Company.companyId string code (e.g. "ECO-SOLUTIONS", "TINKUB")
+      //   - As the Company.companyName string (e.g. "ECO SOLUTIONS")
+      // We look up the company first to get all three values, then match on any of them.
       if (input?.companyId) {
-        const companyUsers = await User.find({ companyId: input.companyId }).select('_id').lean();
-        const userIds = companyUsers.map(u => u._id.toString());
-        if (userIds.length > 0) {
-          searchQuery.userId = { $in: userIds };
+        const company = await Company.findById(input.companyId).lean() as any;
+        if (company) {
+          const companyConditions: any[] = [
+            { companyId: input.companyId },                          // ObjectId string format
+          ];
+          if (company.companyId) {
+            companyConditions.push({ companyId: company.companyId }); // String code format
+          }
+          if (company.companyName) {
+            companyConditions.push({ companyName: company.companyName }); // Name format
+          }
+          // Also match by userId for records submitted by this company's users
+          const companyUsers = await User.find({
+            $or: [
+              { companyId: input.companyId },
+              { companyId: company.companyId },
+            ]
+          }).select('_id').lean();
+          const userIds = companyUsers.map((u: any) => u._id.toString());
+          if (userIds.length > 0) {
+            companyConditions.push({ userId: { $in: userIds } });
+          }
+          searchQuery.$or = companyConditions;
         } else {
-          // No users for this company, return empty results
+          // Company not found — return empty results
           searchQuery.userId = 'no-match';
         }
       }
