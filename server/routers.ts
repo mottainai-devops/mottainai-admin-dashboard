@@ -9,6 +9,7 @@ import { uploadRouter } from "./uploadRouter";
 import { mongoAuthRouter } from "./mongoAuthRouter";
 import { lotsRouter } from "./routers/lots";
 import { pickupsRouter } from "./routers/pickups";
+import { mafRouter } from "./routers/maf";
 import { customersRouter } from "./routers/customers";
 import { propertyEnumerationRouter } from "./routers/propertyEnumeration";
 import { billingRouter } from "./routers/billing";
@@ -32,6 +33,8 @@ export const appRouter = router({
   lots: lotsRouter,
   // Pickup records from form submissions
   pickups: pickupsRouter,
+  // MAF (company) and field worker statistics
+  maf: mafRouter,
   // Customer management
   customers: customersRouter,
   // Property enumeration and geographic backfill

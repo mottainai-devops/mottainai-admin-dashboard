@@ -31,6 +31,28 @@ export const mafRouter = router({
         .sort({ fullName: 1 })
         .lean();
 
+        if (fieldWorkers.length === 0) {
+          const company = await Company.findById(input.companyId).lean() as any;
+          if (company) {
+            const fallbackWorkers = await User.find({
+              $or: [
+                { companyId: company.companyId },
+                { companyId: company.companyName },
+              ],
+              role: 'user'
+            })
+            .select('_id fullName email')
+            .sort({ fullName: 1 })
+            .lean();
+
+            return fallbackWorkers.map((worker: any) => ({
+              id: worker._id.toString(),
+              name: worker.fullName || worker.email || 'Unknown',
+              email: worker.email
+            }));
+          }
+        }
+
         return fieldWorkers.map(worker => ({
           id: worker._id.toString(),
           name: worker.fullName || worker.email || 'Unknown',
@@ -55,7 +77,11 @@ export const mafRouter = router({
       const stats = await Promise.all(
         companies.map(async (company) => {
           const pickupCount = await FormSubmission.countDocuments({
-            companyId: company._id.toString()
+            $or: [
+              { companyId: company._id.toString() },
+              { companyId: company.companyId },
+              { companyName: company.companyName },
+            ]
           });
 
           return {
@@ -87,12 +113,27 @@ export const mafRouter = router({
     }))
     .query(async ({ input }) => {
       try {
-        const fieldWorkers = await User.find({
+        let fieldWorkers = await User.find({
           companyId: input.companyId,
           role: 'user'
         })
         .select('_id fullName email')
-        .lean();
+        .lean() as any[];
+
+        if (fieldWorkers.length === 0) {
+          const company = await Company.findById(input.companyId).lean() as any;
+          if (company) {
+            fieldWorkers = await User.find({
+              $or: [
+                { companyId: company.companyId },
+                { companyId: company.companyName },
+              ],
+              role: 'user'
+            })
+            .select('_id fullName email')
+            .lean() as any[];
+          }
+        }
 
         const stats = await Promise.all(
           fieldWorkers.map(async (worker) => {
