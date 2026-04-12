@@ -9,6 +9,18 @@ import { serveStatic } from "./static";
 import mobileAuthRouter from "../routers/mobileAuth";
 import propertyEnumerationRestRouter from "../routers/propertyEnumerationRest";
 
+// Catch unhandled promise rejections so they are logged (not silently swallowed)
+// but do NOT exit the process — let PM2 decide whether to restart
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Server] Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[Server] Uncaught Exception:", err);
+  // Exit so PM2 can restart with a clean state
+  process.exit(1);
+});
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -56,4 +68,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("[Server] Fatal startup error:", err);
+  process.exit(1);
+});

@@ -62,7 +62,7 @@ jobs:
 
             echo "=== Installing production dependencies ==="
             cd /var/www/mottainai-dashboard-new
-            npm install --production --legacy-peer-deps 2>&1 | tail -5
+            npm install --production --legacy-peer-deps 2>&1 | tail -10
             echo "npm install exit code: $?"
 
             echo "=== Swapping deployment ==="
@@ -84,10 +84,27 @@ jobs:
             pm2 restart mottainai-dashboard --update-env
             pm2 save
 
-            echo "=== Verifying deployment ==="
-            sleep 3
-            pm2 show mottainai-dashboard | grep -E "status|uptime"
-            curl -s http://localhost:4000/api/trpc/companies.list > /dev/null && echo "Health check: OK" || echo "Health check: FAILED"
+            echo "=== Waiting for server to stabilize ==="
+            sleep 8
+
+            echo "=== PM2 process status ==="
+            pm2 show mottainai-dashboard | grep -E "status|uptime|restart"
+
+            echo "=== Recent PM2 logs (last 30 lines) ==="
+            pm2 logs mottainai-dashboard --lines 30 --nostream 2>&1 || true
+
+            echo "=== Health check (port from .env or 3003) ==="
+            SERVER_PORT=$(grep -oP 'PORT=\K[0-9]+' /var/www/mottainai-dashboard/.env 2>/dev/null || echo "3003")
+            echo "Checking port: $SERVER_PORT"
+            curl -s http://localhost:${SERVER_PORT}/api/trpc/companies.list > /dev/null && echo "Health check: OK" || echo "Health check: FAILED (port $SERVER_PORT)"
+            # Also try common ports
+            for port in 3003 4000 3000 3004; do
+              result=$(curl -s --max-time 2 http://localhost:${port}/api/trpc/companies.list 2>&1)
+              if echo "$result" | grep -q "json\|data\|\[{"; then
+                echo "Server responding on port $port"
+                break
+              fi
+            done
 
             echo "=== Cleanup ==="
             rm -rf /var/www/mottainai-dashboard-new /tmp/dashboard-deploy.tar.gz
