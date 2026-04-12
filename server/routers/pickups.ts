@@ -72,24 +72,35 @@ export const pickupsRouter = router({
         searchQuery.binType = input.binType;
       }
       
-      // Company filter — matches FormSubmissions using all stored companyId formats.
-      // Background: FormSubmission.companyId is stored inconsistently across records:
-      //   - As the MongoDB ObjectId string of the Company document (e.g. "69185eebf21dfa8ce0f9a7ab")
-      //   - As the Company.companyId string code (e.g. "ECO-SOLUTIONS", "TINKUB")
-      //   - As the Company.companyName string (e.g. "ECO SOLUTIONS")
-      // We look up the company first to get all three values, then match on any of them.
+      // Company filter — primary method: match by ward code embedded in buildingId.
+      //
+      // Background: 99% of FormSubmissions have NO companyId field. Company identity
+      // is encoded in the middle token of buildingId (e.g. "10002 LASIKA06 006" → LASIKA06).
+      // Each company has a wardCode field set in the companies collection.
+      //
+      // Fallback: also match the 185 records that DO have companyId stored directly.
       if (input?.companyId) {
         const company = await Company.findById(input.companyId).lean() as any;
         if (company) {
-          const companyConditions: any[] = [
-            { companyId: input.companyId },                          // ObjectId string format
-          ];
+          const companyConditions: any[] = [];
+
+          // PRIMARY: match by ward code in buildingId (covers ~99% of records)
+          if (company.wardCode) {
+            // buildingId format: "NNNNN WARDCODE LOTNNN" — match the middle token
+            companyConditions.push({
+              buildingId: { $regex: `\\s${company.wardCode}\\s`, $options: 'i' }
+            });
+          }
+
+          // FALLBACK: match the minority of records with explicit companyId stored
+          companyConditions.push({ companyId: input.companyId });        // ObjectId string
           if (company.companyId) {
-            companyConditions.push({ companyId: company.companyId }); // String code format
+            companyConditions.push({ companyId: company.companyId });    // String code
           }
           if (company.companyName) {
-            companyConditions.push({ companyName: company.companyName }); // Name format
+            companyConditions.push({ companyName: company.companyName }); // Name string
           }
+
           // Also match by userId for records submitted by this company's users
           const companyUsers = await User.find({
             $or: [
@@ -101,6 +112,7 @@ export const pickupsRouter = router({
           if (userIds.length > 0) {
             companyConditions.push({ userId: { $in: userIds } });
           }
+
           searchQuery.$or = companyConditions;
         } else {
           // Company not found — return empty results
