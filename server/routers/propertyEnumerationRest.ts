@@ -8,6 +8,8 @@ import { getMongoDb } from '../mongodb';
 import { validateLotAccess } from '../lotValidation';
 import { getUserById } from '../db';
 import { Company } from '../models/Company';
+import { Types } from 'mongoose';
+const { ObjectId } = Types;
 
 const router = express.Router();
 
@@ -704,6 +706,273 @@ router.get('/sessions/history', authenticateJWT, async (req: any, res) => {
     res.json({ success: true, sessions: transformedSessions });
   } catch (error) {
     console.error('[PropertyEnumerationREST] Get session history error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// ─── Buildings ────────────────────────────────────────────────────────────────
+
+/**
+ * POST /property-enumeration/buildings
+ * Create a new enumerated building (called by the mobile app).
+ */
+router.post('/buildings', authenticateJWT, async (req: any, res) => {
+  try {
+    const {
+      address, lotCode, propertyType, numberOfUnits,
+      gpsLatitude, gpsLongitude, sessionId, buildingName,
+      arcgisBuildingId, unitCode, landmarkDescription,
+      contactPersonName, contactPhoneNumber, notes,
+    } = req.body;
+
+    if (!address || !lotCode || !propertyType) {
+      return res.status(400).json({ success: false, error: 'address, lotCode and propertyType are required' });
+    }
+
+    const db = await getMongoDb();
+    const buildingsCollection = db.collection('buildings');
+
+    // Resolve company for this user
+    const userCompanyId = await resolveUserCompanyId(req.user.userId, req.user.role);
+
+    // Load active lots to get lot name
+    const activeLots: any[] = require('../../shared/active_lots.json');
+    const lot = activeLots.find((l: any) => String(l.Lot_ID) === String(lotCode));
+
+    const buildingDoc: any = {
+      address,
+      lotCode,
+      lotName: lot?.ward_name?.trim() || `Lot ${lotCode}`,
+      propertyType,
+      numberOfUnits: numberOfUnits ?? 1,
+      gpsCoordinates: {
+        latitude: gpsLatitude ?? null,
+        longitude: gpsLongitude ?? null,
+      },
+      enumeratorId: req.user.userId,
+      companyId: userCompanyId,
+      syncedToArcGIS: false,
+      enumeratedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      photos: [],
+      customers: [],
+      customersCount: 0,
+    };
+
+    if (sessionId) buildingDoc.sessionId = sessionId;
+    if (buildingName) buildingDoc.buildingName = buildingName;
+    if (arcgisBuildingId) buildingDoc.arcgisBuildingId = arcgisBuildingId;
+    if (unitCode) buildingDoc.unitCode = unitCode;
+    if (landmarkDescription) buildingDoc.landmarkDescription = landmarkDescription;
+    if (contactPersonName) buildingDoc.contactPersonName = contactPersonName;
+    if (contactPhoneNumber) buildingDoc.contactPhoneNumber = contactPhoneNumber;
+    if (notes) buildingDoc.notes = notes;
+
+    const result = await buildingsCollection.insertOne(buildingDoc);
+    const building = { ...buildingDoc, _id: result.insertedId.toString(), id: result.insertedId.toString() };
+
+    console.log(`[PropertyEnumerationREST] Building created: ${result.insertedId} by user ${req.user.userId}`);
+    res.status(201).json({ success: true, data: { building } });
+  } catch (error) {
+    console.error('[PropertyEnumerationREST] Building create error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /property-enumeration/buildings
+ * List buildings for the authenticated user (scoped to their company/session).
+ */
+router.get('/buildings', authenticateJWT, async (req: any, res) => {
+  try {
+    const { page = 1, limit = 50, sessionId, lotCode, propertyType, search, arcgisBuildingId } = req.query;
+    const db = await getMongoDb();
+    const buildingsCollection = db.collection('buildings');
+
+    const query: any = {};
+    const userCompanyId = await resolveUserCompanyId(req.user.userId, req.user.role);
+
+    // Regular users see only their company's buildings
+    if (userCompanyId) {
+      query.companyId = userCompanyId;
+    }
+    // Enumerators also see their own buildings regardless of company
+    if (req.user.role !== 'admin' && req.user.role !== 'superadmin') {
+      query.$or = [
+        { companyId: userCompanyId },
+        { enumeratorId: req.user.userId },
+      ];
+    }
+
+    if (sessionId) query.sessionId = sessionId;
+    if (lotCode) query.lotCode = lotCode;
+    if (propertyType) query.propertyType = propertyType;
+    if (arcgisBuildingId) query.arcgisBuildingId = arcgisBuildingId;
+    if (search) {
+      query.$or = [
+        { address: { $regex: search, $options: 'i' } },
+        { buildingName: { $regex: search, $options: 'i' } },
+        { arcgisBuildingId: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const skip = (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10);
+    const [buildings, total] = await Promise.all([
+      buildingsCollection.find(query).sort({ enumeratedAt: -1 }).skip(skip).limit(parseInt(limit as string, 10)).toArray(),
+      buildingsCollection.countDocuments(query),
+    ]);
+
+    const mappedBuildings = buildings.map((b: any) => ({
+      ...b,
+      _id: b._id.toString(),
+      id: b._id.toString(),
+      syncStatus: b.syncedToArcGIS ? 'synced' : 'pending',
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        buildings: mappedBuildings,
+        pagination: { page: parseInt(page as string, 10), limit: parseInt(limit as string, 10), total, pages: Math.ceil(total / parseInt(limit as string, 10)) },
+      },
+    });
+  } catch (error) {
+    console.error('[PropertyEnumerationREST] Building list error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * PATCH /property-enumeration/buildings/:id
+ * Update a building (e.g. link customer, update address).
+ */
+router.patch('/buildings/:id', authenticateJWT, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const db = await getMongoDb();
+    const buildingsCollection = db.collection('buildings');
+    let building: any;
+    try {
+      building = await buildingsCollection.findOne({ _id: new ObjectId(id) });
+    } catch {
+      building = await buildingsCollection.findOne({ buildingId: id });
+    }
+
+    if (!building) {
+      return res.status(404).json({ success: false, error: 'Building not found' });
+    }
+
+    const allowedFields = [
+      'address', 'propertyType', 'numberOfUnits', 'buildingName',
+      'landmarkDescription', 'contactPersonName', 'contactPhoneNumber',
+      'notes', 'arcgisBuildingId', 'unitCode', 'linkedCustomerId',
+    ];
+    const updates: any = { updatedAt: new Date() };
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+
+    await buildingsCollection.updateOne({ _id: building._id }, { $set: updates });
+    const updated = await buildingsCollection.findOne({ _id: building._id });
+    const result = { ...updated, _id: updated!._id.toString(), id: updated!._id.toString(), syncStatus: updated!.syncedToArcGIS ? 'synced' : 'pending' };
+
+    res.json({ success: true, data: { building: result } });
+  } catch (error) {
+    console.error('[PropertyEnumerationREST] Building update error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /property-enumeration/buildings/:id/photos
+ * Upload photos for a building (up to 4 total).
+ */
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per photo
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are accepted'));
+  },
+});
+
+router.post('/buildings/:id/photos', authenticateJWT, photoUpload.array('photos', 4), async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, error: 'No photo files provided' });
+    }
+
+    const db = await getMongoDb();
+    const buildingsCollection = db.collection('buildings');
+    let building: any;
+    try {
+      building = await buildingsCollection.findOne({ _id: new ObjectId(id) });
+    } catch {
+      building = await buildingsCollection.findOne({ buildingId: id });
+    }
+
+    if (!building) {
+      return res.status(404).json({ success: false, error: 'Building not found' });
+    }
+
+    const existingPhotos: string[] = building.photos || [];
+    if (existingPhotos.length >= 4) {
+      return res.status(400).json({ success: false, error: 'Can only upload up to 4 photos per building' });
+    }
+
+    // Store photos as base64 data URIs (no S3 configured for this service)
+    const newPhotoUrls: string[] = [];
+    for (const file of files) {
+      if (existingPhotos.length + newPhotoUrls.length >= 4) break;
+      const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+      newPhotoUrls.push(dataUri);
+    }
+
+    const allPhotos = [...existingPhotos, ...newPhotoUrls];
+    await buildingsCollection.updateOne({ _id: building._id }, { $set: { photos: allPhotos, updatedAt: new Date() } });
+
+    res.json({ success: true, data: { photoUrls: allPhotos, totalPhotos: allPhotos.length } });
+  } catch (error) {
+    console.error('[PropertyEnumerationREST] Photo upload error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /property-enumeration/buildings/:id/photos/:photoIndex
+ * Delete a photo by index.
+ */
+router.delete('/buildings/:id/photos/:photoIndex', authenticateJWT, async (req: any, res) => {
+  try {
+    const { id, photoIndex } = req.params;
+    const index = parseInt(photoIndex, 10);
+    const db = await getMongoDb();
+    const buildingsCollection = db.collection('buildings');
+    let building: any;
+    try {
+      building = await buildingsCollection.findOne({ _id: new ObjectId(id) });
+    } catch {
+      building = await buildingsCollection.findOne({ buildingId: id });
+    }
+
+    if (!building) {
+      return res.status(404).json({ success: false, error: 'Building not found' });
+    }
+
+    const photos: string[] = building.photos || [];
+    if (index < 0 || index >= photos.length) {
+      return res.status(400).json({ success: false, error: 'Invalid photo index' });
+    }
+
+    photos.splice(index, 1);
+    await buildingsCollection.updateOne({ _id: building._id }, { $set: { photos, updatedAt: new Date() } });
+
+    res.json({ success: true, data: { photoUrls: photos, totalPhotos: photos.length } });
+  } catch (error) {
+    console.error('[PropertyEnumerationREST] Photo delete error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

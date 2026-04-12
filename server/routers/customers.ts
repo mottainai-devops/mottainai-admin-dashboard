@@ -82,8 +82,15 @@ export const customersRouter = router({
         Customer.countDocuments(filter)
       ]);
       
+      // Map customerName → name for frontend compatibility (admin UI uses customer.name)
+      const mappedCustomers = customers.map((c: any) => ({
+        ...c,
+        _id: c._id?.toString?.() ?? c._id,
+        name: c.customerName ?? c.name ?? '',
+      }));
+
       return {
-        customers,
+        customers: mappedCustomers,
         total,
         page,
         limit,
