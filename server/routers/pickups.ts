@@ -72,23 +72,32 @@ export const pickupsRouter = router({
         searchQuery.binType = input.binType;
       }
       
-      // Company filter — primary method: match by ward code embedded in buildingId.
+      // Company filter — primary method: match by lot number (last token of buildingId).
       //
       // Background: 99% of FormSubmissions have NO companyId field. Company identity
-      // is encoded in the middle token of buildingId (e.g. "10002 LASIKA06 006" → LASIKA06).
-      // Each company has a wardCode field set in the companies collection.
+      // is encoded in the LAST token of buildingId (the lot number):
+      //   e.g. "10002 LASIKA06 006" → lot "006" → Urban Spirit Venture
+      //   e.g. "401638 OYSISW08 410" → lot "410" → DIC Projects Services
       //
+      // IMPORTANT: ward codes are NOT 1-to-1 with companies. A single ward (e.g. OYSISW12)
+      // can contain lots from multiple different companies. The correct granularity is the
+      // lot number (last token), mapped via active_lots.json.
+      //
+      // Each company document has a lotCodes[] array (set from active_lots.json).
       // Fallback: also match the 185 records that DO have companyId stored directly.
       if (input?.companyId) {
         const company = await Company.findById(input.companyId).lean() as any;
         if (company) {
           const companyConditions: any[] = [];
 
-          // PRIMARY: match by ward code in buildingId (covers ~99% of records)
-          if (company.wardCode) {
-            // buildingId format: "NNNNN WARDCODE LOTNNN" — match the middle token
-            companyConditions.push({
-              buildingId: { $regex: `\\s${company.wardCode}\\s`, $options: 'i' }
+          // PRIMARY: match by lot number — last token of buildingId
+          if (company.lotCodes && company.lotCodes.length > 0) {
+            // Build OR conditions for each lot code this company operates
+            company.lotCodes.forEach((lotCode: string) => {
+              // Match buildingId ending with " LOTCODE" (space + lot number at end)
+              companyConditions.push({
+                buildingId: { $regex: `\\s${lotCode}$`, $options: 'i' }
+              });
             });
           }
 
@@ -113,7 +122,11 @@ export const pickupsRouter = router({
             companyConditions.push({ userId: { $in: userIds } });
           }
 
-          searchQuery.$or = companyConditions;
+          if (companyConditions.length > 0) {
+            searchQuery.$or = companyConditions;
+          } else {
+            searchQuery.userId = 'no-match';
+          }
         } else {
           // Company not found — return empty results
           searchQuery.userId = 'no-match';
