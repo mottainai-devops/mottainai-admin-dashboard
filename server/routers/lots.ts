@@ -25,27 +25,25 @@ export const lotsRouter = router({
   list: publicProcedure
     .input(z.object({
       userId: z.string().optional(), // User ID for role-based filtering
+      companyId: z.string().optional(), // Optional: filter lots to a specific company (admin use)
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
-        // If no userId provided, return empty array (require authentication)
-        if (!input || !input.userId) {
+        // Resolve the acting user:
+        // 1. Prefer session user from ctx (admin dashboard cookie/JWT login)
+        // 2. Fall back to userId input (mobile app)
+        let user: any = ctx.user || null;
+        if (!user && input?.userId && input.userId !== 'admin-placeholder') {
+          user = await User.findById(input.userId);
+        }
+        // If still no user, require authentication
+        if (!user) {
           return {
             lots: [],
             totalCount: 0,
             userRole: 'guest',
             message: 'Authentication required'
           };
-        }
-
-        // Fetch user to check role and company assignment
-        const user = await User.findById(input.userId);
-        
-        if (!user) {
-          throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: 'User not found'
-          });
         }
 
         // Fetch all active companies with their operational lots
@@ -80,16 +78,24 @@ export const lotsRouter = router({
           
           filteredLots = allLots.filter(lot => lot.companyId === user.companyId);
         }
-        // Cherry pickers and admins see all lots (no filtering)
+        // Cherry pickers and admins see all lots (no role filtering)
+
+        // Apply optional admin company filter (overrides role-based result for admins/cherry-pickers)
+        if (input?.companyId && user.role !== 'user') {
+          filteredLots = filteredLots.filter(lot => lot.companyId === input.companyId);
+        }
 
         return {
           lots: filteredLots,
           totalCount: filteredLots.length,
           userRole: user.role,
           userCompanyId: user.companyId,
-          message: user.role === 'user' 
-            ? `Showing ${filteredLots.length} lots from your company` 
-            : `Showing all ${filteredLots.length} operational lots`
+          filterCompanyId: input?.companyId,
+          message: input?.companyId && user.role !== 'user'
+            ? `Showing ${filteredLots.length} lots for selected company`
+            : user.role === 'user'
+              ? `Showing ${filteredLots.length} lots from your company`
+              : `Showing all ${filteredLots.length} operational lots`
         };
       } catch (error: any) {
         console.error('[Lots API] Error fetching lots:', error);

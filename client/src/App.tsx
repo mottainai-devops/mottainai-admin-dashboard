@@ -9,6 +9,7 @@ import Login from "@/pages/Login";
 import SimpleLogin from "@/pages/SimpleLogin";
 import Users from "@/pages/Users";
 import LotUpload from "@/pages/LotUpload";
+import LotsManagement from "@/pages/LotsManagement";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import AuditLog from "@/pages/AuditLog";
@@ -65,6 +66,11 @@ function Router() {
       <Route path="/users">
         <ProtectedRoute>
           <Users />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/lots">
+        <ProtectedRoute>
+          <LotsManagement />
         </ProtectedRoute>
       </Route>
       <Route path="/lot-upload">
