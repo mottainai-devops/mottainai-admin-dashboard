@@ -14,6 +14,8 @@ import { customersRouter } from "./routers/customers";
 import { propertyEnumerationRouter } from "./routers/propertyEnumeration";
 import { billingRouter } from "./routers/billing";
 import { webhookRouter } from "./routers/webhook";
+import { realWebhookRouter } from "./routers/realWebhook";
+import { pickupVerificationRouter } from "./routers/pickupVerification";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -43,6 +45,10 @@ export const appRouter = router({
   billing: billingRouter,
   // Webhook monitoring
   webhook: webhookRouter,
+  // Real webhook health checks
+  realWebhook: realWebhookRouter,
+  // Pickup verification and sync
+  pickupVerification: pickupVerificationRouter,
 
   // Company management router - now using MongoDB directly
   companies: router({
