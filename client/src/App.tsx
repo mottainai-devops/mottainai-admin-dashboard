@@ -18,6 +18,7 @@ import Customers from "@/pages/Customers";
 import PickupRecords from "@/pages/PickupRecords";
 import BillingReports from "@/pages/BillingReports";
 import BillingReconciliation from "@/pages/BillingReconciliation";
+import BatchReinvoice from "@/pages/BatchReinvoice";
 import WebhookMonitoring from "@/pages/WebhookMonitoring";
 import FranchiseDashboard from "@/pages/FranchiseDashboard";
 import PEBuildings from "@/pages/PropertyEnumeration/Buildings";
@@ -107,6 +108,11 @@ function Router() {
       <Route path="/billing-reconciliation">
         <ProtectedRoute>
           <BillingReconciliation />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/batch-reinvoice">
+        <ProtectedRoute>
+          <BatchReinvoice />
         </ProtectedRoute>
       </Route>
       <Route path="/webhook-monitoring">
