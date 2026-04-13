@@ -279,6 +279,30 @@ export default function Home() {
             </Card>
           </Link>
 
+          <Link href="/billing-reconciliation">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <FileText className="h-8 w-8 text-green-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Billing Reconciliation</CardTitle>
+                    <CardDescription>Paid, unpaid, and unbilled pickups</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Forensic view of every pickup: paid, invoiced, yet-to-bill, not-billed, and free-zone records.
+                </p>
+                <div className="flex items-center text-green-600 font-medium">
+                  View Reconciliation <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
           <Link href="/webhook-monitoring">
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>

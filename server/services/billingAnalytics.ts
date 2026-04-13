@@ -523,3 +523,161 @@ export function generateBillingCSV(data: Record<string, unknown>[]): string {
   );
   return [headers, ...rows].join('\n');
 }
+
+/**
+ * Billing Reconciliation
+ *
+ * Lightweight implementation: fetches paginated formsubmissions, then
+ * looks up billing records per building in a single batch query.
+ * Avoids heavy $lookup aggregation on 22k+ documents.
+ *
+ *   PAID         — monthlybilldata exists, status = "true", real Paystack ID
+ *   INVOICED     — monthlybilldata exists, real Paystack ID, status = "false"
+ *   YET_TO_BILL  — monthlybilldata exists with transcationId = "000"
+ *   NOT_BILLED   — no monthlybilldata at all for this pickup
+ *   FREE         — amount = 0 (LASIKA06 or free zone)
+ */
+export async function getReconciliation(options: {
+  page?: number;
+  limit?: number;
+  status?: 'paid' | 'invoiced' | 'yet_to_bill' | 'not_billed' | 'free' | 'all';
+  startDate?: Date;
+  endDate?: Date;
+  buildingId?: string;
+  lotCode?: string;
+}) {
+  const db = await getMongoDb();
+  const formsubmissionsCol = db.collection('formsubmissions');
+  const billingCol = db.collection('monthlybilldatas');
+
+  const page = options.page || 1;
+  const limit = options.limit || 50;
+  const skip = (page - 1) * limit;
+
+  // Build match filter
+  const matchFilter: Record<string, unknown> = {};
+  if (options.startDate || options.endDate) {
+    matchFilter.createdAt = {};
+    if (options.startDate) (matchFilter.createdAt as any).$gte = options.startDate;
+    if (options.endDate) (matchFilter.createdAt as any).$lte = options.endDate;
+  }
+  if (options.buildingId) {
+    matchFilter.buildingId = { $regex: options.buildingId, $options: 'i' };
+  }
+  if (options.lotCode) {
+    matchFilter.buildingId = { $regex: `${options.lotCode}$`, $options: 'i' };
+  }
+
+  function classifyStatus(pickup: any, billing: any): string {
+    const amt = pickup.amount;
+    if (!amt || amt === 0) return 'free';
+    if (!billing) return 'not_billed';
+    const tid = billing.transcationId;
+    if (!tid || tid === '000' || tid === '') return 'yet_to_bill';
+    if (billing.status === 'true' || billing.status === true) return 'paid';
+    return 'invoiced';
+  }
+
+  // --- Summary counts (computed over ALL matching pickups) ---
+  // Fetch all matching pickups (just buildingId + amount for summary)
+  const allPickups = await formsubmissionsCol
+    .find(matchFilter, { projection: { buildingId: 1, amount: 1 } })
+    .toArray();
+
+  const allBuildingIds = [...new Set(allPickups.map((p: any) => p.buildingId).filter(Boolean))];
+
+  // Fetch latest billing record per buildingId in one batch
+  const billingDocs = await billingCol
+    .aggregate([
+      { $match: { buildingId: { $in: allBuildingIds } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: '$buildingId', doc: { $first: '$$ROOT' } } },
+    ])
+    .toArray();
+
+  const billingMap: Record<string, any> = {};
+  for (const b of billingDocs) {
+    billingMap[b._id] = b.doc;
+  }
+
+  const summary: Record<string, { count: number; totalAmount: number }> = {
+    paid: { count: 0, totalAmount: 0 },
+    invoiced: { count: 0, totalAmount: 0 },
+    yet_to_bill: { count: 0, totalAmount: 0 },
+    not_billed: { count: 0, totalAmount: 0 },
+    free: { count: 0, totalAmount: 0 },
+  };
+
+  for (const p of allPickups) {
+    const billing = billingMap[(p as any).buildingId];
+    const status = classifyStatus(p, billing);
+    summary[status].count++;
+    summary[status].totalAmount += (p as any).amount || 0;
+  }
+
+  // --- Paginated records ---
+  // Fetch page of pickups
+  let pagePickups = await formsubmissionsCol
+    .find(matchFilter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .project({
+      _id: 1, buildingId: 1, customerType: 1, binType: 1, binQuantity: 1,
+      amount: 1, pickUpDate: 1, createdAt: 1, companyName: 1, lotCode: 1,
+    })
+    .toArray();
+
+  // Fetch billing records for this page's buildings
+  const pageBuildingIds = [...new Set(pagePickups.map((p: any) => p.buildingId).filter(Boolean))];
+  const pageBillingDocs = await billingCol
+    .aggregate([
+      { $match: { buildingId: { $in: pageBuildingIds } } },
+      { $sort: { createdAt: -1 } },
+      { $group: { _id: '$buildingId', doc: { $first: '$$ROOT' } } },
+    ])
+    .toArray();
+  const pageBillingMap: Record<string, any> = {};
+  for (const b of pageBillingDocs) {
+    pageBillingMap[b._id] = b.doc;
+  }
+
+  // Annotate with billing status
+  let records = pagePickups.map((p: any) => {
+    const billing = pageBillingMap[p.buildingId];
+    const billingStatus = classifyStatus(p, billing);
+    return {
+      ...p,
+      billingStatus,
+      billingRecord: billing ? {
+        _id: billing._id,
+        transcationId: billing.transcationId,
+        status: billing.status,
+        amount: billing.amount,
+        quickbookInvoices: billing.quickbookInvoices,
+        month: billing.month,
+        paidAt: billing.paidAt,
+      } : null,
+    };
+  });
+
+  // Filter by status if specified
+  if (options.status && options.status !== 'all') {
+    records = records.filter((r: any) => r.billingStatus === options.status);
+  }
+
+  const total = options.status && options.status !== 'all'
+    ? summary[options.status]?.count || 0
+    : allPickups.length;
+
+  return {
+    summary,
+    records,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+    },
+  };
+}

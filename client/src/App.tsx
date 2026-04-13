@@ -17,6 +17,7 @@ import CherryPickers from "@/pages/CherryPickers";
 import Customers from "@/pages/Customers";
 import PickupRecords from "@/pages/PickupRecords";
 import BillingReports from "@/pages/BillingReports";
+import BillingReconciliation from "@/pages/BillingReconciliation";
 import WebhookMonitoring from "@/pages/WebhookMonitoring";
 import FranchiseDashboard from "@/pages/FranchiseDashboard";
 import PEBuildings from "@/pages/PropertyEnumeration/Buildings";
@@ -101,6 +102,11 @@ function Router() {
       <Route path="/billing-reports">
         <ProtectedRoute>
           <BillingReports />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/billing-reconciliation">
+        <ProtectedRoute>
+          <BillingReconciliation />
         </ProtectedRoute>
       </Route>
       <Route path="/webhook-monitoring">
