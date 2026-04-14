@@ -1,4 +1,9 @@
 import "dotenv/config";
+// Polyfill globalThis.crypto for Node.js < 19 (required by jose 6.x WebCrypto API)
+import { webcrypto } from "crypto";
+if (!globalThis.crypto) {
+  (globalThis as any).crypto = webcrypto;
+}
 import express from "express";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
