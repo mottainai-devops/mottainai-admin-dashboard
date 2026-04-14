@@ -53,6 +53,7 @@ function PaystackSetupWizard({ company, onClose }: { company: Company; onClose: 
   const [accountName, setAccountName] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [verifyInput, setVerifyInput] = useState<{ accountNumber: string; bankCode: string } | null>(null);
 
   const setupMutation = trpc.companiesSetup.setupPaystack.useMutation({
     onSuccess: (data) => {
@@ -67,22 +68,26 @@ function PaystackSetupWizard({ company, onClose }: { company: Company; onClose: 
     },
   });
 
-  const verifyMutation = trpc.companiesSetup.verifyBankAccount.useMutation({
-    onSuccess: (data) => {
-      setAccountName((data as any).account_name);
-      toast.success(`Account verified: ${(data as any).account_name}`);
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const { data: resolvedAccount } = trpc.companiesSetup.resolveAccount.useQuery(
+    verifyInput ?? { accountNumber: '', bankCode: '' },
+    {
+      enabled: !!verifyInput && verifyInput.accountNumber.length === 10 && !!verifyInput.bankCode,
+      onSuccess: (data: any) => {
+        setAccountName(data.account_name);
+        setIsVerifying(false);
+        toast.success(`Account verified: ${data.account_name}`);
+      },
+      onError: (err: any) => {
+        setIsVerifying(false);
+        toast.error(err.message);
+      },
+    } as any
+  );
 
-  const handleVerify = async () => {
+  const handleVerify = () => {
     if (!bankCode || !accountNumber) { toast.error('Enter bank code and account number'); return; }
     setIsVerifying(true);
-    try {
-      await verifyMutation.mutateAsync({ bankCode, accountNumber });
-    } finally {
-      setIsVerifying(false);
-    }
+    setVerifyInput({ accountNumber, bankCode });
   };
 
   const handleSetup = () => {
@@ -130,8 +135,8 @@ function PaystackSetupWizard({ company, onClose }: { company: Company; onClose: 
             <Label>Account Number</Label>
             <div className="flex gap-2">
               <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="0123456789" />
-              <Button variant="outline" size="sm" onClick={handleVerify} disabled={verifyMutation.isPending}>
-                {verifyMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
+              <Button variant="outline" size="sm" onClick={handleVerify} disabled={isVerifying}>
+                {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
               </Button>
             </div>
             {accountName && (
@@ -221,17 +226,40 @@ function BackfillTool({ onClose }: { onClose: () => void }) {
   const utils = trpc.useUtils();
   const [step, setStep] = useState<'preview' | 'running' | 'done'>('preview');
   const [results, setResults] = useState<any[]>([]);
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
-  const { data: preview, isLoading } = trpc.companiesSetup.previewBackfill.useQuery();
-
-  const backfillMutation = trpc.companiesSetup.runBackfill.useMutation({
+  const backfillMutation = trpc.companiesSetup.bulkBackfillSplitCodes.useMutation({
     onSuccess: (data) => {
-      setResults((data as any).results || []);
-      setStep('done');
-      utils.companies.list.invalidate();
+      if ((data as any).dryRun) {
+        setPreviewData(data);
+        setIsPreviewing(false);
+      } else {
+        setResults((data as any).results || []);
+        setStep('done');
+        utils.companies.list.invalidate();
+      }
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => { toast.error(err.message); setIsPreviewing(false); },
   });
+
+  // Auto-run dry-run preview on mount
+  const runPreview = () => {
+    setIsPreviewing(true);
+    backfillMutation.mutate({ dryRun: true });
+  };
+
+  // Run on mount
+  const [didPreview, setDidPreview] = useState(false);
+  if (!didPreview) { setDidPreview(true); runPreview(); }
+
+  const isLoading = isPreviewing;
+  const preview = previewData ? { matches: (previewData.results || []).filter((r: any) => r.status === 'found').map((r: any) => ({
+    companyId: r.companyId,
+    companyName: r.companyName,
+    splitCodeResidential: r.residential,
+    splitCodeCommercial: r.commercial,
+  })) } : null;
 
   return (
     <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -285,7 +313,7 @@ function BackfillTool({ onClose }: { onClose: () => void }) {
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button
-              onClick={() => { setStep('running'); backfillMutation.mutate(); }}
+              onClick={() => { setStep('running'); backfillMutation.mutate({ dryRun: false }); }}
               disabled={!preview?.matches?.length || backfillMutation.isPending}
               className="bg-blue-600 hover:bg-blue-500 text-white"
             >
@@ -307,14 +335,14 @@ function BackfillTool({ onClose }: { onClose: () => void }) {
         <div className="space-y-4 py-2">
           <div className="flex items-center gap-2 text-emerald-600 font-semibold">
             <CheckCircle2 className="w-5 h-5" />
-            Backfill Complete — {results.filter((r) => r.success).length}/{results.length} companies updated
+            Backfill Complete — {results.filter((r) => r.status === 'found').length}/{results.length} companies updated
           </div>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {results.map((r: any) => (
-              <div key={r.companyId} className={`flex items-center justify-between p-2 rounded-lg text-sm ${r.success ? 'bg-emerald-50' : 'bg-red-50'}`}>
+              <div key={r.companyId} className={`flex items-center justify-between p-2 rounded-lg text-sm ${r.status === 'found' ? 'bg-emerald-50' : 'bg-red-50'}`}>
                 <span className="font-medium">{r.companyName}</span>
-                <Badge variant={r.success ? 'default' : 'destructive'} className="text-xs">
-                  {r.success ? 'Updated' : r.error}
+                <Badge variant={r.status === 'found' ? 'default' : 'destructive'} className="text-xs">
+                  {r.status === 'found' ? 'Updated' : (r.error || r.status)}
                 </Badge>
               </div>
             ))}
@@ -413,7 +441,7 @@ export default function Companies() {
     setIsPaystackWizardOpen(true);
   };
 
-  const filteredCompanies = (companies || []).filter((c: Company) => {
+  const filteredCompanies = ((companies || []) as Company[]).filter((c: Company) => {
     if (activeTab === 'all') return true;
     if (activeTab === 'independent') return c.companyType === 'independent';
     if (activeTab === 'franchisee') return c.companyType === 'franchisee';
@@ -421,8 +449,8 @@ export default function Companies() {
     return true;
   });
 
-  const independentCount = (companies || []).filter((c: Company) => c.companyType === 'independent').length;
-  const paystackPendingCount = (companies || []).filter((c: Company) => c.companyType === 'independent' && c.paystackSetupStatus !== 'active').length;
+  const independentCount = ((companies || []) as Company[]).filter((c: Company) => c.companyType === 'independent').length;
+  const paystackPendingCount = ((companies || []) as Company[]).filter((c: Company) => c.companyType === 'independent' && c.paystackSetupStatus !== 'active').length;
 
   function PaystackStatusBadge({ status }: { status?: string }) {
     if (status === 'active') return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Paystack ✓</Badge>;

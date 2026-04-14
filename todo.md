@@ -768,3 +768,35 @@
 - [ ] Admin dashboard: Split code backfill tool (auto-infer for 18 existing companies)
 - [ ] Configure Nginx for company.kowope.xyz → port 3004
 - [ ] Commit to GitHub, deploy via CI/CD, verify live
+
+## Phase 59: Fixed Billing Revenue Model
+- [ ] Create TariffSchedule model (bin type x frequency -> approved price)
+- [ ] Create FixedBillingAgreement model (customer x company x bins x frequency x agreed amount)
+- [ ] Create FixedBillingLedger model (monthly charge records, paid/unpaid, outstanding tracking)
+- [ ] Create FixedBillingNotificationLog model (notification history per customer per pickup)
+- [ ] Build fixedBillingService.ts: computeOutstanding, generatePaystackPaymentLink, sendSmsNotification, sendEmailNotification
+- [ ] Build fixedBilling tRPC router: tariff CRUD, agreement CRUD, ledger view, manual notify, notification history
+- [ ] Hook pickup recording to trigger Fixed Billing notification automatically
+- [ ] Admin UI: TariffSchedule manager page
+- [ ] Admin UI: Assign Fixed Billing to customer (agreement form)
+- [ ] Admin UI: Fixed Billing ledger view with outstanding balances
+- [ ] Company portal: Fixed Billing customers tab with outstanding balances
+- [ ] Company portal: Notification history per customer
+- [ ] Company portal: Dashboard card showing total outstanding Fixed Billing amount
+- [ ] Commit to GitHub and deploy via CI/CD
+
+## Phase 59: Fixed Billing Revenue Model
+- [ ] Create TariffSchedule model (bin type x frequency -> approved price)
+- [ ] Create FixedBillingAgreement model (customer x company x bins x frequency x agreed amount)
+- [ ] Create FixedBillingLedger model (monthly charge records, paid/unpaid, outstanding tracking)
+- [ ] Create FixedBillingNotificationLog model (notification history per customer per pickup)
+- [ ] Build fixedBillingService.ts: computeOutstanding, generatePaystackPaymentLink, sendSmsNotification, sendEmailNotification
+- [ ] Build fixedBilling tRPC router: tariff CRUD, agreement CRUD, ledger view, manual notify, notification history
+- [ ] Hook pickup recording to trigger Fixed Billing notification automatically
+- [ ] Admin UI: TariffSchedule manager page
+- [ ] Admin UI: Assign Fixed Billing to customer (agreement form)
+- [ ] Admin UI: Fixed Billing ledger view with outstanding balances
+- [ ] Company portal: Fixed Billing customers tab with outstanding balances
+- [ ] Company portal: Notification history per customer
+- [ ] Company portal: Dashboard card showing total outstanding Fixed Billing amount
+- [ ] Commit to GitHub and deploy via CI/CD

@@ -18,6 +18,7 @@ import { realWebhookRouter } from "./routers/realWebhook";
 import { pickupVerificationRouter } from "./routers/pickupVerification";
 import { companiesSetupRouter } from "./routers/companiesSetup";
 import { companyPortalRouter } from "./routers/companyPortal";
+import { fixedBillingRouter } from "./routers/fixedBilling";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -127,6 +128,8 @@ export const appRouter = router({
   companiesSetup: companiesSetupRouter,
   // Independent company portal (PIN-authenticated, scoped per company)
   companyPortal: companyPortalRouter,
+  // Fixed Billing revenue model (tariffs, agreements, ledger, notifications)
+  fixedBilling: fixedBillingRouter,
 
   // Super-admin only operations
   superAdmin: router({

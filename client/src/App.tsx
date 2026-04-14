@@ -38,7 +38,9 @@ import CompanyPortalBillingRecords from "@/pages/portal/CompanyPortalBillingReco
 import CompanyPortalBatchInvoice from "@/pages/portal/CompanyPortalBatchInvoice";
 import CompanyPortalWebhooks from "@/pages/portal/CompanyPortalWebhooks";
 import CompanyPortalSettings from "@/pages/portal/CompanyPortalSettings";
+import CompanyPortalFixedBilling from "@/pages/portal/CompanyPortalFixedBilling";
 import { CompanyPortalProvider } from "@/contexts/CompanyPortalContext";
+import FixedBilling from "@/pages/FixedBilling";
 
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -97,6 +99,11 @@ function Router() {
       <Route path="/company-portal/settings">
         <CompanyPortalProvider>
           <CompanyPortalSettings />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/fixed-billing">
+        <CompanyPortalProvider>
+          <CompanyPortalFixedBilling />
         </CompanyPortalProvider>
       </Route>
 
@@ -174,6 +181,11 @@ function Router() {
       <Route path="/batch-reinvoice">
         <ProtectedRoute>
           <BatchReinvoice />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/fixed-billing">
+        <ProtectedRoute>
+          <FixedBilling />
         </ProtectedRoute>
       </Route>
       <Route path="/webhook-monitoring">

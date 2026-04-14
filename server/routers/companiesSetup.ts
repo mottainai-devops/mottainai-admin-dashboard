@@ -173,7 +173,8 @@ export const companiesSetupRouter = router({
         // Use the company's PIN as the webhook token (consistent with existing pattern)
         const webhookToken = company.pin;
         const updatedLots = company.operationalLots.map((lot) => ({
-          ...lot.toObject(),
+          lotCode: (lot as any).lotCode,
+          lotName: (lot as any).lotName,
           paytWebhook: generateWebhookUrl(
             residentialSplit.split_code,
             commercialSplit.split_code,
@@ -241,7 +242,7 @@ export const companiesSetupRouter = router({
       })));
 
       // Combine both sources
-      const allCodes = [...new Set([...inferred.all, ...fromWebhooks])];
+      const allCodes = Array.from(new Set([...inferred.all, ...fromWebhooks]));
       const residentialCodes = inferred.residential.length > 0
         ? inferred.residential
         : fromWebhooks.slice(0, 1); // fallback: first webhook code
@@ -297,7 +298,7 @@ export const companiesSetupRouter = router({
             monthlyWebhook: l.monthlyWebhook,
           })));
 
-          const allCodes = [...new Set([...inferred.all, ...fromWebhooks])];
+          const allCodes = Array.from(new Set([...inferred.all, ...fromWebhooks]));
           const residential = inferred.residential[0] || fromWebhooks[0] || null;
           const commercial = inferred.commercial[0] || fromWebhooks[1] || null;
 

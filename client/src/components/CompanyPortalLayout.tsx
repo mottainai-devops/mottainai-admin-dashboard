@@ -20,6 +20,7 @@ import {
   LogOut,
   Building2,
   ChevronRight,
+  TrendingUp,
 } from 'lucide-react';
 
 const navItems = [
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/company-portal/invoices', label: 'Invoices', icon: FileText },
   { href: '/company-portal/payments', label: 'Payments', icon: CreditCard },
   { href: '/company-portal/batch-invoice', label: 'Batch Invoice', icon: Zap },
+  { href: '/company-portal/fixed-billing', label: 'Fixed Billing', icon: TrendingUp },
   { href: '/company-portal/webhooks', label: 'Webhooks', icon: Webhook },
   { href: '/company-portal/settings', label: 'Settings', icon: Settings },
 ];
