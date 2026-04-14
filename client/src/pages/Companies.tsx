@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -68,21 +68,27 @@ function PaystackSetupWizard({ company, onClose }: { company: Company; onClose: 
     },
   });
 
-  const { data: resolvedAccount } = trpc.companiesSetup.resolveAccount.useQuery(
+  const { data: resolvedAccount, error: resolveError, isFetching: isResolveFetching } = trpc.companiesSetup.resolveAccount.useQuery(
     verifyInput ?? { accountNumber: '', bankCode: '' },
     {
       enabled: !!verifyInput && verifyInput.accountNumber.length === 10 && !!verifyInput.bankCode,
-      onSuccess: (data: any) => {
-        setAccountName(data.account_name);
-        setIsVerifying(false);
-        toast.success(`Account verified: ${data.account_name}`);
-      },
-      onError: (err: any) => {
-        setIsVerifying(false);
-        toast.error(err.message);
-      },
-    } as any
+      retry: false,
+    }
   );
+
+  // Handle resolveAccount result (onSuccess/onError callbacks are deprecated in TanStack Query v5)
+  useEffect(() => {
+    if (!verifyInput) return;
+    if (isResolveFetching) return;
+    if (resolvedAccount) {
+      setAccountName((resolvedAccount as any).account_name);
+      setIsVerifying(false);
+      toast.success(`Account verified: ${(resolvedAccount as any).account_name}`);
+    } else if (resolveError) {
+      setIsVerifying(false);
+      toast.error((resolveError as any).message || 'Account verification failed');
+    }
+  }, [resolvedAccount, resolveError, isResolveFetching, verifyInput]);
 
   const handleVerify = () => {
     if (!bankCode || !accountNumber) { toast.error('Enter bank code and account number'); return; }
