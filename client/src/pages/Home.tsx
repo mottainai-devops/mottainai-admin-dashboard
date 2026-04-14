@@ -4,7 +4,7 @@ import { DashboardWidgets } from "@/components/DashboardWidgets";
 import {
   Building2, ArrowRight, Activity, BarChart3, Wrench, Users, Shield, Cherry,
   UserCheck, Truck, FileText, Webhook, LayoutDashboard, MapPin, ClipboardList,
-  PieChart, RefreshCw
+  PieChart, RefreshCw, RefreshCcwDot, Banknote
 } from "lucide-react";
 import { APP_TITLE } from "@/const";
 import { Link } from "wouter";
@@ -431,6 +431,54 @@ export default function Home() {
               </Card>
             </Link>
           )}
+
+          <Link href="/batch-reinvoice">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-rose-100 rounded-lg">
+                    <RefreshCcwDot className="h-8 w-8 text-rose-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Batch Re-Invoice</CardTitle>
+                    <CardDescription>Re-invoice yet-to-bill records</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Bulk re-invoice PAYT customers with outstanding yet-to-bill records. Supports dry-run mode and live progress tracking.
+                </p>
+                <div className="flex items-center text-rose-600 font-medium">
+                  Open Tool <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/fixed-billing">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-teal-100 rounded-lg">
+                    <Banknote className="h-8 w-8 text-teal-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Fixed Billing</CardTitle>
+                    <CardDescription>Fixed monthly billing agreements</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Manage tariff schedules, customer agreements, and monthly ledger. Auto-sends SMS &amp; email with payment links on pickup.
+                </p>
+                <div className="flex items-center text-teal-600 font-medium">
+                  Manage Fixed Billing <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
 
           {isAdmin && (
             <Link href="/property-enumeration/sync-monitor">
