@@ -714,6 +714,17 @@
 - [x] Created mottainai-v2.9.0-FIXED.apk
 
 
+## Phase 57: Batch Re-Invoicing Tool
+- [x] Add getBatchReinvoicePreview tRPC procedure (paginated yet-to-bill records from monthlybilldatas)
+- [x] Add triggerBatchReinvoice tRPC procedure (self-contained Paystack logic, idempotency guard, rate limiting)
+- [x] Add getBatchJobStatus tRPC procedure (in-memory job progress polling)
+- [x] Create BatchReinvoice.tsx admin page (summary cards, table, dry-run, live progress bar)
+- [x] Register /batch-reinvoice route in App.tsx
+- [x] Add 'Batch Re-Invoice' nav item to DashboardLayout sidebar
+- [x] Commit to GitHub (commit f5c36a9) — CI/CD deployed successfully
+- [x] Add PAYSTACK_SECRET_KEY to mottainai-dashboard PM2 env on production server
+- [x] Verified: 7,095 yet-to-bill records, ₦102,424,000 total, 25 split codes
+
 ## Phase 56: Role-Based Lot Filtering & Cherry Picker System
 - [x] Add cherry_picker role to User model in MongoDB
 - [x] Update backend lots API to filter by user's company
@@ -732,3 +743,28 @@
 - [ ] Deploy backend API changes
 - [ ] Deploy admin dashboard updates
 - [ ] Create user guide for cherry picker feature
+
+
+## Phase 58: Independent Company Portal (company.kowope.xyz)
+- [ ] Extend Company model: Paystack fields (subaccountCode, splitCodeResidential, splitCodeCommercial, percentageCharge, paystackSetupStatus)
+- [ ] Extend Company model: Zoho fields (zohoOrganizationId, zohoSetupStatus, portalEnabled)
+- [ ] Create CompanyZohoToken model (per-company Zoho OAuth tokens, encrypted)
+- [ ] Add companies.setupPaystack tRPC procedure (create subaccount + 2 split codes + auto-generate webhook URLs)
+- [ ] Add companies.backfillSplitCodes tRPC procedure (auto-infer SPL codes from monthlybilldatas via lot codes)
+- [ ] Build companyPortalProcedure JWT middleware (PIN-based, scoped to companyId)
+- [ ] Build companyPortal tRPC router: login, me, customers, pickups, invoices, payments, batchInvoice, webhooks, zohoConnect, zohoCallback
+- [ ] Add Zoho OAuth REST routes (GET /api/company-portal/zoho/authorize, GET /api/company-portal/zoho/callback)
+- [ ] Build Company Portal frontend app (separate Vite app, port 3004)
+- [ ] Portal: Login page (companyId + PIN)
+- [ ] Portal: Dashboard (KPI cards: customers, pickups, revenue, outstanding)
+- [ ] Portal: Customers page (view-only, scoped)
+- [ ] Portal: Pickups page (scoped to company lots)
+- [ ] Portal: Invoices page (Paystack invoices for company's billing records)
+- [ ] Portal: Payments page (paid vs outstanding)
+- [ ] Portal: Batch Invoice page (trigger own yet-to-bill records)
+- [ ] Portal: Webhooks page (health monitoring for company's lots)
+- [ ] Portal: Settings page (Zoho connect, Paystack subaccount info, PIN change)
+- [ ] Admin dashboard: Paystack setup wizard in Companies page (bank code, account number, percentage)
+- [ ] Admin dashboard: Split code backfill tool (auto-infer for 18 existing companies)
+- [ ] Configure Nginx for company.kowope.xyz → port 3004
+- [ ] Commit to GitHub, deploy via CI/CD, verify live

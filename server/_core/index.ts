@@ -11,6 +11,8 @@ import { serveStatic, setupVite } from "./vite";
 import { initializeDatabase } from "../db";
 import mobileAuthRouter from "../routers/mobileAuth";
 import propertyEnumerationRestRouter from "../routers/propertyEnumerationRest";
+import { handleOAuthCallback } from "../services/zohoService";
+import { Company } from "../models/Company";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -50,13 +52,54 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
   // Mobile app authentication API (REST endpoints)
   app.use("/api/mobile/users", mobileAuthRouter);
   // Property Enumeration REST API (used by mobile app)
   app.use("/api/property-enumeration", propertyEnumerationRestRouter);
   
-  // OAuth callback under /api/oauth/callback
+  // OAuth callback under /api/oauth/callback (Manus admin auth)
   registerOAuthRoutes(app);
+
+  // Zoho Books OAuth callback for independent company portal
+  // Flow: company clicks "Connect Zoho" → redirected to Zoho → Zoho redirects here
+  app.get('/api/company-portal/zoho/callback', async (req, res) => {
+    try {
+      const code = req.query.code as string;
+      const state = req.query.state as string;
+      const error = req.query.error as string;
+
+      if (error) {
+        return res.redirect(`/company-portal/settings?zoho_error=${encodeURIComponent(error)}`);
+      }
+      if (!code || !state) {
+        return res.redirect('/company-portal/settings?zoho_error=missing_params');
+      }
+
+      let decoded: { companyId: string };
+      try {
+        decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
+      } catch {
+        return res.redirect('/company-portal/settings?zoho_error=invalid_state');
+      }
+
+      const { companyId } = decoded;
+      if (!companyId) {
+        return res.redirect('/company-portal/settings?zoho_error=invalid_state');
+      }
+
+      // The company must have entered their Zoho Organization ID in Settings first
+      const company = await Company.findOne({ companyId }).lean();
+      const organizationId = company?.zohoOrganizationId || '';
+
+      await handleOAuthCallback(code, companyId, organizationId);
+      return res.redirect('/company-portal/settings?zoho_connected=1');
+    } catch (err: any) {
+      console.error('[Zoho OAuth Callback Error]', err.message);
+      return res.redirect(`/company-portal/settings?zoho_error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
@@ -65,6 +108,7 @@ async function startServer() {
       createContext,
     })
   );
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

@@ -29,6 +29,17 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { SuperAdminRoute } from "@/components/SuperAdminRoute";
 import SystemOverview from "@/pages/SystemOverview";
 
+// Company Portal (Independent companies — separate auth, no admin session required)
+import CompanyPortalLogin from "@/pages/portal/CompanyPortalLogin";
+import CompanyPortalDashboard from "@/pages/portal/CompanyPortalDashboard";
+import CompanyPortalCustomers from "@/pages/portal/CompanyPortalCustomers";
+import CompanyPortalPickups from "@/pages/portal/CompanyPortalPickups";
+import CompanyPortalBillingRecords from "@/pages/portal/CompanyPortalBillingRecords";
+import CompanyPortalBatchInvoice from "@/pages/portal/CompanyPortalBatchInvoice";
+import CompanyPortalWebhooks from "@/pages/portal/CompanyPortalWebhooks";
+import CompanyPortalSettings from "@/pages/portal/CompanyPortalSettings";
+import { CompanyPortalProvider } from "@/contexts/CompanyPortalContext";
+
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -37,9 +48,59 @@ import Home from "./pages/Home";
 function Router() {
   return (
     <Switch>
+      {/* ─── Admin auth ─── */}
       <Route path="/login" component={SimpleLogin} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+
+      {/* ─── Company Portal (PIN-based, no admin session needed) ─── */}
+      <Route path="/company-portal">
+        <CompanyPortalProvider>
+          <CompanyPortalLogin />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/dashboard">
+        <CompanyPortalProvider>
+          <CompanyPortalDashboard />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/customers">
+        <CompanyPortalProvider>
+          <CompanyPortalCustomers />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/pickups">
+        <CompanyPortalProvider>
+          <CompanyPortalPickups />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/invoices">
+        <CompanyPortalProvider>
+          <CompanyPortalBillingRecords mode="invoices" />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/payments">
+        <CompanyPortalProvider>
+          <CompanyPortalBillingRecords mode="payments" />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/batch-invoice">
+        <CompanyPortalProvider>
+          <CompanyPortalBatchInvoice />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/webhooks">
+        <CompanyPortalProvider>
+          <CompanyPortalWebhooks />
+        </CompanyPortalProvider>
+      </Route>
+      <Route path="/company-portal/settings">
+        <CompanyPortalProvider>
+          <CompanyPortalSettings />
+        </CompanyPortalProvider>
+      </Route>
+
+      {/* ─── Admin dashboard (session-protected) ─── */}
       <Route path="/">
         <ProtectedRoute>
           <Home />
@@ -155,11 +216,6 @@ function Router() {
     </Switch>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (

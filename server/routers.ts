@@ -16,6 +16,8 @@ import { billingRouter } from "./routers/billing";
 import { webhookRouter } from "./routers/webhook";
 import { realWebhookRouter } from "./routers/realWebhook";
 import { pickupVerificationRouter } from "./routers/pickupVerification";
+import { companiesSetupRouter } from "./routers/companiesSetup";
+import { companyPortalRouter } from "./routers/companyPortal";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -120,6 +122,11 @@ export const appRouter = router({
       return stats;
     }),
   }),
+
+  // Independent company Paystack + Zoho setup (admin-only)
+  companiesSetup: companiesSetupRouter,
+  // Independent company portal (PIN-authenticated, scoped per company)
+  companyPortal: companyPortalRouter,
 
   // Super-admin only operations
   superAdmin: router({
