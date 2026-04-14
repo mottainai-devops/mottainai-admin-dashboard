@@ -770,33 +770,14 @@
 - [ ] Commit to GitHub, deploy via CI/CD, verify live
 
 ## Phase 59: Fixed Billing Revenue Model
-- [ ] Create TariffSchedule model (bin type x frequency -> approved price)
-- [ ] Create FixedBillingAgreement model (customer x company x bins x frequency x agreed amount)
-- [ ] Create FixedBillingLedger model (monthly charge records, paid/unpaid, outstanding tracking)
-- [ ] Create FixedBillingNotificationLog model (notification history per customer per pickup)
-- [ ] Build fixedBillingService.ts: computeOutstanding, generatePaystackPaymentLink, sendSmsNotification, sendEmailNotification
-- [ ] Build fixedBilling tRPC router: tariff CRUD, agreement CRUD, ledger view, manual notify, notification history
-- [ ] Hook pickup recording to trigger Fixed Billing notification automatically
-- [ ] Admin UI: TariffSchedule manager page
-- [ ] Admin UI: Assign Fixed Billing to customer (agreement form)
-- [ ] Admin UI: Fixed Billing ledger view with outstanding balances
-- [ ] Company portal: Fixed Billing customers tab with outstanding balances
-- [ ] Company portal: Notification history per customer
-- [ ] Company portal: Dashboard card showing total outstanding Fixed Billing amount
-- [ ] Commit to GitHub and deploy via CI/CD
-
-## Phase 59: Fixed Billing Revenue Model
-- [ ] Create TariffSchedule model (bin type x frequency -> approved price)
-- [ ] Create FixedBillingAgreement model (customer x company x bins x frequency x agreed amount)
-- [ ] Create FixedBillingLedger model (monthly charge records, paid/unpaid, outstanding tracking)
-- [ ] Create FixedBillingNotificationLog model (notification history per customer per pickup)
-- [ ] Build fixedBillingService.ts: computeOutstanding, generatePaystackPaymentLink, sendSmsNotification, sendEmailNotification
-- [ ] Build fixedBilling tRPC router: tariff CRUD, agreement CRUD, ledger view, manual notify, notification history
-- [ ] Hook pickup recording to trigger Fixed Billing notification automatically
-- [ ] Admin UI: TariffSchedule manager page
-- [ ] Admin UI: Assign Fixed Billing to customer (agreement form)
-- [ ] Admin UI: Fixed Billing ledger view with outstanding balances
-- [ ] Company portal: Fixed Billing customers tab with outstanding balances
-- [ ] Company portal: Notification history per customer
-- [ ] Company portal: Dashboard card showing total outstanding Fixed Billing amount
-- [ ] Commit to GitHub and deploy via CI/CD
+- [x] Create TariffSchedule model (bin type x frequency -> approved price)
+- [x] Create FixedBillingAgreement model (customer x company x bins x frequency x agreed amount)
+- [x] Create FixedBillingLedger model (monthly charge records, paid/unpaid, outstanding tracking)
+- [x] Create FixedBillingNotificationLog model (notification history per customer per pickup)
+- [x] Build fixedBillingService.ts: computeOutstanding, generatePaystackPaymentLink, sendSmsNotification (Termii), sendEmailNotification (Gmail/Nodemailer)
+- [x] Build fixedBilling tRPC router: tariff CRUD, agreement CRUD, ledger view, manual notify, notification history, batch payment requests
+- [x] Admin UI: FixedBilling page with TariffSchedule manager, agreement creation wizard, ledger view
+- [x] Company portal: CompanyPortalFixedBilling page with agreements, ledger, notification history, batch payment requests
+- [x] Update DashboardLayout and CompanyPortalLayout sidebars with Fixed Billing nav items
+- [x] Update App.tsx with /fixed-billing and /company-portal/fixed-billing routes
+- [x] Commit to GitHub (commit 609b410) and deploy via CI/CD (green, 1m35s)
