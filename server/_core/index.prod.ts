@@ -8,6 +8,8 @@ import { createContext } from "./context";
 import { serveStatic } from "./static";
 import mobileAuthRouter from "../routers/mobileAuth";
 import propertyEnumerationRestRouter from "../routers/propertyEnumerationRest";
+import { handleOAuthCallback } from "../services/zohoService";
+import { Company } from "../models/Company";
 
 // Catch unhandled promise rejections so they are logged (not silently swallowed)
 // but do NOT exit the process — let PM2 decide whether to restart
@@ -52,6 +54,44 @@ async function startServer() {
   app.use("/api/property-enumeration", propertyEnumerationRestRouter);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // Zoho Books OAuth callback for independent company portal
+  app.get('/api/company-portal/zoho/callback', async (req, res) => {
+    try {
+      const code = req.query.code as string;
+      const state = req.query.state as string;
+      const error = req.query.error as string;
+
+      if (error) {
+        return res.redirect(`/company-portal/settings?zoho_error=${encodeURIComponent(error)}`);
+      }
+      if (!code || !state) {
+        return res.redirect('/company-portal/settings?zoho_error=missing_params');
+      }
+
+      let decoded: { companyId: string };
+      try {
+        decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
+      } catch {
+        return res.redirect('/company-portal/settings?zoho_error=invalid_state');
+      }
+
+      const { companyId } = decoded;
+      if (!companyId) {
+        return res.redirect('/company-portal/settings?zoho_error=invalid_state');
+      }
+
+      const company = await Company.findOne({ companyId }).lean() as any;
+      const organizationId = company?.zohoOrganizationId || '';
+
+      await handleOAuthCallback(code, companyId, organizationId);
+      return res.redirect('/company-portal/settings?zoho_connected=1');
+    } catch (err: any) {
+      console.error('[Zoho OAuth Callback Error]', err.message);
+      return res.redirect(`/company-portal/settings?zoho_error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
