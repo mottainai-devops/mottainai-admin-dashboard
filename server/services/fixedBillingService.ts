@@ -431,6 +431,14 @@ export async function triggerFixedBillingNotification(
   agreement: IFixedBillingAgreement,
   pickup: PickupTriggerData
 ): Promise<{ smsResult: string; emailResult: string }> {
+  // 0. Increment pickup count on the current month's ledger entry (Gap 1)
+  const { month: currentMonth, label: currentLabel } = getCurrentBillingMonth();
+  await ensureCurrentMonthLedger(agreement, currentMonth, currentLabel);
+  await FixedBillingLedger.updateOne(
+    { customerId: agreement.customerId, billingMonth: currentMonth },
+    { $inc: { pickupCount: 1 } }
+  );
+
   // 1. Compute outstanding
   const outstanding = await computeOutstanding(agreement);
 

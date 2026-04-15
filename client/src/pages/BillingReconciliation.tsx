@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select";
 
 type StatusFilter = "all" | "paid" | "invoiced" | "yet_to_bill" | "not_billed" | "free";
-type BillingTypeFilter = "all" | "payt" | "monthly";
+type BillingTypeFilter = "all" | "payt" | "monthly" | "fixed";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; description: string }> = {
   paid: {
@@ -89,10 +89,18 @@ function formatDate(dateStr: string | Date | undefined) {
 export default function BillingReconciliation() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [billingTypeFilter, setBillingTypeFilter] = useState<BillingTypeFilter>("all");
+  const [fbPage, setFbPage] = useState(1);
+  const [fbStatusFilter, setFbStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [buildingIdSearch, setBuildingIdSearch] = useState("");
   const [buildingIdInput, setBuildingIdInput] = useState("");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  // Fixed Billing ledger query (only active when Fixed Billing tab is selected)
+  const { data: fbData, isLoading: fbLoading } = trpc.fixedBilling.listLedger.useQuery(
+    { status: fbStatusFilter === "all" ? undefined : (fbStatusFilter as any), page: fbPage, limit: 50 },
+    { enabled: billingTypeFilter === "fixed" }
+  );
 
   const { data, isLoading } = trpc.billing.getReconciliation.useQuery({
     page,
@@ -101,8 +109,8 @@ export default function BillingReconciliation() {
     buildingId: buildingIdSearch || undefined,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
-    billingType: billingTypeFilter === "all" ? undefined : billingTypeFilter,
-  });
+    billingType: billingTypeFilter === "all" ? undefined : (billingTypeFilter === "fixed" ? undefined : billingTypeFilter),
+  }, { enabled: billingTypeFilter !== "fixed" });
 
   const utils = trpc.useUtils();
 
@@ -112,7 +120,7 @@ export default function BillingReconciliation() {
       buildingId: buildingIdSearch || undefined,
       startDate: dateRange.start || undefined,
       endDate: dateRange.end || undefined,
-      billingType: billingTypeFilter === "all" ? undefined : billingTypeFilter,
+      billingType: (billingTypeFilter === "all" || billingTypeFilter === "fixed") ? undefined : billingTypeFilter,
     });
     if (!result?.csv) return;
     const blob = new Blob([result.csv], { type: "text/csv" });
@@ -145,7 +153,7 @@ export default function BillingReconciliation() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header title="Billing Reconciliation" />
+      <Header />
 
       <div className="container py-6 space-y-6">
         {/* Summary Cards */}
@@ -243,19 +251,19 @@ export default function BillingReconciliation() {
           </Card>
         )}
 
-        {/* Billing Type Tabs (Gap 4) */}
+        {/* Billing Type Tabs */}
         <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
-          {(["all", "payt", "monthly"] as BillingTypeFilter[]).map((bt) => (
+          {(["all", "payt", "monthly", "fixed"] as BillingTypeFilter[]).map((bt) => (
             <button
               key={bt}
-              onClick={() => { setBillingTypeFilter(bt); setPage(1); }}
+              onClick={() => { setBillingTypeFilter(bt); setPage(1); setFbPage(1); }}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 billingTypeFilter === bt
                   ? "bg-background shadow text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {bt === "all" ? "All Billing Types" : bt === "payt" ? "PAYT Only" : "Monthly Billing Only"}
+              {bt === "all" ? "All Billing Types" : bt === "payt" ? "PAYT Only" : bt === "monthly" ? "Monthly Billing" : "Fixed Billing"}
             </button>
           ))}
         </div>
@@ -311,7 +319,103 @@ export default function BillingReconciliation() {
           </Button>
         </div>
 
-        {/* Records Table */}
+        {/* Fixed Billing Ledger Table (shown only when Fixed Billing tab is active) */}
+        {billingTypeFilter === "fixed" && (
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <div className="flex items-center gap-2">
+                  <Select value={fbStatusFilter} onValueChange={(v) => { setFbStatusFilter(v); setFbPage(1); }}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      <SelectItem value="unpaid">Unpaid</SelectItem>
+                      <SelectItem value="partial">Partial</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="waived">Waived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground">
+                    {fbData?.total ?? 0} entries
+                  </span>
+                </div>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Billing Month</TableHead>
+                    <TableHead className="text-right">Pickups</TableHead>
+                    <TableHead className="text-right">Charged</TableHead>
+                    <TableHead className="text-right">Paid</TableHead>
+                    <TableHead className="text-right">Outstanding</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {fbLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading Fixed Billing ledger...</TableCell>
+                    </TableRow>
+                  ) : (fbData?.entries ?? []).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No Fixed Billing ledger entries found.</TableCell>
+                    </TableRow>
+                  ) : (
+                    (fbData?.entries ?? []).map((e: any) => {
+                      const fbStatusColors: Record<string, string> = {
+                        paid: "bg-green-100 text-green-800 border-green-200",
+                        partial: "bg-blue-100 text-blue-800 border-blue-200",
+                        unpaid: "bg-red-100 text-red-800 border-red-200",
+                        waived: "bg-gray-100 text-gray-600 border-gray-200",
+                      };
+                      const fmtKobo = (k: number) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", minimumFractionDigits: 0 }).format((k || 0) / 100);
+                      return (
+                        <TableRow key={e._id}>
+                          <TableCell>
+                            <div className="font-medium text-sm">{e.customerName}</div>
+                            <div className="text-xs text-muted-foreground">{e.customerId}</div>
+                          </TableCell>
+                          <TableCell className="text-xs">{e.companyId}</TableCell>
+                          <TableCell className="text-xs">{e.billingMonthLabel}</TableCell>
+                          <TableCell className="text-right text-xs font-mono">{e.pickupCount ?? 0}</TableCell>
+                          <TableCell className="text-right text-xs font-medium">{fmtKobo(e.chargedAmountKobo)}</TableCell>
+                          <TableCell className="text-right text-xs text-green-700">{fmtKobo(e.paidAmountKobo)}</TableCell>
+                          <TableCell className="text-right text-xs font-semibold text-red-600">{fmtKobo(e.outstandingAmountKobo)}</TableCell>
+                          <TableCell>
+                            <Badge className={`text-xs border ${fbStatusColors[e.status] || fbStatusColors.unpaid}`}>
+                              {e.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+              {(fbData?.totalPages ?? 1) > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t">
+                  <span className="text-sm text-muted-foreground">Page {fbPage} of {fbData?.totalPages}</span>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={fbPage === 1} onClick={() => setFbPage(p => p - 1)}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={fbPage === fbData?.totalPages} onClick={() => setFbPage(p => p + 1)}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* PAYT / Monthly Records Table */}
+        {billingTypeFilter !== "fixed" && (
+        <>
         <Card>
           <CardContent className="p-0">
             <Table>
@@ -416,6 +520,8 @@ export default function BillingReconciliation() {
               </Button>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

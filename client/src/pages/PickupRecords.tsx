@@ -244,14 +244,22 @@ export default function PickupRecords() {
                         const bt = pickup.billingType || (pickup.isMonthly ? "Monthly - Residential" : "PAYT - Residential");
                         const isMonthly = bt.startsWith("Monthly");
                         const isBusiness = bt.includes("Business");
+                        const isFixed = pickup.isFixedBilling === true;
                         return (
                           <div className="flex flex-col gap-0.5">
-                            <Badge
-                              variant={isMonthly ? "default" : "secondary"}
-                              className={isMonthly ? "bg-blue-600 text-white text-xs" : "bg-amber-100 text-amber-800 border-amber-300 text-xs"}
-                            >
-                              {isMonthly ? "Monthly" : "PAYT"}
-                            </Badge>
+                            <div className="flex items-center gap-1">
+                              <Badge
+                                variant={isMonthly ? "default" : "secondary"}
+                                className={isMonthly ? "bg-blue-600 text-white text-xs" : "bg-amber-100 text-amber-800 border-amber-300 text-xs"}
+                              >
+                                {isMonthly ? "Monthly" : "PAYT"}
+                              </Badge>
+                              {isFixed && (
+                                <Badge className="bg-emerald-600 text-white text-xs" title="Customer has an active Fixed Billing agreement">
+                                  Fixed
+                                </Badge>
+                              )}
+                            </div>
                             <span className="text-xs text-muted-foreground">{isBusiness ? "Business" : "Residential"}</span>
                           </div>
                         );

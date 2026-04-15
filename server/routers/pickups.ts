@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { FormSubmission } from '../models/FormSubmission';
 import { Company } from '../models/Company';
 import { User } from '../models/User';
+import { FixedBillingAgreement } from '../models/FixedBillingAgreement';
 
 export const pickupsRouter = router({
   // List pickup records with pagination and search
@@ -154,6 +155,18 @@ export const pickupsRouter = router({
         .limit(limit)
         .lean();
       
+      // Gap 2: Collect all customerIds that have an active Fixed Billing agreement
+      // so we can flag them in the pickup records UI.
+      const customerIds = Array.from(new Set(pickups.map((p: any) => p.userId).filter(Boolean)));
+      const fixedBillingCustomerIds = new Set<string>();
+      if (customerIds.length > 0) {
+        const fbAgreements = await FixedBillingAgreement.find(
+          { customerId: { $in: customerIds }, active: true },
+          { customerId: 1 }
+        ).lean();
+        fbAgreements.forEach((a: any) => fixedBillingCustomerIds.add(a.customerId));
+      }
+
       // Transform data to match expected format
       const transformedPickups = pickups.map((pickup: any) => {
         // Derive billing type from customerType field
@@ -179,6 +192,7 @@ export const pickupsRouter = router({
         quantity: pickup.binQuantity,
         amount: pickup.amount || 0,
         isMonthly: isMonthlyBilling,
+        isFixedBilling: fixedBillingCustomerIds.has(pickup.userId || ''),
         billingType,
         month: pickup.pickupDate ? new Date(pickup.pickupDate).toISOString().substring(0, 7) : '',
         year: pickup.pickupDate ? new Date(pickup.pickupDate).getFullYear().toString() : '',
@@ -237,30 +251,31 @@ export const pickupsRouter = router({
         const billingTypeById = isMonthlyById
           ? (isBizById ? 'Monthly - Business' : 'Monthly - Residential')
           : (isBizById ? 'PAYT - Business' : 'PAYT - Residential');
+        const p = pickup as any;
         return {
-          _id: pickup._id,
-          buildingId: pickup.buildingId,
-          splitCode: pickup.buildingId,
-          nameBin: pickup.binType,
-          quantity: pickup.binQuantity,
-          amount: pickup.amount || 0,
+          _id: p._id,
+          buildingId: p.buildingId,
+          splitCode: p.buildingId,
+          nameBin: p.binType,
+          quantity: p.binQuantity,
+          amount: p.amount || 0,
           isMonthly: isMonthlyById,
           billingType: billingTypeById,
-          customerType: pickup.customerType,
-          socioClass: pickup.socioClass,
-          firstPhoto: pickup.firstPhoto,
-          secondPhoto: pickup.secondPhoto,
-          firstPhotoUrl: pickup.firstPhotoUrl,
-          secondPhotoUrl: pickup.secondPhotoUrl,
-          incidentReport: pickup.incidentReport,
-          pickUpDate: pickup.pickUpDate,
-          pickupDate: pickup.pickupDate,
-          userId: pickup.userId,
-          companyId: pickup.companyId,
-          companyName: pickup.companyName,
-          zohoInvoiceId: pickup.zohoInvoiceId,
-          transactionId: pickup._id.toString(),
-          createdAt: pickup.createdAt,
+          customerType: p.customerType,
+          socioClass: p.socioClass,
+          firstPhoto: p.firstPhoto,
+          secondPhoto: p.secondPhoto,
+          firstPhotoUrl: p.firstPhotoUrl,
+          secondPhotoUrl: p.secondPhotoUrl,
+          incidentReport: p.incidentReport,
+          pickUpDate: p.pickUpDate,
+          pickupDate: p.pickupDate,
+          userId: p.userId,
+          companyId: p.companyId,
+          companyName: p.companyName,
+          zohoInvoiceId: p.zohoInvoiceId,
+          transactionId: p._id.toString(),
+          createdAt: p.createdAt,
         };
       } catch (error) {
         console.error('[Pickups] Error getting pickup by ID:', error);

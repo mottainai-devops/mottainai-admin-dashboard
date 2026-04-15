@@ -51,6 +51,10 @@ export interface IFixedBillingLedger extends Document {
     notes?: string;
   }[];
 
+  // ─── Pickup Tracking ─────────────────────────────────────────────────────
+  /** Number of pickups recorded against this billing month */
+  pickupCount: number;
+
   // ─── Audit ───────────────────────────────────────────────────────────────
   /** Date the charge was raised (usually 1st of the billing month) */
   chargeRaisedAt: Date;
@@ -98,6 +102,7 @@ const FixedBillingLedgerSchema = new Schema<IFixedBillingLedger>(
 
     payments: [PaymentRecordSchema],
 
+    pickupCount: { type: Number, default: 0 },
     chargeRaisedAt: { type: Date, required: true },
     paidAt: { type: Date },
     waivedBy: { type: String },

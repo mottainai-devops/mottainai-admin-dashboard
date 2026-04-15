@@ -327,6 +327,37 @@ export const fixedBillingRouter = router({
       return ledger;
     }),
 
+  /** Waive / write-off a ledger entry (admin only) */
+  waiveLedgerEntry: protectedProcedure
+    .input(
+      z.object({
+        customerId: z.string(),
+        billingMonth: z.string(), // "YYYY-MM"
+        waivedReason: z.string().min(1, 'A reason is required to waive a charge'),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const entry = await FixedBillingLedger.findOne({
+        customerId: input.customerId,
+        billingMonth: input.billingMonth,
+      });
+      if (!entry) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Ledger entry not found' });
+      }
+      if (entry.status === 'waived') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'This entry is already waived' });
+      }
+      if (entry.status === 'paid') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot waive a fully paid entry' });
+      }
+      entry.status = 'waived';
+      entry.waivedBy = ctx.user?.id || 'admin';
+      entry.waivedReason = input.waivedReason;
+      entry.outstandingAmountKobo = 0;
+      await entry.save();
+      return entry;
+    }),
+
   /** Generate monthly ledger entries for all active agreements (admin only) */
   generateMonthlyLedger: protectedProcedure
     .mutation(async () => {

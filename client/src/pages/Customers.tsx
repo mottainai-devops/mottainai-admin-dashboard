@@ -396,6 +396,22 @@ export default function Customers() {
                   render: (customer) => <Badge variant="outline">{customer.lotCode}</Badge>,
                 },
                 {
+                  key: "billingType",
+                  label: "Billing",
+                  sortable: false,
+                  render: (customer: any) => (
+                    <Badge
+                      variant="outline"
+                      className={customer.isFixedBilling
+                        ? "border-purple-300 text-purple-700 bg-purple-50 text-xs"
+                        : "border-gray-200 text-gray-500 text-xs"
+                      }
+                    >
+                      {customer.isFixedBilling ? "Fixed" : "PAYT"}
+                    </Badge>
+                  ),
+                },
+                {
                   key: "companyName",
                   label: "Company",
                   sortable: true,

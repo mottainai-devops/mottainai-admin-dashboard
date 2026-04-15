@@ -1,6 +1,7 @@
 import { router, adminProcedure } from '../_core/trpc';
 import { Customer, ICustomer } from '../models/Customer';
 import { Company } from '../models/Company';
+import { FixedBillingAgreement } from '../models/FixedBillingAgreement';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 
@@ -82,11 +83,26 @@ export const customersRouter = router({
         Customer.countDocuments(filter)
       ]);
       
+      // Gap 5: Enrich customers with Fixed Billing agreement status
+      const customerIds = customers.map((c: any) => c.customerId).filter(Boolean);
+      const fixedBillingAgreements = customerIds.length > 0
+        ? await FixedBillingAgreement.find(
+            { customerId: { $in: customerIds }, active: true },
+            { customerId: 1, monthlyChargeKobo: 1, _id: 0 }
+          ).lean()
+        : [];
+      const fixedBillingMap = new Map<string, boolean>();
+      for (const a of fixedBillingAgreements as any[]) {
+        fixedBillingMap.set(a.customerId, true);
+      }
+
       // Map customerName → name for frontend compatibility (admin UI uses customer.name)
       const mappedCustomers = customers.map((c: any) => ({
         ...c,
         _id: c._id?.toString?.() ?? c._id,
         name: c.customerName ?? c.name ?? '',
+        isFixedBilling: fixedBillingMap.has(c.customerId),
+        billingType: fixedBillingMap.has(c.customerId) ? 'Fixed Billing' : 'PAYT / Monthly',
       }));
 
       return {

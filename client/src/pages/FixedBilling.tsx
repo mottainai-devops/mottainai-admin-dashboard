@@ -841,6 +841,8 @@ function LedgerTab() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showPayment, setShowPayment] = useState<any>(null);
+  const [showWaive, setShowWaive] = useState<any>(null);
+  const [waiveReason, setWaiveReason] = useState("");
   const [paymentForm, setPaymentForm] = useState({
     amountKobo: 0,
     paystackReference: "",
@@ -872,6 +874,16 @@ function LedgerTab() {
     onSuccess: () => {
       toast.success("Payment recorded");
       setShowPayment(null);
+      refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const waiveMutation = trpc.fixedBilling.waiveLedgerEntry.useMutation({
+    onSuccess: () => {
+      toast.success("Ledger entry waived");
+      setShowWaive(null);
+      setWaiveReason("");
       refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -930,6 +942,7 @@ function LedgerTab() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Billing Month</TableHead>
+                  <TableHead className="text-right">Pickups</TableHead>
                   <TableHead className="text-right">Charged</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Outstanding</TableHead>
@@ -946,6 +959,9 @@ function LedgerTab() {
                     </TableCell>
                     <TableCell>{e.companyId}</TableCell>
                     <TableCell>{e.billingMonthLabel}</TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-mono text-sm">{e.pickupCount ?? 0}</span>
+                    </TableCell>
                     <TableCell className="text-right">{fmt(e.chargedAmountKobo)}</TableCell>
                     <TableCell className="text-right text-green-700">
                       {fmt(e.paidAmountKobo)}
@@ -956,28 +972,38 @@ function LedgerTab() {
                     <TableCell>{statusBadge(e.status)}</TableCell>
                     <TableCell>
                       {e.status !== "paid" && e.status !== "waived" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setShowPayment(e);
-                            setPaymentForm({
-                              amountKobo: e.outstandingAmountKobo,
-                              paystackReference: "",
-                              channel: "paystack",
-                              notes: "",
-                            });
-                          }}
-                        >
-                          <CreditCard className="w-4 h-4 mr-1" /> Record Payment
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setShowPayment(e);
+                              setPaymentForm({
+                                amountKobo: e.outstandingAmountKobo,
+                                paystackReference: "",
+                                channel: "paystack",
+                                notes: "",
+                              });
+                            }}
+                          >
+                            <CreditCard className="w-4 h-4 mr-1" /> Record Payment
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                            onClick={() => { setShowWaive(e); setWaiveReason(""); }}
+                          >
+                            Waive
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
                 ))}
                 {(data?.entries ?? []).length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       No ledger entries found. Click "Generate This Month" to create entries for all
                       active agreements.
                     </TableCell>
@@ -1014,6 +1040,55 @@ function LedgerTab() {
             </div>
           )}
         </>
+      )}
+
+      {/* Waive / Write-off Dialog */}
+      {showWaive && (
+        <Dialog open={!!showWaive} onOpenChange={() => setShowWaive(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Waive Charge</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-sm">
+                <div className="font-semibold">{showWaive.customerName}</div>
+                <div className="text-muted-foreground">{showWaive.billingMonthLabel}</div>
+                <div className="mt-1">
+                  Outstanding:{" "}
+                  <span className="font-bold text-red-600">{fmt(showWaive.outstandingAmountKobo)}</span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Waiving this charge will set the outstanding balance to ₦0 and mark the entry as <strong>Waived</strong>. This action cannot be undone.
+              </p>
+              <div className="space-y-1">
+                <Label>Reason for waiver <span className="text-red-500">*</span></Label>
+                <Input
+                  placeholder="e.g. Customer dispute resolved, service not rendered"
+                  value={waiveReason}
+                  onChange={(e) => setWaiveReason(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowWaive(null)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                disabled={waiveMutation.isPending || !waiveReason.trim()}
+                onClick={() =>
+                  waiveMutation.mutate({
+                    customerId: showWaive.customerId,
+                    billingMonth: showWaive.billingMonth,
+                    waivedReason: waiveReason,
+                  })
+                }
+              >
+                {waiveMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Confirm Waiver
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Record Payment Dialog */}
