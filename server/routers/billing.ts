@@ -251,6 +251,7 @@ export const billingRouter = router({
         endDate: z.string().optional(),
         buildingId: z.string().optional(),
         lotCode: z.string().optional(),
+        billingType: z.enum(['payt', 'monthly', 'all']).optional(),
       }).optional()
     )
     .query(async ({ input }) => {
@@ -262,6 +263,7 @@ export const billingRouter = router({
         endDate: input?.endDate ? new Date(input.endDate) : undefined,
         buildingId: input?.buildingId,
         lotCode: input?.lotCode,
+        billingType: input?.billingType,
       });
     }),
 
@@ -273,6 +275,7 @@ export const billingRouter = router({
         endDate: z.string().optional(),
         buildingId: z.string().optional(),
         lotCode: z.string().optional(),
+        billingType: z.enum(['payt', 'monthly', 'all']).optional(),
       }).optional()
     )
     .query(async ({ input }) => {
@@ -284,6 +287,7 @@ export const billingRouter = router({
         endDate: input?.endDate ? new Date(input.endDate) : undefined,
         buildingId: input?.buildingId,
         lotCode: input?.lotCode,
+        billingType: input?.billingType,
       });
       const csvData = result.records.map((r: any) => ({
         buildingId: r.buildingId,
@@ -449,4 +453,137 @@ export const billingRouter = router({
           : `Batch job started for ${input.recordIds.length} records`,
       };
     }),
+
+  // ============================================================
+  // MONTHLY BILLING MANAGEMENT (Gap 6)
+  // ============================================================
+
+  /**
+   * List Monthly Billing records (isMonthly: true) with filters.
+   * Used by the new Monthly Billing Management page in the admin dashboard.
+   */
+  listMonthlyBillingRecords: publicProcedure
+    .input(
+      z.object({
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(200).default(50),
+        splitCode: z.string().optional(),
+        month: z.string().optional(),       // e.g. "2024-11"
+        status: z.enum(['paid', 'invoiced', 'yet_to_bill', 'all']).default('all'),
+        buildingId: z.string().optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const db = await getMongoDb();
+      const page = input?.page ?? 1;
+      const limit = input?.limit ?? 50;
+      const skip = (page - 1) * limit;
+
+      // Only Monthly Billing records
+      const query: any = { isMonthly: true };
+      if (input?.splitCode) query.splitCode = input.splitCode;
+      if (input?.buildingId) query.buildingId = { $regex: input.buildingId, $options: 'i' };
+      if (input?.month) query.month = input.month;
+      if (input?.dateFrom || input?.dateTo) {
+        query.createdAt = {};
+        if (input?.dateFrom) query.createdAt.$gte = new Date(input.dateFrom);
+        if (input?.dateTo) query.createdAt.$lte = new Date(input.dateTo);
+      }
+      // Status filter
+      if (input?.status === 'paid') {
+        query.status = 'true';
+        query.transcationId = { $nin: ['000', '', null] };
+      } else if (input?.status === 'invoiced') {
+        query.status = { $ne: 'true' };
+        query.transcationId = { $nin: ['000', '', null] };
+      } else if (input?.status === 'yet_to_bill') {
+        query.transcationId = { $in: ['000', ''] };
+      }
+
+      const [total, records] = await Promise.all([
+        db.collection('monthlybilldatas').countDocuments(query),
+        db.collection('monthlybilldatas')
+          .find(query)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+      ]);
+
+      // Enrich with customer names
+      const { ObjectId } = await import('mongodb');
+      const userIds = [...new Set(records.map((r: any) => r.userId).filter(Boolean))];
+      const validObjectIds = userIds.filter((id: any) => {
+        try { new ObjectId(id); return true; } catch { return false; }
+      });
+      const customers = validObjectIds.length > 0
+        ? await db.collection('customerdatas')
+            .find({ _id: { $in: validObjectIds.map((id: any) => new ObjectId(id)) } })
+            .toArray()
+        : [];
+      const custMap: Record<string, any> = {};
+      customers.forEach((c: any) => { custMap[c._id.toString()] = c; });
+
+      const enriched = records.map((r: any) => {
+        const cust = custMap[r.userId?.toString()] || null;
+        const txnId = r.transcationId;
+        let billingStatus: string;
+        if (!txnId || txnId === '000' || txnId === '') billingStatus = 'yet_to_bill';
+        else if (r.status === 'true' || r.status === true) billingStatus = 'paid';
+        else billingStatus = 'invoiced';
+        return {
+          _id: r._id.toString(),
+          buildingId: r.buildingId,
+          userId: r.userId,
+          month: r.month,
+          amount: r.amount,
+          quantity: r.quantity,
+          nameBin: r.nameBin,
+          splitCode: r.splitCode,
+          transcationId: txnId,
+          status: r.status,
+          billingStatus,
+          quickbookInvoices: r.quickbookInvoices,
+          createdAt: r.createdAt,
+          customerName: cust?.fullName || 'Unknown',
+          customerEmail: cust?.email || null,
+          customerPhone: cust?.phone || null,
+        };
+      });
+
+      // Distinct split codes and months for filter dropdowns
+      const [splitCodes, months] = await Promise.all([
+        db.collection('monthlybilldatas').distinct('splitCode', { isMonthly: true }),
+        db.collection('monthlybilldatas').distinct('month', { isMonthly: true }),
+      ]);
+
+      // Summary stats for current filter
+      const summaryAgg = await db.collection('monthlybilldatas').aggregate([
+        { $match: { isMonthly: true, ...(input?.splitCode ? { splitCode: input.splitCode } : {}), ...(input?.month ? { month: input.month } : {}) } },
+        { $group: {
+          _id: null,
+          totalAmount: { $sum: '$amount' },
+          paidAmount: { $sum: { $cond: [{ $and: [{ $eq: ['$status', 'true'] }, { $not: { $in: ['$transcationId', ['000', '']] } }] }, '$amount', 0] } },
+          paidCount: { $sum: { $cond: [{ $and: [{ $eq: ['$status', 'true'] }, { $not: { $in: ['$transcationId', ['000', '']] } }] }, 1, 0] } },
+          yetToBillCount: { $sum: { $cond: [{ $in: ['$transcationId', ['000', '']] }, 1, 0] } },
+          yetToBillAmount: { $sum: { $cond: [{ $in: ['$transcationId', ['000', '']] }, '$amount', 0] } },
+          invoicedCount: { $sum: { $cond: [{ $and: [{ $ne: ['$status', 'true'] }, { $not: { $in: ['$transcationId', ['000', '']] } }] }, 1, 0] } },
+          invoicedAmount: { $sum: { $cond: [{ $and: [{ $ne: ['$status', 'true'] }, { $not: { $in: ['$transcationId', ['000', '']] } }] }, '$amount', 0] } },
+        }}
+      ]).toArray();
+      const summary = summaryAgg[0] || { totalAmount: 0, paidAmount: 0, paidCount: 0, yetToBillCount: 0, yetToBillAmount: 0, invoicedCount: 0, invoicedAmount: 0 };
+
+      return {
+        total,
+        pages: Math.ceil(total / limit),
+        page,
+        records: enriched,
+        splitCodes: (splitCodes as string[]).filter(Boolean).sort(),
+        months: (months as string[]).filter(Boolean).sort().reverse(),
+        summary,
+      };
+    }),
 });
+

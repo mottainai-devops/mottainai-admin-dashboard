@@ -155,14 +155,31 @@ export const pickupsRouter = router({
         .lean();
       
       // Transform data to match expected format
-      const transformedPickups = pickups.map((pickup: any) => ({
+      const transformedPickups = pickups.map((pickup: any) => {
+        // Derive billing type from customerType field
+        // customerType values: "Monthly Billing - Business", "Monthly Billing - Residential",
+        // "PAYT - Business", "PAYT - Residential", "commercial", "residential"
+        const ct = (pickup.customerType || '').toLowerCase();
+        const isMonthlyBilling = ct.includes('monthly billing');
+        const isPAYT = ct.includes('payt') || (!isMonthlyBilling && (ct === 'commercial' || ct === 'residential'));
+        // Determine customer class (residential vs business)
+        const isResidential = ct.includes('residential') || ct === 'residential';
+        const isBusiness = ct.includes('business') || ct === 'commercial';
+        let billingType: string;
+        if (isMonthlyBilling) {
+          billingType = isBusiness ? 'Monthly - Business' : 'Monthly - Residential';
+        } else {
+          billingType = isBusiness ? 'PAYT - Business' : 'PAYT - Residential';
+        }
+        return {
         _id: pickup._id,
         buildingId: pickup.buildingId,
         splitCode: pickup.buildingId, // Use buildingId as splitCode for now
         nameBin: pickup.binType,
         quantity: pickup.binQuantity,
         amount: pickup.amount || 0,
-        isMonthly: false, // Default to PAYT, can be enhanced later
+        isMonthly: isMonthlyBilling,
+        billingType,
         month: pickup.pickupDate ? new Date(pickup.pickupDate).toISOString().substring(0, 7) : '',
         year: pickup.pickupDate ? new Date(pickup.pickupDate).getFullYear().toString() : '',
         status: false, // Default unpaid
@@ -191,7 +208,9 @@ export const pickupsRouter = router({
         latitude: pickup.latitude || null,
         longitude: pickup.longitude || null,
         createdAt: pickup.createdAt,
-      }));
+        submittedAt: pickup.submittedAt || pickup.createdAt,
+        };
+      });
       
       return {
         pickups: transformedPickups,
@@ -212,6 +231,12 @@ export const pickupsRouter = router({
           return null;
         }
 
+        const ct2 = ((pickup as any).customerType || '').toLowerCase();
+        const isMonthlyById = ct2.includes('monthly billing');
+        const isBizById = ct2.includes('business') || ct2 === 'commercial';
+        const billingTypeById = isMonthlyById
+          ? (isBizById ? 'Monthly - Business' : 'Monthly - Residential')
+          : (isBizById ? 'PAYT - Business' : 'PAYT - Residential');
         return {
           _id: pickup._id,
           buildingId: pickup.buildingId,
@@ -219,7 +244,8 @@ export const pickupsRouter = router({
           nameBin: pickup.binType,
           quantity: pickup.binQuantity,
           amount: pickup.amount || 0,
-          isMonthly: false,
+          isMonthly: isMonthlyById,
+          billingType: billingTypeById,
           customerType: pickup.customerType,
           socioClass: pickup.socioClass,
           firstPhoto: pickup.firstPhoto,

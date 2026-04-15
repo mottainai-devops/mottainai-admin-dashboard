@@ -545,6 +545,7 @@ export async function getReconciliation(options: {
   endDate?: Date;
   buildingId?: string;
   lotCode?: string;
+  billingType?: 'payt' | 'monthly' | 'all';
 }) {
   const db = await getMongoDb();
   const formsubmissionsCol = db.collection('formsubmissions');
@@ -566,6 +567,15 @@ export async function getReconciliation(options: {
   }
   if (options.lotCode) {
     matchFilter.buildingId = { $regex: `${options.lotCode}$`, $options: 'i' };
+  }
+  // Filter by billing type: PAYT vs Monthly Billing (derived from customerType field)
+  if (options.billingType && options.billingType !== 'all') {
+    if (options.billingType === 'monthly') {
+      matchFilter.customerType = { $regex: 'monthly billing', $options: 'i' };
+    } else {
+      // PAYT: includes 'PAYT - *' and legacy 'commercial'/'residential'
+      matchFilter.customerType = { $not: { $regex: 'monthly billing', $options: 'i' } };
+    }
   }
 
   function classifyStatus(pickup: any, billing: any): string {

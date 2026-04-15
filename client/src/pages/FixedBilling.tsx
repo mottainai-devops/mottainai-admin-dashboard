@@ -394,6 +394,12 @@ function AgreementsTab() {
     form.agreedMonthlyPriceKobo !== form.officialMonthlyPriceKobo &&
     form.officialMonthlyPriceKobo > 0;
 
+  // Gap 3: Check if customer has Monthly Billing records — show warning if so
+  const { data: billingTypeCheck } = trpc.fixedBilling.checkCustomerBillingType.useQuery(
+    { customerId: form.customerId },
+    { enabled: form.customerId.trim().length >= 2 }
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -539,6 +545,23 @@ function AgreementsTab() {
           <DialogHeader>
             <DialogTitle>New Fixed Billing Agreement</DialogTitle>
           </DialogHeader>
+
+          {/* Gap 3: Monthly Billing supersession warning */}
+          {billingTypeCheck?.hasMonthlyBilling && (
+            <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div>
+                <p className="font-semibold">Monthly Billing customer detected</p>
+                <p className="mt-0.5">
+                  This customer has <strong>{billingTypeCheck.monthlyCount}</strong> Monthly Billing
+                  record{billingTypeCheck.monthlyCount !== 1 ? 's' : ''} on file. Creating a Fixed
+                  Billing agreement will <strong>supersede Monthly Billing</strong> for all future
+                  pickups — Monthly Billing invoices will no longer be generated for this customer.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 py-2">
             {/* Customer Info */}
             <div className="col-span-2">

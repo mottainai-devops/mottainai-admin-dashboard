@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 
 type StatusFilter = "all" | "paid" | "invoiced" | "yet_to_bill" | "not_billed" | "free";
+type BillingTypeFilter = "all" | "payt" | "monthly";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; description: string }> = {
   paid: {
@@ -87,6 +88,7 @@ function formatDate(dateStr: string | Date | undefined) {
 
 export default function BillingReconciliation() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [billingTypeFilter, setBillingTypeFilter] = useState<BillingTypeFilter>("all");
   const [page, setPage] = useState(1);
   const [buildingIdSearch, setBuildingIdSearch] = useState("");
   const [buildingIdInput, setBuildingIdInput] = useState("");
@@ -99,6 +101,7 @@ export default function BillingReconciliation() {
     buildingId: buildingIdSearch || undefined,
     startDate: dateRange.start || undefined,
     endDate: dateRange.end || undefined,
+    billingType: billingTypeFilter === "all" ? undefined : billingTypeFilter,
   });
 
   const utils = trpc.useUtils();
@@ -109,6 +112,7 @@ export default function BillingReconciliation() {
       buildingId: buildingIdSearch || undefined,
       startDate: dateRange.start || undefined,
       endDate: dateRange.end || undefined,
+      billingType: billingTypeFilter === "all" ? undefined : billingTypeFilter,
     });
     if (!result?.csv) return;
     const blob = new Blob([result.csv], { type: "text/csv" });
@@ -238,6 +242,23 @@ export default function BillingReconciliation() {
             </CardContent>
           </Card>
         )}
+
+        {/* Billing Type Tabs (Gap 4) */}
+        <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+          {(["all", "payt", "monthly"] as BillingTypeFilter[]).map((bt) => (
+            <button
+              key={bt}
+              onClick={() => { setBillingTypeFilter(bt); setPage(1); }}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                billingTypeFilter === bt
+                  ? "bg-background shadow text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {bt === "all" ? "All Billing Types" : bt === "payt" ? "PAYT Only" : "Monthly Billing Only"}
+            </button>
+          ))}
+        </div>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">

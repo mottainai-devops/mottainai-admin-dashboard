@@ -237,14 +237,25 @@ export default function PickupRecords() {
                       ),
                     },
                     {
-                      key: "isMonthly",
-                      label: "Type",
+                      key: "billingType",
+                      label: "Billing Type",
                       sortable: true,
-                      render: (pickup: any) => (
-                        <Badge variant={pickup.isMonthly ? "default" : "secondary"}>
-                          {pickup.isMonthly ? "Monthly" : "PAYT"}
-                        </Badge>
-                      ),
+                      render: (pickup: any) => {
+                        const bt = pickup.billingType || (pickup.isMonthly ? "Monthly - Residential" : "PAYT - Residential");
+                        const isMonthly = bt.startsWith("Monthly");
+                        const isBusiness = bt.includes("Business");
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            <Badge
+                              variant={isMonthly ? "default" : "secondary"}
+                              className={isMonthly ? "bg-blue-600 text-white text-xs" : "bg-amber-100 text-amber-800 border-amber-300 text-xs"}
+                            >
+                              {isMonthly ? "Monthly" : "PAYT"}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">{isBusiness ? "Business" : "Residential"}</span>
+                          </div>
+                        );
+                      },
                     },
                     {
                       key: "source",

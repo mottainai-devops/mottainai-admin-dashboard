@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { router, protectedProcedure, publicProcedure } from '../_core/trpc';
 import { TRPCError } from '@trpc/server';
 import { TariffSchedule } from '../models/TariffSchedule';
+import { MonthlyBillData } from '../models/MonthlyBillData';
 import { FixedBillingAgreement } from '../models/FixedBillingAgreement';
 import { FixedBillingLedger } from '../models/FixedBillingLedger';
 import { FixedBillingNotificationLog } from '../models/FixedBillingNotificationLog';
@@ -136,6 +137,24 @@ export const fixedBillingRouter = router({
       ]);
 
       return { agreements, total, page: input.page, totalPages: Math.ceil(total / input.limit) };
+    }),
+
+  /**
+   * Check if a customer already has Monthly Billing records.
+   * Used to show a warning in the New Agreement dialog (Gap 3).
+   */
+  checkCustomerBillingType: protectedProcedure
+    .input(z.object({ customerId: z.string() }))
+    .query(async ({ input }) => {
+      if (!input.customerId || input.customerId.trim().length < 2) {
+        return { hasMonthlyBilling: false, monthlyCount: 0 };
+      }
+      // Check monthlybilldatas for records with isMonthly: true for this customer
+      const monthlyCount = await MonthlyBillData.countDocuments({
+        userId: input.customerId,
+        isMonthly: true,
+      });
+      return { hasMonthlyBilling: monthlyCount > 0, monthlyCount };
     }),
 
   /** Create a new Fixed Billing agreement for a customer */

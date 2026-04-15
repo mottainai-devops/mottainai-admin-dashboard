@@ -41,6 +41,7 @@ import CompanyPortalSettings from "@/pages/portal/CompanyPortalSettings";
 import CompanyPortalFixedBilling from "@/pages/portal/CompanyPortalFixedBilling";
 import { CompanyPortalProvider } from "@/contexts/CompanyPortalContext";
 import FixedBilling from "@/pages/FixedBilling";
+import MonthlyBilling from "@/pages/MonthlyBilling";
 
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -186,6 +187,11 @@ function Router() {
       <Route path="/fixed-billing">
         <ProtectedRoute>
           <FixedBilling />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/monthly-billing">
+        <ProtectedRoute>
+          <MonthlyBilling />
         </ProtectedRoute>
       </Route>
       <Route path="/webhook-monitoring">
