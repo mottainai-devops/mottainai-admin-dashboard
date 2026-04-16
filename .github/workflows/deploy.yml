@@ -91,8 +91,24 @@ jobs:
               cp /var/www/mottainai-dashboard/.env /var/www/mottainai-dashboard-new/.env
             fi
 
+            # Preserve start.sh — copy it into new deployment before swap so rsync --delete does not remove it
+            if [ -f /var/www/mottainai-dashboard/start.sh ]; then
+              cp /var/www/mottainai-dashboard/start.sh /var/www/mottainai-dashboard-new/start.sh
+            fi
+
             # Swap
             rsync -a --delete /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
+
+            # Safety net: recreate start.sh if it was somehow lost
+            if [ ! -f /var/www/mottainai-dashboard/start.sh ]; then
+              echo "WARNING: start.sh missing after swap — recreating from backup"
+              if [ -f /var/www/mottainai-dashboard-backup/start.sh ]; then
+                cp /var/www/mottainai-dashboard-backup/start.sh /var/www/mottainai-dashboard/start.sh
+                chmod +x /var/www/mottainai-dashboard/start.sh
+              else
+                echo "ERROR: Cannot recover start.sh — no backup found"
+              fi
+            fi
 
             echo "=== Restarting PM2 process ==="
             pm2 restart mottainai-dashboard --update-env
