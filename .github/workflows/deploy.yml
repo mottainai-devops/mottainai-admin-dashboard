@@ -93,8 +93,10 @@ jobs:
               cp /var/www/mottainai-dashboard/.env /var/www/mottainai-dashboard-new/.env
             fi
 
-            # Swap — exclude .env so it is never deleted by rsync
-            rsync -a --delete --exclude='.env' /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
+            # Swap — rsync WITHOUT --delete to preserve server-side files
+            # (start.sh, .env, uploads, etc.) that are not in the build tarball.
+            # Rule: never use rsync --delete when deploying to the live directory.
+            rsync -a /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
 
             echo "=== Restarting PM2 process ==="
             pm2 restart mottainai-dashboard --update-env
