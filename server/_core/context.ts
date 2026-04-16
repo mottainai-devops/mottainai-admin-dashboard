@@ -10,6 +10,7 @@ export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  adminToken: string | null; // Raw Authorization header forwarded to platform backend
 };
 
 export async function createContext(
@@ -70,9 +71,14 @@ export async function createContext(
     }
   }
 
+  // Expose the raw Authorization header so customerApp router can forward it
+  // to the platform backend (upwork.kowope.xyz) which uses the same JWT secret
+  const adminToken = opts.req.headers.authorization || null;
+
   return {
     req: opts.req,
     res: opts.res,
     user,
+    adminToken,
   };
 }

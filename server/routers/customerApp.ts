@@ -11,20 +11,22 @@ import axios from "axios";
 
 const PLATFORM_API = "https://upwork.kowope.xyz/api/v1";
 
-// Helper: forward admin session cookie as Bearer token for admin endpoints
+// Service API key for internal service-to-service calls to the platform backend
+// Must match ADMIN_SERVICE_API_KEY on the platform backend (or the default fallback)
+const SERVICE_API_KEY = process.env.ADMIN_SERVICE_API_KEY || "mottainai-admin-service-key-2024";
+
+// Helper: call platform backend admin endpoints using the shared service API key
 async function platformAdminRequest(
   method: "get" | "post" | "patch",
   path: string,
   data?: Record<string, unknown>,
   params?: Record<string, unknown>,
-  adminToken?: string
+  _adminToken?: string // kept for signature compatibility, no longer used
 ) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "X-Service-Key": SERVICE_API_KEY, // service-to-service auth
   };
-  if (adminToken) {
-    headers["Authorization"] = `Bearer ${adminToken}`;
-  }
 
   const response = await axios({
     method,
