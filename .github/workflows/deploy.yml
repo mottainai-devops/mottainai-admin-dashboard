@@ -53,6 +53,8 @@ jobs:
           cp package.json pnpm-lock.yaml deploy-package/
           cp -r server deploy-package/
           cp -r shared deploy-package/
+          cp start.sh deploy-package/
+          chmod +x deploy-package/start.sh
           tar -czf dashboard-deploy.tar.gz -C deploy-package .
 
       - name: Setup SSH key
@@ -91,8 +93,8 @@ jobs:
               cp /var/www/mottainai-dashboard/.env /var/www/mottainai-dashboard-new/.env
             fi
 
-            # Swap
-            rsync -a --delete /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
+            # Swap — exclude .env so it is never deleted by rsync
+            rsync -a --delete --exclude='.env' /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
 
             echo "=== Restarting PM2 process ==="
             pm2 restart mottainai-dashboard --update-env
