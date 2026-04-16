@@ -19,6 +19,7 @@ import { pickupVerificationRouter } from "./routers/pickupVerification";
 import { companiesSetupRouter } from "./routers/companiesSetup";
 import { companyPortalRouter } from "./routers/companyPortal";
 import { fixedBillingRouter } from "./routers/fixedBilling";
+import { customerAppRouter } from "./routers/customerApp";
 import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -130,6 +131,8 @@ export const appRouter = router({
   companyPortal: companyPortalRouter,
   // Fixed Billing revenue model (tariffs, agreements, ledger, notifications)
   fixedBilling: fixedBillingRouter,
+  // Customer App management (accounts, pickup requests, invites)
+  customerApp: customerAppRouter,
 
   // Super-admin only operations
   superAdmin: router({

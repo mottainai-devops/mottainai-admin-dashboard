@@ -21,6 +21,7 @@ import BillingReconciliation from "@/pages/BillingReconciliation";
 import BatchReinvoice from "@/pages/BatchReinvoice";
 import WebhookMonitoring from "@/pages/WebhookMonitoring";
 import FranchiseDashboard from "@/pages/FranchiseDashboard";
+import CustomerApp from "@/pages/CustomerApp";
 import PEBuildings from "@/pages/PropertyEnumeration/Buildings";
 import PESessions from "@/pages/PropertyEnumeration/Sessions";
 import PEAnalytics from "@/pages/PropertyEnumeration/Analytics";
@@ -202,6 +203,11 @@ function Router() {
       <Route path="/franchise">
         <ProtectedRoute>
           <FranchiseDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/customer-app">
+        <ProtectedRoute>
+          <CustomerApp />
         </ProtectedRoute>
       </Route>
       <Route path="/property-enumeration/buildings">
