@@ -47,6 +47,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  Download,
   FileText,
   Loader2,
   Plus,
@@ -408,6 +409,16 @@ function AgreementsTab() {
     { enabled: !!bulkScopeCompanyId && bulkScopeCompany?.companyType === 'franchisor' }
   );
 
+  // ── Template customers: all customers in bulk scope for CSV template generation ──
+  const { data: templateCustomers, isFetching: templateFetching } = trpc.fixedBilling.searchCustomersForAgreement.useQuery(
+    {
+      companyId: bulkScopeCompanyId,
+      franchiseeId: bulkScopeFranchiseeId || undefined,
+      limit: 100,
+    },
+    { enabled: !!bulkScopeCompanyId }
+  );
+
   // ── Customer search scoped to company (Gap 1 & 3) ─────────────────────────
   const { data: customerResults, isFetching: customerSearching } = trpc.fixedBilling.searchCustomersForAgreement.useQuery(
     {
@@ -418,6 +429,50 @@ function AgreementsTab() {
     },
     { enabled: !!scopeCompanyId }
   );
+
+  // ── Download CSV template for bulk upload ────────────────────────────────
+  const handleDownloadTemplate = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const tariffCodes = (tariffs ?? []).map((t: any) => t.tariffCode).join(' | ');
+    const scopeLabel = bulkScopeCompany?.companyName ?? 'Company';
+    const rows: string[][] = [];
+    rows.push([
+      'customerId', 'customerName', 'tariffCode', 'binType',
+      'frequency', 'binsCount', 'agreedMonthlyPrice', 'openingBalance',
+      'startDate', 'notifyBySms', 'notifyByEmail', 'notes',
+    ]);
+    rows.push([
+      `# Customer IDs for ${scopeLabel}`,
+      '# Full name (auto-filled from system)',
+      `# Options: ${tariffCodes || 'see Tariff Schedule tab'}`,
+      '# 240L | 360L | 1100L',
+      '# Once a week | Twice a week | Three times a week | Daily',
+      '# Number of bins (default 1)',
+      '# Agreed price in Naira e.g. 10500.00',
+      '# Pre-existing Zoho balance in Naira (0 if none)',
+      '# YYYY-MM-DD',
+      '# TRUE or FALSE',
+      '# TRUE or FALSE',
+      '# Optional notes',
+    ]);
+    (templateCustomers ?? []).forEach((c: any) => {
+      rows.push([
+        c.customerId, c.customerName, '', '240L',
+        'Once a week', '1', '', '0',
+        today, 'TRUE', 'TRUE', '',
+      ]);
+    });
+    const csv = rows
+      .map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fixed-billing-template-${scopeLabel.replace(/\s+/g, '-').toLowerCase()}-${today}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const createMutation = trpc.fixedBilling.createAgreement.useMutation({
     onSuccess: () => {
@@ -1086,6 +1141,32 @@ function AgreementsTab() {
                 )}
               </div>
             </div>
+
+            {/* Download Template banner — appears once company scope is selected */}
+            {bulkScopeCompanyId && (
+              <div className="flex items-center justify-between rounded-md bg-blue-50 border border-blue-200 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Download a pre-filled template</p>
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    {templateFetching
+                      ? 'Loading customers…'
+                      : `${(templateCustomers ?? []).length} customer${(templateCustomers ?? []).length !== 1 ? 's' : ''} in scope — fill in tariff & pricing columns then re-upload`}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-300 text-blue-700 hover:bg-blue-100 gap-1.5 shrink-0"
+                  disabled={templateFetching || !templateCustomers}
+                  onClick={handleDownloadTemplate}
+                >
+                  {templateFetching
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : <Download className="w-4 h-4" />}
+                  Download Template
+                </Button>
+              </div>
+            )}
 
             {/* CSV upload */}
             <div>
