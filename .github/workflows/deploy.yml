@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Clean previous build artifacts
+        run: rm -rf dist/
+
       - name: Build frontend
         env:
           VITE_APP_TITLE: "Mottainai Admin Dashboard"
@@ -32,6 +35,16 @@ jobs:
           VITE_ANALYTICS_ENDPOINT: ""
           VITE_ANALYTICS_WEBSITE_ID: ""
         run: pnpm build
+
+      - name: Verify build title
+        run: |
+          TITLE=$(grep -o '<title>[^<]*</title>' dist/public/index.html | head -1)
+          echo "Built title: $TITLE"
+          if [ "$TITLE" != "<title>Mottainai Admin Dashboard</title>" ]; then
+            echo "ERROR: Wrong title in build output: $TITLE"
+            exit 1
+          fi
+          echo "Title verification passed."
 
       - name: Bundle server for deployment
         run: |
@@ -109,5 +122,13 @@ jobs:
 
             echo "=== Cleanup ==="
             rm -rf /var/www/mottainai-dashboard-new /tmp/dashboard-deploy.tar.gz
+            echo "=== Verifying deployed title ==="
+            DEPLOYED_TITLE=$(grep -o '<title>[^<]*</title>' /var/www/mottainai-dashboard/dist/public/index.html 2>/dev/null | head -1)
+            echo "Deployed title: $DEPLOYED_TITLE"
+            if [ "$DEPLOYED_TITLE" != "<title>Mottainai Admin Dashboard</title>" ]; then
+              echo "WARNING: Deployed title mismatch: $DEPLOYED_TITLE"
+            else
+              echo "Title verification passed: $DEPLOYED_TITLE"
+            fi
             echo "Deploy complete!"
           ENDSSH
