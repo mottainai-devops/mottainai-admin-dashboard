@@ -4,7 +4,7 @@ import { DashboardWidgets } from "@/components/DashboardWidgets";
 import {
   Building2, ArrowRight, Activity, BarChart3, Wrench, Users, Shield, Cherry,
   UserCheck, Truck, FileText, Webhook, LayoutDashboard, MapPin, ClipboardList,
-  PieChart, RefreshCw, RefreshCcwDot, Banknote
+  PieChart, RefreshCw, RefreshCcwDot, Banknote, Smartphone
 } from "lucide-react";
 import { APP_TITLE } from "@/const";
 import { Link } from "wouter";
@@ -475,6 +475,30 @@ export default function Home() {
                 </p>
                 <div className="flex items-center text-teal-600 font-medium">
                   Manage Fixed Billing <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/customer-app">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <Smartphone className="h-8 w-8 text-green-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Customer App</CardTitle>
+                    <CardDescription>Manage customer app accounts &amp; pickups</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  View registered customer app accounts, manage pickup requests, and send app invites to customers.
+                </p>
+                <div className="flex items-center text-green-600 font-medium">
+                  Open Customer App <ArrowRight className="ml-2 h-4 w-4" />
                 </div>
               </CardContent>
             </Card>
