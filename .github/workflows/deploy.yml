@@ -88,9 +88,9 @@ jobs:
               cp -r /var/www/mottainai-dashboard /var/www/mottainai-dashboard-backup
             fi
 
-            # Copy env file if it exists
+            # Copy env file if it exists (|| true prevents abort if dest dir is missing)
             if [ -f /var/www/mottainai-dashboard/.env ]; then
-              cp /var/www/mottainai-dashboard/.env /var/www/mottainai-dashboard-new/.env
+              cp /var/www/mottainai-dashboard/.env /var/www/mottainai-dashboard-new/.env || true
             fi
 
             # Swap — rsync WITHOUT --delete to preserve server-side files
