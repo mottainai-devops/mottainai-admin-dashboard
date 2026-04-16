@@ -18,6 +18,8 @@ import { MonthlyBillData } from '../models/MonthlyBillData';
 import { FixedBillingAgreement } from '../models/FixedBillingAgreement';
 import { FixedBillingLedger } from '../models/FixedBillingLedger';
 import { FixedBillingNotificationLog } from '../models/FixedBillingNotificationLog';
+import { Customer } from '../models/Customer';
+import { Company } from '../models/Company';
 import {
   computeOutstanding,
   triggerFixedBillingNotification,
@@ -175,6 +177,8 @@ export const fixedBillingRouter = router({
         officialMonthlyPriceKobo: z.number().int().min(0),
         agreedMonthlyPriceKobo: z.number().int().min(0),
         priceOverrideReason: z.string().optional(),
+        /** Pre-existing Zoho balance in kobo captured at agreement creation */
+        openingBalanceKobo: z.number().int().min(0).default(0),
         startDate: z.date(),
         notifyBySms: z.boolean().default(true),
         notifyByEmail: z.boolean().default(true),
@@ -443,6 +447,252 @@ export const fixedBillingRouter = router({
    * Called internally when a Paystack webhook confirms a Fixed Billing payment.
    * Matches by reference prefix "FB-" and records against the correct ledger month.
    */
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GAP 1 & 3: CUSTOMER SEARCH — scoped by company for agreement form
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Search customers scoped to a company for the Fixed Billing agreement form.
+   * Supports Independent, Franchisor (all franchisees), and specific Franchisee scopes.
+   * Returns lightweight customer records for the searchable dropdown.
+   */
+  searchCustomersForAgreement: protectedProcedure
+    .input(
+      z.object({
+        companyId: z.string(),
+        /** Optional: narrow to a specific franchisee when companyId is a franchisor */
+        franchiseeId: z.string().optional(),
+        search: z.string().optional(),
+        limit: z.number().int().min(1).max(100).default(30),
+      })
+    )
+    .query(async ({ input }) => {
+      const company = await Company.findOne({ companyId: input.companyId });
+      if (!company) throw new TRPCError({ code: 'NOT_FOUND', message: 'Company not found' });
+
+      const filter: Record<string, any> = { active: true };
+
+      if (company.companyType === 'franchisor') {
+        if (input.franchiseeId) {
+          // Specific franchisee selected
+          filter.ownerCompanyId = input.franchiseeId;
+        } else {
+          // All franchisees under this franchisor
+          const franchisees = await Company.find({ parentCompanyId: input.companyId }, { companyId: 1 }).lean();
+          const franchiseeIds = franchisees.map((f: any) => f.companyId);
+          filter.ownerCompanyId = { $in: [input.companyId, ...franchiseeIds] };
+        }
+      } else {
+        // Independent company — only its own customers
+        filter.ownerCompanyId = input.companyId;
+      }
+
+      if (input.search) {
+        filter.$or = [
+          { customerName: { $regex: input.search, $options: 'i' } },
+          { customerId: { $regex: input.search, $options: 'i' } },
+          { phone: { $regex: input.search, $options: 'i' } },
+          { address: { $regex: input.search, $options: 'i' } },
+        ];
+      }
+
+      const customers = await Customer.find(filter)
+        .select('customerId customerName phone email address lotCode ownerCompanyId ownerCompanyName buildingId')
+        .sort({ customerName: 1 })
+        .limit(input.limit)
+        .lean();
+
+      return customers.map((c: any) => ({
+        customerId: c.customerId,
+        customerName: c.customerName,
+        phone: c.phone || '',
+        email: c.email || '',
+        address: c.address || '',
+        lotCode: c.lotCode || '',
+        ownerCompanyId: c.ownerCompanyId,
+        ownerCompanyName: c.ownerCompanyName,
+        buildingId: c.buildingId || null,
+      }));
+    }),
+
+  /**
+   * List franchisees under a franchisor — used in the company scope selector.
+   */
+  listFranchisees: protectedProcedure
+    .input(z.object({ franchisorId: z.string() }))
+    .query(async ({ input }) => {
+      const franchisees = await Company.find(
+        { parentCompanyId: input.franchisorId },
+        { companyId: 1, companyName: 1 }
+      ).lean();
+      return franchisees.map((f: any) => ({ companyId: f.companyId, companyName: f.companyName }));
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GAP 2: PICKUP BRIDGE — called by platform backend after every pickup save
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Internal endpoint called by the mottainai-platform-backend after a pickup is
+   * saved. Looks up the Fixed Billing agreement by buildingId → customerId and
+   * triggers the SMS/email notification.
+   *
+   * Authentication: shared secret header (FIXED_BILLING_BRIDGE_SECRET).
+   */
+  pickupBridge: publicProcedure
+    .input(
+      z.object({
+        secret: z.string(),
+        buildingId: z.string(),
+        pickupId: z.string(),
+        pickupDate: z.string(), // ISO string from platform backend
+        binType: z.string(),
+        binQuantity: z.number().int().min(1),
+        lotCode: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const expectedSecret = process.env.FIXED_BILLING_BRIDGE_SECRET || 'mottainai-fb-bridge-2026';
+      if (input.secret !== expectedSecret) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid bridge secret' });
+      }
+
+      // Find the admin dashboard Customer by buildingId
+      const customer = await Customer.findOne({ buildingId: input.buildingId }).lean();
+      if (!customer) {
+        return { triggered: false, reason: `No customer found for buildingId: ${input.buildingId}` };
+      }
+
+      // Find active Fixed Billing agreement for this customer
+      const agreement = await FixedBillingAgreement.findOne({
+        customerId: (customer as any).customerId,
+        active: true,
+      });
+      if (!agreement) {
+        return { triggered: false, reason: `No active Fixed Billing agreement for customerId: ${(customer as any).customerId}` };
+      }
+
+      const result = await triggerFixedBillingNotification(agreement, {
+        pickupId: input.pickupId,
+        pickupDate: new Date(input.pickupDate),
+        binType: input.binType,
+        binQuantity: input.binQuantity,
+        lotCode: input.lotCode || (customer as any).lotCode || '',
+      });
+
+      return { triggered: true, customerId: (customer as any).customerId, result };
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GAP 5: BULK UPLOAD — create multiple agreements from CSV data
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Bulk create Fixed Billing agreements from CSV row data.
+   * The calling admin must specify the company scope first (independent or franchisor + optional franchisee).
+   * Each row is validated; errors are returned per-row without aborting the whole batch.
+   */
+  bulkCreateAgreements: protectedProcedure
+    .input(
+      z.object({
+        /** The company scope for this bulk upload */
+        scopeCompanyId: z.string(),
+        /** Optional: restrict to a specific franchisee when scopeCompanyId is a franchisor */
+        scopeFranchiseeId: z.string().optional(),
+        rows: z.array(
+          z.object({
+            customerId: z.string(),
+            tariffCode: z.string(),
+            binType: BinTypeEnum,
+            frequency: FrequencyEnum,
+            binsCount: z.number().int().min(1).default(1),
+            agreedMonthlyPriceKobo: z.number().int().min(0),
+            openingBalanceKobo: z.number().int().min(0).default(0),
+            startDate: z.string(), // ISO date string from CSV
+            notifyBySms: z.boolean().default(true),
+            notifyByEmail: z.boolean().default(true),
+            notes: z.string().optional(),
+          })
+        ).min(1).max(500),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const scopeCompany = await Company.findOne({ companyId: input.scopeCompanyId });
+      if (!scopeCompany) throw new TRPCError({ code: 'NOT_FOUND', message: 'Scope company not found' });
+
+      // Build allowed customer ID set for this scope
+      const scopeFilter: Record<string, any> = { active: true };
+      if (scopeCompany.companyType === 'franchisor') {
+        if (input.scopeFranchiseeId) {
+          scopeFilter.ownerCompanyId = input.scopeFranchiseeId;
+        } else {
+          const franchisees = await Company.find({ parentCompanyId: input.scopeCompanyId }, { companyId: 1 }).lean();
+          const ids = franchisees.map((f: any) => f.companyId);
+          scopeFilter.ownerCompanyId = { $in: [input.scopeCompanyId, ...ids] };
+        }
+      } else {
+        scopeFilter.ownerCompanyId = input.scopeCompanyId;
+      }
+
+      const scopeCustomers = await Customer.find(scopeFilter).select('customerId customerName phone email lotCode ownerCompanyId ownerCompanyName').lean();
+      const customerMap = new Map<string, any>();
+      for (const c of scopeCustomers as any[]) customerMap.set(c.customerId, c);
+
+      const results: Array<{ customerId: string; success: boolean; error?: string; agreementId?: string }> = [];
+
+      for (const row of input.rows) {
+        try {
+          const customer = customerMap.get(row.customerId);
+          if (!customer) {
+            results.push({ customerId: row.customerId, success: false, error: 'Customer not found in scope' });
+            continue;
+          }
+
+          // Check for existing active agreement
+          const existing = await FixedBillingAgreement.findOne({ customerId: row.customerId, active: true });
+          if (existing) {
+            results.push({ customerId: row.customerId, success: false, error: 'Already has an active agreement' });
+            continue;
+          }
+
+          // Look up tariff for official price
+          const tariff = await TariffSchedule.findOne({ tariffCode: row.tariffCode, active: true });
+          const officialMonthlyPriceKobo = tariff?.monthlyPriceKobo ?? row.agreedMonthlyPriceKobo;
+
+          const agreement = await FixedBillingAgreement.create({
+            customerId: customer.customerId,
+            customerName: customer.customerName,
+            customerPhone: customer.phone || '',
+            customerEmail: customer.email || '',
+            companyId: customer.ownerCompanyId,
+            companyName: customer.ownerCompanyName,
+            lotCode: customer.lotCode,
+            tariffCode: row.tariffCode,
+            binType: row.binType,
+            frequency: row.frequency,
+            binsCount: row.binsCount,
+            officialMonthlyPriceKobo,
+            agreedMonthlyPriceKobo: row.agreedMonthlyPriceKobo,
+            openingBalanceKobo: row.openingBalanceKobo,
+            startDate: new Date(row.startDate),
+            notifyBySms: row.notifyBySms,
+            notifyByEmail: row.notifyByEmail,
+            notes: row.notes || '',
+            active: true,
+            createdBy: ctx.user?.id || 'bulk-admin',
+          });
+
+          results.push({ customerId: row.customerId, success: true, agreementId: agreement._id.toString() });
+        } catch (err: any) {
+          results.push({ customerId: row.customerId, success: false, error: err.message });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      return { successCount, failCount, results };
+    }),
+
   handlePaystackWebhook: publicProcedure
     .input(
       z.object({

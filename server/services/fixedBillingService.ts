@@ -42,6 +42,8 @@ export interface OutstandingSummary {
   previousOutstandingKobo: number;
   outstandingMonthsCount: number;
   outstandingMonthLabels: string[];
+  /** Pre-existing debt from Zoho Books captured at agreement creation */
+  openingBalanceKobo: number;
   totalPayableKobo: number;
 }
 
@@ -105,6 +107,8 @@ export async function computeOutstanding(
 
   const outstandingMonthLabels = previousUnpaid.map(e => e.billingMonthLabel);
 
+  const openingBalanceKobo = (agreement as any).openingBalanceKobo ?? 0;
+
   return {
     currentMonthChargeKobo,
     currentBillingMonth: currentMonth,
@@ -112,7 +116,8 @@ export async function computeOutstanding(
     previousOutstandingKobo,
     outstandingMonthsCount: previousUnpaid.length,
     outstandingMonthLabels,
-    totalPayableKobo: currentMonthChargeKobo + previousOutstandingKobo,
+    openingBalanceKobo,
+    totalPayableKobo: currentMonthChargeKobo + previousOutstandingKobo + openingBalanceKobo,
   };
 }
 

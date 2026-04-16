@@ -44,6 +44,12 @@ export interface IFixedBillingAgreement extends Document {
   agreedMonthlyPriceKobo: number;
   /** If agreedMonthlyPriceKobo differs from official, reason must be provided */
   priceOverrideReason?: string;
+  /**
+   * Opening balance in kobo imported from Zoho Books at agreement creation.
+   * Represents any pre-existing debt before entering the fixed billing scheme.
+   * Added to totalPayableKobo in computeOutstanding.
+   */
+  openingBalanceKobo: number;
 
   // ─── Agreement Lifecycle ─────────────────────────────────────────────────
   /** Date from which billing starts */
@@ -92,6 +98,7 @@ const FixedBillingAgreementSchema = new Schema<IFixedBillingAgreement>(
     officialMonthlyPriceKobo: { type: Number, required: true },
     agreedMonthlyPriceKobo: { type: Number, required: true },
     priceOverrideReason: { type: String },
+    openingBalanceKobo: { type: Number, default: 0 },
 
     startDate: { type: Date, required: true },
     endDate: { type: Date },

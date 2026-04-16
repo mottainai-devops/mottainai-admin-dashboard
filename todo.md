@@ -781,3 +781,30 @@
 - [x] Update DashboardLayout and CompanyPortalLayout sidebars with Fixed Billing nav items
 - [x] Update App.tsx with /fixed-billing and /company-portal/fixed-billing routes
 - [x] Commit to GitHub (commit 609b410) and deploy via CI/CD (green, 1m35s)
+
+## Phase 60: Fixed Billing — Gap Fixes (5 Gaps)
+### Gap 1 and 3: Customer Lookup + Company Scoping
+- [ ] Backend: add customers.searchByCompanyScope tRPC procedure
+- [ ] Backend: add companies.listIndependent tRPC procedure
+- [ ] Backend: add companies.listFranchisors tRPC procedure
+- [ ] Frontend: step 1 pick company type (Independent / Franchisor)
+- [ ] Frontend: step 2 pick company from filtered dropdown
+- [ ] Frontend: step 3 franchisor only pick specific franchisee or All Franchisees
+- [ ] Frontend: step 4 searchable customer dropdown filtered to scope auto-fills all fields
+### Gap 2: Pickup Trigger Bridge
+- [ ] Backend admin dashboard: add POST /api/internal/pickup-recorded endpoint
+- [ ] Backend platform-backend: POST to admin dashboard after successful pickup save
+- [ ] Add ADMIN_DASHBOARD_INTERNAL_URL env var to platform backend
+### Gap 4: Zoho Opening Balance
+- [ ] Backend: add openingBalanceKobo field to FixedBillingAgreement model
+- [ ] Backend: update computeOutstanding to include openingBalanceKobo
+- [ ] Backend: add fixedBilling.getZohoBalance tRPC procedure
+- [ ] Frontend: add Zoho Opening Balance field with Fetch from Zoho button
+- [ ] Frontend: display opening balance in ledger view
+### Gap 5: Scoped Bulk CSV Upload
+- [ ] Backend: add fixedBilling.bulkCreateAgreements tRPC procedure
+- [ ] Frontend: add Bulk Upload button to Agreements tab
+- [ ] Frontend: company scope selector before upload
+- [ ] Frontend: CSV template download
+- [ ] Frontend: file upload with preview and validation
+- [ ] Deploy all changes and verify on admin.kowope.xyz

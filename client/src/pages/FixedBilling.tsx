@@ -7,7 +7,7 @@
  * 3. Ledger — view monthly charges, outstanding balances, record payments
  */
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ import {
   RefreshCw,
   Settings,
   Trash2,
+  Upload,
   XCircle,
 } from "lucide-react";
 
@@ -344,6 +345,22 @@ function TariffScheduleTab() {
 function AgreementsTab() {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+
+  // ── Company scope state (Gaps 1 & 3) ──────────────────────────────────────
+  const [scopeCompanyId, setScopeCompanyId] = useState("");
+  const [scopeFranchiseeId, setScopeFranchiseeId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
+
+  // ── Bulk upload state (Gap 5) ─────────────────────────────────────────────
+  const [bulkScopeCompanyId, setBulkScopeCompanyId] = useState("");
+  const [bulkScopeFranchiseeId, setBulkScopeFranchiseeId] = useState("");
+  const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [bulkParseError, setBulkParseError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [form, setForm] = useState({
     customerId: "",
     customerName: "",
@@ -359,6 +376,7 @@ function AgreementsTab() {
     officialMonthlyPriceKobo: 0,
     agreedMonthlyPriceKobo: 0,
     priceOverrideReason: "",
+    openingBalanceKobo: 0,
     startDate: new Date().toISOString().split("T")[0],
     notifyBySms: true,
     notifyByEmail: true,
@@ -373,10 +391,58 @@ function AgreementsTab() {
 
   const { data: tariffs } = trpc.fixedBilling.listTariffs.useQuery({ activeOnly: true });
 
+  // ── Company lists for scope selectors ────────────────────────────────────
+  const { data: allCompanies } = trpc.companies.list.useQuery();
+  const independentCompanies = (allCompanies ?? []).filter((c: any) => c.companyType === 'independent');
+  const franchisorCompanies = (allCompanies ?? []).filter((c: any) => c.companyType === 'franchisor');
+  const scopeCompany = (allCompanies ?? []).find((c: any) => c.companyId === scopeCompanyId);
+  const bulkScopeCompany = (allCompanies ?? []).find((c: any) => c.companyId === bulkScopeCompanyId);
+
+  // ── Franchisees under selected scope company ──────────────────────────────
+  const { data: franchisees } = trpc.fixedBilling.listFranchisees.useQuery(
+    { franchisorId: scopeCompanyId },
+    { enabled: !!scopeCompanyId && scopeCompany?.companyType === 'franchisor' }
+  );
+  const { data: bulkFranchisees } = trpc.fixedBilling.listFranchisees.useQuery(
+    { franchisorId: bulkScopeCompanyId },
+    { enabled: !!bulkScopeCompanyId && bulkScopeCompany?.companyType === 'franchisor' }
+  );
+
+  // ── Customer search scoped to company (Gap 1 & 3) ─────────────────────────
+  const { data: customerResults, isFetching: customerSearching } = trpc.fixedBilling.searchCustomersForAgreement.useQuery(
+    {
+      companyId: scopeCompanyId,
+      franchiseeId: scopeFranchiseeId || undefined,
+      search: customerSearch || undefined,
+      limit: 30,
+    },
+    { enabled: !!scopeCompanyId }
+  );
+
   const createMutation = trpc.fixedBilling.createAgreement.useMutation({
     onSuccess: () => {
       toast.success("Agreement created");
       setShowCreate(false);
+      setSelectedCustomer(null);
+      setScopeCompanyId("");
+      setScopeFranchiseeId("");
+      setCustomerSearch("");
+      refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const bulkMutation = trpc.fixedBilling.bulkCreateAgreements.useMutation({
+    onSuccess: (r) => {
+      toast.success(`Bulk upload: ${r.successCount} created, ${r.failCount} failed`);
+      if (r.failCount > 0) {
+        const errors = r.results.filter((x: any) => !x.success).map((x: any) => `${x.customerId}: ${x.error}`).join('\n');
+        console.warn('Bulk upload errors:\n' + errors);
+      }
+      setShowBulk(false);
+      setBulkRows([]);
+      setBulkScopeCompanyId("");
+      setBulkScopeFranchiseeId("");
       refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -394,7 +460,60 @@ function AgreementsTab() {
     form.agreedMonthlyPriceKobo !== form.officialMonthlyPriceKobo &&
     form.officialMonthlyPriceKobo > 0;
 
-  // Gap 3: Check if customer has Monthly Billing records — show warning if so
+  // ── Auto-fill form when a customer is selected from dropdown ─────────────
+  const handleSelectCustomer = (customer: any) => {
+    setSelectedCustomer(customer);
+    setCustomerDropdownOpen(false);
+    setCustomerSearch(customer.customerName);
+    setForm((prev) => ({
+      ...prev,
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      customerPhone: customer.phone || "",
+      customerEmail: customer.email || "",
+      companyId: customer.ownerCompanyId,
+      companyName: customer.ownerCompanyName,
+      lotCode: customer.lotCode || "",
+    }));
+  };
+
+  // ── CSV parse for bulk upload ─────────────────────────────────────────────
+  const handleCsvFile = (file: File) => {
+    setBulkParseError("");
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.trim().split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const rows = lines.slice(1).map((line, i) => {
+          const cols = line.split(',').map(c => c.trim());
+          const row: Record<string, any> = {};
+          headers.forEach((h, idx) => { row[h] = cols[idx] ?? ''; });
+          return {
+            customerId: row['customerid'] || row['customer_id'] || '',
+            tariffCode: row['tariffcode'] || row['tariff_code'] || '',
+            binType: row['bintype'] || row['bin_type'] || '240L',
+            frequency: row['frequency'] || 'once_weekly',
+            binsCount: parseInt(row['binscount'] || row['bins_count'] || '1') || 1,
+            agreedMonthlyPriceKobo: Math.round(parseFloat(row['agreedmonthlyprice'] || row['agreed_monthly_price'] || '0') * 100),
+            openingBalanceKobo: Math.round(parseFloat(row['openingbalance'] || row['opening_balance'] || '0') * 100),
+            startDate: row['startdate'] || row['start_date'] || new Date().toISOString().split('T')[0],
+            notifyBySms: (row['notifybysms'] || row['notify_sms'] || 'true').toLowerCase() !== 'false',
+            notifyByEmail: (row['notifybyemail'] || row['notify_email'] || 'true').toLowerCase() !== 'false',
+            notes: row['notes'] || '',
+          };
+        }).filter(r => r.customerId);
+        if (rows.length === 0) { setBulkParseError('No valid rows found. Check CSV format.'); return; }
+        setBulkRows(rows);
+      } catch (err: any) {
+        setBulkParseError('Failed to parse CSV: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // ── Check if customer has Monthly Billing records ─────────────────────────
   const { data: billingTypeCheck } = trpc.fixedBilling.checkCustomerBillingType.useQuery(
     { customerId: form.customerId },
     { enabled: form.customerId.trim().length >= 2 }
@@ -409,9 +528,14 @@ function AgreementsTab() {
             Per-customer agreements with agreed tariff and notification settings
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4 mr-2" /> New Agreement
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowBulk(true)}>
+            <Upload className="w-4 h-4 mr-2" /> Bulk Upload
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4 mr-2" /> New Agreement
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -540,13 +664,16 @@ function AgreementsTab() {
       )}
 
       {/* Create Agreement Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog open={showCreate} onOpenChange={(open) => {
+        setShowCreate(open);
+        if (!open) { setSelectedCustomer(null); setScopeCompanyId(""); setScopeFranchiseeId(""); setCustomerSearch(""); }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Fixed Billing Agreement</DialogTitle>
           </DialogHeader>
 
-          {/* Gap 3: Monthly Billing supersession warning */}
+          {/* Monthly Billing supersession warning */}
           {billingTypeCheck?.hasMonthlyBilling && (
             <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
@@ -556,91 +683,172 @@ function AgreementsTab() {
                   This customer has <strong>{billingTypeCheck.monthlyCount}</strong> Monthly Billing
                   record{billingTypeCheck.monthlyCount !== 1 ? 's' : ''} on file. Creating a Fixed
                   Billing agreement will <strong>supersede Monthly Billing</strong> for all future
-                  pickups — Monthly Billing invoices will no longer be generated for this customer.
+                  pickups.
                 </p>
               </div>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4 py-2">
-            {/* Customer Info */}
+
+            {/* ── STEP 1: Company Scope (Gaps 1 & 3) ── */}
             <div className="col-span-2">
               <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">
-                Customer Details
+                Step 1 — Select Company Scope
               </h3>
             </div>
             <div className="space-y-1">
-              <Label>Customer ID</Label>
-              <Input
-                placeholder="e.g. CUST-001"
-                value={form.customerId}
-                onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-              />
+              <Label>Company Type</Label>
+              <Select
+                value={scopeCompany?.companyType || ""}
+                onValueChange={(type) => {
+                  setScopeCompanyId("");
+                  setScopeFranchiseeId("");
+                  setSelectedCustomer(null);
+                  setCustomerSearch("");
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select type…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="independent">Independent Company</SelectItem>
+                  <SelectItem value="franchisor">Franchisor</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
-              <Label>Customer Name</Label>
-              <Input
-                placeholder="Full name"
-                value={form.customerName}
-                onChange={(e) => setForm({ ...form, customerName: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Phone Number</Label>
-              <Input
-                placeholder="08XXXXXXXXX"
-                value={form.customerPhone}
-                onChange={(e) => setForm({ ...form, customerPhone: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Email Address</Label>
-              <Input
-                type="email"
-                placeholder="customer@email.com"
-                value={form.customerEmail}
-                onChange={(e) => setForm({ ...form, customerEmail: e.target.value })}
-              />
+              <Label>Company</Label>
+              <Select
+                value={scopeCompanyId}
+                onValueChange={(v) => { setScopeCompanyId(v); setScopeFranchiseeId(""); setSelectedCustomer(null); setCustomerSearch(""); }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select company…" /></SelectTrigger>
+                <SelectContent>
+                  {independentCompanies.map((c: any) => (
+                    <SelectItem key={c.companyId} value={c.companyId}>{c.companyName}</SelectItem>
+                  ))}
+                  {franchisorCompanies.map((c: any) => (
+                    <SelectItem key={c.companyId} value={c.companyId}>{c.companyName} (Franchisor)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Company & Lot */}
-            <div className="col-span-2 mt-2">
-              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">
-                Company & Location
-              </h3>
-            </div>
-            <div className="space-y-1">
-              <Label>Company ID</Label>
-              <Input
-                placeholder="e.g. IND-001"
-                value={form.companyId}
-                onChange={(e) => setForm({ ...form, companyId: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Company Name</Label>
-              <Input
-                placeholder="Company name"
-                value={form.companyName}
-                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Lot Code</Label>
-              <Input
-                placeholder="e.g. OY-001"
-                value={form.lotCode}
-                onChange={(e) => setForm({ ...form, lotCode: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Start Date</Label>
-              <Input
-                type="date"
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              />
-            </div>
+            {/* Franchisee selector — only shown when a franchisor is selected */}
+            {scopeCompany?.companyType === 'franchisor' && (
+              <div className="col-span-2 space-y-1">
+                <Label>Franchisee <span className="text-muted-foreground font-normal">(optional — leave blank for all)</span></Label>
+                <Select
+                  value={scopeFranchiseeId}
+                  onValueChange={(v) => { setScopeFranchiseeId(v); setSelectedCustomer(null); setCustomerSearch(""); }}
+                >
+                  <SelectTrigger><SelectValue placeholder="All franchisees" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All franchisees</SelectItem>
+                    {(franchisees ?? []).map((f: any) => (
+                      <SelectItem key={f.companyId} value={f.companyId}>{f.companyName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* ── STEP 2: Customer Search Dropdown (Gap 1) ── */}
+            {scopeCompanyId && (
+              <>
+                <div className="col-span-2 mt-2">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">
+                    Step 2 — Select Customer
+                  </h3>
+                </div>
+                <div className="col-span-2 space-y-1 relative">
+                  <Label>Search Customer</Label>
+                  <div className="relative">
+                    <Input
+                      placeholder="Type name, ID, or phone…"
+                      value={customerSearch}
+                      onChange={(e) => { setCustomerSearch(e.target.value); setCustomerDropdownOpen(true); setSelectedCustomer(null); }}
+                      onFocus={() => setCustomerDropdownOpen(true)}
+                      autoComplete="off"
+                    />
+                    {customerSearching && (
+                      <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {customerDropdownOpen && (customerResults ?? []).length > 0 && (
+                    <div className="absolute z-50 w-full bg-white border rounded-md shadow-lg max-h-56 overflow-y-auto mt-1">
+                      {(customerResults ?? []).map((c: any) => (
+                        <button
+                          key={c.customerId}
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
+                          onClick={() => handleSelectCustomer(c)}
+                        >
+                          <span className="font-medium">{c.customerName}</span>
+                          <span className="text-muted-foreground ml-2 text-xs">{c.customerId}</span>
+                          {c.phone && <span className="text-muted-foreground ml-2 text-xs">{c.phone}</span>}
+                          <div className="text-xs text-muted-foreground">{c.address}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {customerDropdownOpen && !customerSearching && scopeCompanyId && (customerResults ?? []).length === 0 && customerSearch && (
+                    <div className="absolute z-50 w-full bg-white border rounded-md shadow p-3 text-sm text-muted-foreground mt-1">
+                      No customers found for "{customerSearch}"
+                    </div>
+                  )}
+                </div>
+
+                {/* Auto-filled customer details (read-only) */}
+                {selectedCustomer && (
+                  <div className="col-span-2 rounded-md border bg-muted/40 px-4 py-3 grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="text-muted-foreground">ID:</span> <strong>{selectedCustomer.customerId}</strong></div>
+                    <div><span className="text-muted-foreground">Name:</span> {selectedCustomer.customerName}</div>
+                    <div><span className="text-muted-foreground">Phone:</span> {selectedCustomer.phone || '—'}</div>
+                    <div><span className="text-muted-foreground">Email:</span> {selectedCustomer.email || '—'}</div>
+                    <div><span className="text-muted-foreground">Lot:</span> {selectedCustomer.lotCode}</div>
+                    <div><span className="text-muted-foreground">Company:</span> {selectedCustomer.ownerCompanyName}</div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── STEP 3: Start Date & Opening Balance (Gap 4) ── */}
+            {selectedCustomer && (
+              <>
+                <div className="col-span-2 mt-2">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-2">
+                    Step 3 — Agreement Terms
+                  </h3>
+                </div>
+                <div className="space-y-1">
+                  <Label>Start Date</Label>
+                  <Input
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>
+                    Opening Balance (₦)
+                    <span className="ml-1 text-xs text-muted-foreground font-normal">— pre-existing Zoho balance at agreement start</span>
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0.00"
+                    value={form.openingBalanceKobo / 100 || ""}
+                    onChange={(e) =>
+                      setForm({ ...form, openingBalanceKobo: Math.round(parseFloat(e.target.value || "0") * 100) })
+                    }
+                  />
+                  {form.openingBalanceKobo > 0 && (
+                    <p className="text-xs text-blue-600">This amount will be added to the customer's outstanding balance from day one.</p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Tariff */}
             <div className="col-span-2 mt-2">
@@ -818,15 +1026,137 @@ function AgreementsTab() {
               }
               disabled={
                 createMutation.isPending ||
+                !selectedCustomer ||
                 !form.customerId ||
                 !form.customerName ||
                 !form.companyId ||
                 !form.lotCode ||
+                !form.tariffCode ||
                 (isPriceOverride && !form.priceOverrideReason)
               }
             >
               {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Create Agreement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk Upload Dialog (Gap 5) ── */}
+      <Dialog open={showBulk} onOpenChange={(open) => {
+        setShowBulk(open);
+        if (!open) { setBulkRows([]); setBulkScopeCompanyId(""); setBulkScopeFranchiseeId(""); setBulkParseError(""); }
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bulk Upload Fixed Billing Agreements</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Scope selector */}
+            <div>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Step 1 — Select Company Scope</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label>Company</Label>
+                  <Select value={bulkScopeCompanyId} onValueChange={(v) => { setBulkScopeCompanyId(v); setBulkScopeFranchiseeId(""); }}>
+                    <SelectTrigger><SelectValue placeholder="Select company…" /></SelectTrigger>
+                    <SelectContent>
+                      {(allCompanies ?? []).map((c: any) => (
+                        <SelectItem key={c.companyId} value={c.companyId}>
+                          {c.companyName} {c.companyType === 'franchisor' ? '(Franchisor)' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {bulkScopeCompany?.companyType === 'franchisor' && (
+                  <div className="space-y-1">
+                    <Label>Franchisee <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <Select value={bulkScopeFranchiseeId} onValueChange={setBulkScopeFranchiseeId}>
+                      <SelectTrigger><SelectValue placeholder="All franchisees" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All franchisees</SelectItem>
+                        {(bulkFranchisees ?? []).map((f: any) => (
+                          <SelectItem key={f.companyId} value={f.companyId}>{f.companyName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* CSV upload */}
+            <div>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">Step 2 — Upload CSV</h3>
+              <div
+                className="border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-muted/30"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleCsvFile(f); }}
+              >
+                <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Drag & drop a CSV file here, or click to browse</p>
+                <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsvFile(f); }} />
+              </div>
+              {bulkParseError && (
+                <p className="text-sm text-red-600 mt-2 flex items-center gap-1"><AlertCircle className="w-4 h-4" /> {bulkParseError}</p>
+              )}
+            </div>
+
+            {/* CSV format guide */}
+            <div className="rounded-md bg-muted/40 border px-4 py-3 text-xs text-muted-foreground">
+              <p className="font-semibold mb-1">Required CSV columns:</p>
+              <code>customerId, tariffCode, agreedMonthlyPrice, openingBalance, startDate, notifyBySms, notifyByEmail, notes</code>
+              <p className="mt-1">Optional: binType, frequency, binsCount. Prices in Naira (e.g. 10500.00). Dates as YYYY-MM-DD.</p>
+              <p className="mt-1 text-blue-600">Customer IDs must exist in the system under the selected company scope.</p>
+            </div>
+
+            {/* Preview table */}
+            {bulkRows.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">{bulkRows.length} row{bulkRows.length !== 1 ? 's' : ''} ready to upload</p>
+                <div className="rounded-md border overflow-x-auto max-h-48">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Customer ID</TableHead>
+                        <TableHead>Tariff</TableHead>
+                        <TableHead>Agreed Price</TableHead>
+                        <TableHead>Opening Bal.</TableHead>
+                        <TableHead>Start Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {bulkRows.map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-xs">{r.customerId}</TableCell>
+                          <TableCell className="font-mono text-xs">{r.tariffCode}</TableCell>
+                          <TableCell>{fmt(r.agreedMonthlyPriceKobo)}</TableCell>
+                          <TableCell>{r.openingBalanceKobo > 0 ? fmt(r.openingBalanceKobo) : '—'}</TableCell>
+                          <TableCell className="text-xs">{r.startDate}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulk(false)}>Cancel</Button>
+            <Button
+              disabled={!bulkScopeCompanyId || bulkRows.length === 0 || bulkMutation.isPending}
+              onClick={() => bulkMutation.mutate({
+                scopeCompanyId: bulkScopeCompanyId,
+                scopeFranchiseeId: bulkScopeFranchiseeId || undefined,
+                rows: bulkRows,
+              } as any)}
+            >
+              {bulkMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Upload {bulkRows.length > 0 ? `${bulkRows.length} Agreements` : 'Agreements'}
             </Button>
           </DialogFooter>
         </DialogContent>
