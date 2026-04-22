@@ -89,7 +89,7 @@ async function createPaystackInvoice(opts: {
 
   const body: any = {
     customer: customerCode,
-    description: `Waste Disposal Service — Building ID: ${buildingId || 'N/A'}`,
+    description: `Waste Disposal Service — Customer ID: ${buildingId || 'N/A'}`,
     line_items: [
       { name: nameBin || 'Waste Disposal', amount: perUnitKobo, quantity: Math.max(quantity, 1) },
     ],
@@ -290,6 +290,7 @@ export const billingRouter = router({
         billingType: input?.billingType,
       });
       const csvData = result.records.map((r: any) => ({
+        customerId: r.buildingId, // MCU Customer ID
         buildingId: r.buildingId,
         customerType: r.customerType,
         binType: r.binType,

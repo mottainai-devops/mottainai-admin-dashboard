@@ -56,6 +56,7 @@ export default function CompanyPortalBillingRecords({ mode }: Props) {
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer ID</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Split Code</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -67,7 +68,7 @@ export default function CompanyPortalBillingRecords({ mode }: Props) {
                 {isLoading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 6 }).map((_, j) => (
+                      {Array.from({ length: 7 }).map((_, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 bg-gray-800 rounded animate-pulse" />
                         </td>
@@ -76,7 +77,7 @@ export default function CompanyPortalBillingRecords({ mode }: Props) {
                   ))
                 ) : data?.records.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                       <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
                       No records found
                     </td>
@@ -90,6 +91,7 @@ export default function CompanyPortalBillingRecords({ mode }: Props) {
                           <p className="font-medium text-white text-xs">{r.customerName || r.fullName || '—'}</p>
                           <p className="text-xs text-gray-500">{r.email || ''}</p>
                         </td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-300">{r.buildingId || '—'}</td>
                         <td className="px-4 py-3 font-semibold text-white">{formatNaira(r.amount || 0)}</td>
                         <td className="px-4 py-3 font-mono text-xs text-gray-400">{r.splitCode || '—'}</td>
                         <td className="px-4 py-3">

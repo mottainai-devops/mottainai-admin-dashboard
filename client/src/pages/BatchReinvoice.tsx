@@ -265,7 +265,7 @@ export default function BatchReinvoice() {
               {jobStatus.errors?.length > 0 && (
                 <div className="mt-3 text-xs text-red-600 max-h-24 overflow-y-auto">
                   {jobStatus.errors.slice(0, 5).map((e: any, i: number) => (
-                    <div key={i}>{e.buildingId || e.id}: {e.error}</div>
+                    <div key={i}>Customer ID {e.buildingId || e.id}: {e.error}</div>
                   ))}
                   {jobStatus.errors.length > 5 && <div>…and {jobStatus.errors.length - 5} more</div>}
                 </div>
@@ -361,7 +361,7 @@ export default function BatchReinvoice() {
                         className="rounded"
                       />
                     </TableHead>
-                    <TableHead>Building ID</TableHead>
+                    <TableHead>Customer ID</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Bin Type</TableHead>

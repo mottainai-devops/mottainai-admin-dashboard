@@ -38,7 +38,7 @@ export default function CompanyPortalCustomers() {
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <Input
-            placeholder="Search by name, email, building ID..."
+            placeholder="Search by name, email, customer ID..."
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             className="pl-9 bg-gray-900 border-gray-700 text-white placeholder:text-gray-500"
@@ -59,7 +59,7 @@ export default function CompanyPortalCustomers() {
                 <tr className="border-b border-gray-800 bg-gray-900/80">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Building ID</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer ID</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Lot</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
                 </tr>
@@ -103,7 +103,11 @@ export default function CompanyPortalCustomers() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-300">{c.buildingId || c.building_id || '—'}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-300">
+                        {c.buildingId && c.unitCode
+                          ? `${c.buildingId} ${c.unitCode}`
+                          : c.buildingId || c.building_id || '—'}
+                      </td>
                       <td className="px-4 py-3 text-xs text-gray-400">{c.lotCode || '—'}</td>
                       <td className="px-4 py-3">
                         <Badge variant="outline" className="text-xs border-gray-700 text-gray-400">
