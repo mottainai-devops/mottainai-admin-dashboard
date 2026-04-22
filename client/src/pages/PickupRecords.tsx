@@ -58,7 +58,7 @@ export default function PickupRecords() {
           <div className="mb-6 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-blue-800">
               <Package className="h-4 w-4" />
-              <span>Showing pickups filtered by ArcGIS Building ID: <strong className="font-mono">{prefilledBuildingId}</strong></span>
+              <span>Showing pickups filtered by Customer ID: <strong className="font-mono">{prefilledBuildingId}</strong></span>
             </div>
             <Button
               variant="ghost"
@@ -90,7 +90,7 @@ export default function PickupRecords() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <Input
                 type="text"
-                placeholder="Search by building ID, split code, or bin type..."
+                placeholder="Search by customer ID, split code, or bin type..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -114,7 +114,7 @@ export default function PickupRecords() {
                 size="sm"
                 onClick={() => {
                   // Export current page to CSV
-                  const csvHeaders = ["Building ID", "Split Code", "Bin Type", "Quantity", "Amount", "Type", "Source", "Month", "Year", "Status"];
+                  const csvHeaders = ["Customer ID", "Split Code", "Bin Type", "Quantity", "Amount", "Type", "Source", "Month", "Year", "Status"];
                   const csvRows = pickups.map((pickup: any) => [
                     pickup.buildingId || "",
                     pickup.splitCode || "",
@@ -162,7 +162,7 @@ export default function PickupRecords() {
                   columns={[
                     {
                       key: "buildingId",
-                      label: "Building ID",
+                      label: "Customer ID",
                       sortable: true,
                       render: (pickup: any) => pickup.buildingId || "N/A",
                     },

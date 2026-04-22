@@ -286,7 +286,7 @@ export default function BillingReconciliation() {
 
           <div className="flex gap-2">
             <Input
-              placeholder="Search building ID..."
+              placeholder="Search customer ID..."
               value={buildingIdInput}
               onChange={(e) => setBuildingIdInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -421,7 +421,7 @@ export default function BillingReconciliation() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Building ID</TableHead>
+                  <TableHead>Customer ID</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Bin</TableHead>
                   <TableHead className="text-right">Qty</TableHead>

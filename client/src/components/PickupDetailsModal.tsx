@@ -39,7 +39,7 @@ export function PickupDetailsModal({ pickupId, open, onClose }: PickupDetailsMod
                 <MapPin className="h-3.5 w-3.5" /> Location
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-muted-foreground">Building ID</span><p className="font-mono font-medium">{(pickup as any).buildingId || "—"}</p></div>
+                <div><span className="text-muted-foreground">Customer ID</span><p className="font-mono font-medium">{(pickup as any).buildingId || "—"}</p></div>
                 <div><span className="text-muted-foreground">Lot Code</span><p className="font-mono">{(pickup as any).lotCode || "—"}</p></div>
                 <div><span className="text-muted-foreground">LGA</span><p>{(pickup as any).lgaName || "—"}</p></div>
                 <div><span className="text-muted-foreground">Ward</span><p>{(pickup as any).wardName || "—"}</p></div>

@@ -262,9 +262,9 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
             </Select>
           </div>
 
-          {/* ArcGIS Building ID Filter */}
+          {/* Customer ID Filter */}
           <div className="space-y-2">
-            <Label>ArcGIS Building ID</Label>
+            <Label>Customer ID</Label>
             <Input
               type="text"
               placeholder="e.g. 8038 LASIKA06 006"
@@ -330,7 +330,7 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
             {filters.companyId && <span className="ml-2">Company selected</span>}
             {filters.lotId && <span className="ml-2">Lot selected</span>}
             {filters.binType && <span className="ml-2">Bin: {filters.binType}</span>}
-            {filters.arcgisBuildingId && <span className="ml-2">ArcGIS ID: {filters.arcgisBuildingId}</span>}
+            {filters.arcgisBuildingId && <span className="ml-2">Customer ID: {filters.arcgisBuildingId}</span>}
             {filters.paymentType && filters.paymentType !== "all" && (
               <span className="ml-2">Type: {filters.paymentType}</span>
             )}
