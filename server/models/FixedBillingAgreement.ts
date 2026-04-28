@@ -86,7 +86,7 @@ const FixedBillingAgreementSchema = new Schema<IFixedBillingAgreement>(
     tariffCode: { type: String, required: true },
     binType: {
       type: String,
-      enum: ['120L', '240L', '660L', '1100L', 'MAMMOTH (1100 LITRE)', '7-11 TONNE COMPACTOR', 'sachet', 'other'],
+      enum: ['120L', '240L', '660L', '1100L', 'MAMMOTH (1100 LITRE)', '7-11 TONNE COMPACTOR', '27cbm', 'sachet', 'other'],
       required: true,
     },
     frequency: {

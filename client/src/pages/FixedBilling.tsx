@@ -63,7 +63,7 @@ import {
 const fmt = (kobo: number) =>
   `₦${(kobo / 100).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
 
-const BIN_TYPES = ["120L", "240L", "660L", "1100L", "MAMMOTH (1100 LITRE)", "7-11 TONNE COMPACTOR", "sachet", "other"] as const;
+const BIN_TYPES = ["120L", "240L", "660L", "1100L", "MAMMOTH (1100 LITRE)", "7-11 TONNE COMPACTOR", "27cbm", "sachet", "other"] as const;
 const FREQUENCIES = [
   { value: "once_weekly", label: "Once a week" },
   { value: "twice_weekly", label: "Twice a week" },
@@ -445,7 +445,7 @@ function AgreementsTab() {
       `# Customer IDs for ${scopeLabel}`,
       '# Full name (auto-filled from system)',
       `# Options: ${tariffCodes || 'see Tariff Schedule tab'}`,
-      '# 240L | 360L | 1100L | MAMMOTH (1100 LITRE) | 7-11 TONNE COMPACTOR',
+      '# 240L | 360L | 1100L | MAMMOTH (1100 LITRE) | 7-11 TONNE COMPACTOR | 27cbm',
       '# Once a week | Twice a week | Three times a week | Daily',
       '# Number of bins (default 1)',
       '# Agreed price in Naira e.g. 10500.00',

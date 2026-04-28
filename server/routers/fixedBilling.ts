@@ -30,7 +30,7 @@ import {
 
 // ─── Shared Zod Schemas ───────────────────────────────────────────────────────
 
-const BinTypeEnum = z.enum(['120L', '240L', '660L', '1100L', 'MAMMOTH (1100 LITRE)', '7-11 TONNE COMPACTOR', 'sachet', 'other']);
+const BinTypeEnum = z.enum(['120L', '240L', '660L', '1100L', 'MAMMOTH (1100 LITRE)', '7-11 TONNE COMPACTOR', '27cbm', 'sachet', 'other']);
 const FrequencyEnum = z.enum([
   'once_weekly',
   'twice_weekly',
