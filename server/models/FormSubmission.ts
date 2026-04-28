@@ -8,6 +8,10 @@ export interface IFormSubmission extends Document {
   firstPhotoUrl?: string;
   secondPhotoUrl?: string;
   customerType: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerAddress?: string;
   socioClass?: string;
   binType: string;
   wheelieBinType?: string;
@@ -45,6 +49,10 @@ const FormSubmissionSchema = new Schema<IFormSubmission>({
   firstPhotoUrl: { type: String },
   secondPhotoUrl: { type: String },
   customerType: { type: String, required: true },
+  customerName: { type: String },
+  customerPhone: { type: String },
+  customerEmail: { type: String },
+  customerAddress: { type: String },
   socioClass: { type: String },
   binType: { type: String, required: true },
   wheelieBinType: { type: String },
