@@ -19,8 +19,14 @@ export default function SimpleLogin() {
     setIsLoading(true);
 
     try {
-      await login(username, password);
-      setLocation('/'); // Redirect to home after successful login
+      const result = await login(username, password);
+      // Redirect viewer role to their dedicated dashboard
+      const role = (result as any)?.role;
+      if (role === 'viewer') {
+        setLocation('/viewer-dashboard');
+      } else {
+        setLocation('/'); // Redirect admin/superadmin to main dashboard
+      }
     } catch (err) {
       // Error is handled by context
     } finally {

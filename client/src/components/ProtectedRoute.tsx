@@ -9,8 +9,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       setLocation("/login");
+    } else if (!loading && isAuthenticated && user?.role === 'viewer') {
+      // Viewer-role users should not access admin pages — redirect to their dashboard
+      setLocation("/viewer-dashboard");
     }
-  }, [isAuthenticated, loading, setLocation]);
+  }, [isAuthenticated, loading, setLocation, user]);
 
   if (loading) {
     return (
@@ -25,6 +28,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return null;
+  }
+
+  if (user?.role === 'viewer') {
+    return null; // Will be redirected by useEffect above
   }
 
   return <>{children}</>;

@@ -28,6 +28,9 @@ import PEAnalytics from "@/pages/PropertyEnumeration/Analytics";
 import PESyncMonitor from "@/pages/PropertyEnumeration/SyncMonitor";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { SuperAdminRoute } from "@/components/SuperAdminRoute";
+import { ViewerRoute } from "@/components/ViewerRoute";
+import ViewerDashboard from "@/pages/ViewerDashboard";
+import MapViewPage from "@/pages/MapViewPage";
 import SystemOverview from "@/pages/SystemOverview";
 
 // Company Portal (Independent companies — separate auth, no admin session required)
@@ -234,6 +237,20 @@ function Router() {
         <SuperAdminRoute>
           <SystemOverview />
         </SuperAdminRoute>
+      </Route>
+
+      {/* ─── Map view (admin + viewer access) ─── */}
+      <Route path="/map-view">
+        <ViewerRoute>
+          <MapViewPage />
+        </ViewerRoute>
+      </Route>
+
+      {/* ─── Viewer dashboard (viewer role only) ─── */}
+      <Route path="/viewer-dashboard">
+        <ViewerRoute>
+          <ViewerDashboard />
+        </ViewerRoute>
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

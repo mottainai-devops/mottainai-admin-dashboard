@@ -200,7 +200,7 @@ export const mongoAuthRouter = router({
         fullName: z.string(),
         email: z.string().email().optional(),
         phone: z.string().optional(),
-        role: z.enum(["admin", "user"]).default("user"),
+        role: z.enum(["admin", "user", "viewer"]).default("user"),
         companyId: z.string().nullable().optional(),
         monthlyBilling: z.boolean().optional(),
       })
@@ -260,7 +260,7 @@ export const mongoAuthRouter = router({
         fullName: z.string().optional(),
         email: z.string().email().nullable().optional(),
         phone: z.string().nullable().optional(),
-        role: z.enum(["admin", "user"]).optional(),
+        role: z.enum(["admin", "user", "viewer"]).optional(),
         companyId: z.string().nullable().optional(),
         monthlyBilling: z.boolean().optional(),
       })
@@ -508,7 +508,7 @@ export const mongoAuthRouter = router({
             fullName: z.string(),
             email: z.string().optional(),
             phone: z.string().optional(),
-            role: z.enum(["admin", "user"]).default("user"),
+            role: z.enum(["admin", "user", "viewer"]).default("user"),
             companyId: z.string().nullable().optional(),
             monthlyBilling: z.boolean().optional(),
           })

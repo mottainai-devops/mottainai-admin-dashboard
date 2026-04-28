@@ -14,6 +14,7 @@ export function useAuth() {
     isAuthenticated,
     isSuperAdmin: user?.role === 'superadmin',
     isAdmin: user?.role === 'admin' || user?.role === 'superadmin',
+    isViewer: user?.role === 'viewer',
     logout,
   };
 }

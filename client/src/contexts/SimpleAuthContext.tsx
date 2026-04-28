@@ -82,6 +82,7 @@ export function SimpleAuthProvider({ children }: { children: React.ReactNode }) 
       if (result && result.success && result.token) {
         localStorage.setItem('auth_token', result.token);
         setUser(result.user);
+        return result.user; // Return user so callers can check role for redirect
       } else {
         throw new Error('Invalid response from server');
       }

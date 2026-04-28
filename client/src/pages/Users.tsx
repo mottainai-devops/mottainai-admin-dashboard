@@ -19,7 +19,7 @@ interface User {
   username: string;
   fullName: string | null;
   email: string | null;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'cherry_picker' | 'viewer';
   companyId: string | null;
   createdAt: Date;
   lastSignedIn: Date;
@@ -35,7 +35,7 @@ export default function Users() {
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user" | "cherry_picker" | "viewer">("all");
   const [companyFilter, setCompanyFilter] = useState<string>("all");
 
   // Form state
@@ -44,7 +44,7 @@ export default function Users() {
     password: "",
     fullName: "",
     email: "",
-    role: "admin" as 'admin' | 'user',
+    role: "admin" as 'admin' | 'user' | 'cherry_picker' | 'viewer',
     companyId: "",
   });
 
@@ -154,14 +154,16 @@ export default function Users() {
   };
 
   const getRoleBadge = (role: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive"> = {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       admin: "default",
       user: "secondary",
+      cherry_picker: "destructive",
+      viewer: "outline",
     };
     return (
-      <Badge variant={variants[role] || "secondary"}>
+      <Badge variant={(variants[role] as any) || "secondary"}>
         {role === 'admin' && <Shield className="w-3 h-3 mr-1" />}
-        {role}
+        {role === 'viewer' ? 'Viewer' : role === 'cherry_picker' ? 'Cherry Picker' : role}
       </Badge>
     );
   };
@@ -232,6 +234,7 @@ export default function Users() {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="cherry_picker">Cherry Picker</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -370,6 +373,7 @@ export default function Users() {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="cherry_picker">Cherry Picker</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -458,6 +462,7 @@ export default function Users() {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                   <SelectItem value="cherry_picker">Cherry Picker</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
