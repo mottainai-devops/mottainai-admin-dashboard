@@ -136,7 +136,7 @@ export const appRouter = router({
 
   // Maps configuration - returns Google Maps script URL using server-side API key
   maps: router({
-    getScriptUrl: protectedProcedure.query(() => {
+    getScriptUrl: publicProcedure.query(() => {
       const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || '';
       if (!googleMapsApiKey) {
         throw new Error('Maps API not configured on this server (GOOGLE_MAPS_API_KEY missing)');
