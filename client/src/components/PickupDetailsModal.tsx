@@ -20,10 +20,17 @@ export function PickupDetailsModal({ pickupId, open, onClose }: PickupDetailsMod
 
   const p = pickup as any;
 
+  // Platform backend base URL for resolving relative /uploads/ photo paths
+  const PLATFORM_BASE = 'https://upwork.kowope.xyz';
+
   // Resolve the best available photo URL for display
   const resolvePhotoUrl = (urlField: string | null | undefined, pathField: string | null | undefined): string | null => {
+    // Full S3 URL
     if (urlField && urlField.startsWith('http')) return urlField;
+    // Relative path saved as fallback when S3 upload fails — serve from platform backend
+    if (urlField && urlField.startsWith('/')) return `${PLATFORM_BASE}${urlField}`;
     if (pathField && pathField.startsWith('http')) return pathField;
+    if (pathField && pathField.startsWith('/')) return `${PLATFORM_BASE}${pathField}`;
     return null;
   };
 
