@@ -1,10 +1,10 @@
-import { useRef, useState, useCallback } from "react";
-import { MapView } from "@/components/Map";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Layers, RefreshCw, X, MapPin, Info } from "lucide-react";
+import { Layers, RefreshCw, X, MapPin, Info, Loader2 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 // ArcGIS Feature Service URL for Nigeria Building Footprints
 const ARCGIS_FEATURE_URL =
@@ -26,6 +26,33 @@ interface SelectedFeature {
   buildingId: string;
   attributes: Record<string, unknown>;
   position: { lat: number; lng: number };
+}
+
+/**
+ * Dynamically load the Google Maps JS SDK using a URL obtained from the server.
+ * Prevents re-loading if already loaded.
+ */
+function loadGoogleMapsScript(scriptUrl: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window.google !== "undefined" && window.google.maps) {
+      resolve();
+      return;
+    }
+    // Check if script is already being loaded
+    const existing = document.querySelector(`script[data-maps-loader]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("Maps script failed")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = scriptUrl;
+    script.async = true;
+    script.setAttribute("data-maps-loader", "true");
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Google Maps script"));
+    document.head.appendChild(script);
+  });
 }
 
 /**
@@ -56,7 +83,20 @@ async function fetchBuildingFootprints(bounds: google.maps.LatLngBounds): Promis
   return (data.features || []) as BuildingFeature[];
 }
 
+/** Compute the centroid of a polygon ring */
+function computeCentroid(ring: number[][]): { lat: number; lng: number } | null {
+  if (!ring || ring.length === 0) return null;
+  let latSum = 0;
+  let lngSum = 0;
+  for (const [lng, lat] of ring) {
+    latSum += lat;
+    lngSum += lng;
+  }
+  return { lat: latSum / ring.length, lng: lngSum / ring.length };
+}
+
 export default function MapViewPage() {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const polylinesRef = useRef<google.maps.Polygon[]>([]);
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -65,6 +105,38 @@ export default function MapViewPage() {
   const [selectedFeature, setSelectedFeature] = useState<SelectedFeature | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(14);
+  const [mapsReady, setMapsReady] = useState(false);
+
+  // Fetch the Google Maps script URL from the server
+  const { data: mapsConfig, error: mapsConfigError } = trpc.maps.getScriptUrl.useQuery();
+
+  // Load Google Maps script once we have the URL
+  useEffect(() => {
+    if (!mapsConfig?.scriptUrl) return;
+    loadGoogleMapsScript(mapsConfig.scriptUrl)
+      .then(() => setMapsReady(true))
+      .catch((err) => setError(err.message));
+  }, [mapsConfig?.scriptUrl]);
+
+  // Initialise the map once Google Maps SDK is ready
+  useEffect(() => {
+    if (!mapsReady || !mapContainerRef.current || mapRef.current) return;
+
+    const map = new window.google.maps.Map(mapContainerRef.current, {
+      center: LAGOS_CENTER,
+      zoom: 14,
+      mapId: "mottainai_admin_map",
+      mapTypeControl: true,
+      streetViewControl: false,
+      fullscreenControl: true,
+    });
+
+    mapRef.current = map;
+
+    map.addListener("idle", () => {
+      loadFeatures();
+    });
+  }, [mapsReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const clearOverlays = useCallback(() => {
     polylinesRef.current.forEach(p => p.setMap(null));
@@ -78,7 +150,7 @@ export default function MapViewPage() {
     const currentZoom = mapRef.current.getZoom() ?? 0;
     setZoom(currentZoom);
 
-    // Only load features when zoomed in enough to avoid fetching too many
+    // Only load features when zoomed in enough
     if (currentZoom < 13) {
       clearOverlays();
       setFeatureCount(0);
@@ -116,7 +188,7 @@ export default function MapViewPage() {
 
         polylinesRef.current.push(polygon);
 
-        // Add click handler to show building info
+        // Click polygon to show building info
         polygon.addListener("click", (e: google.maps.MapMouseEvent) => {
           const buildingId =
             (feature.attributes?.BuildingID as string) ||
@@ -129,7 +201,7 @@ export default function MapViewPage() {
           });
         });
 
-        // Add minimal label only at high zoom (zoom >= 16)
+        // Minimal label only at high zoom (zoom >= 16) — per GIS team preference
         if (currentZoom >= 16 && mapRef.current) {
           const centroid = computeCentroid(rings[0]);
           if (centroid) {
@@ -167,22 +239,6 @@ export default function MapViewPage() {
     }
   }, [clearOverlays]);
 
-  const handleMapReady = useCallback(
-    (map: google.maps.Map) => {
-      mapRef.current = map;
-
-      // Center on Lagos
-      map.setCenter(LAGOS_CENTER);
-      map.setZoom(14);
-
-      // Load features on idle (after pan/zoom)
-      map.addListener("idle", () => {
-        loadFeatures();
-      });
-    },
-    [loadFeatures]
-  );
-
   return (
     <>
       <Header />
@@ -209,7 +265,7 @@ export default function MapViewPage() {
               variant="outline"
               size="sm"
               onClick={loadFeatures}
-              disabled={isLoading}
+              disabled={isLoading || !mapsReady}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
@@ -218,14 +274,22 @@ export default function MapViewPage() {
         </div>
 
         {/* Zoom hint */}
-        {zoom < 13 && (
+        {mapsReady && zoom < 13 && (
           <div className="mb-3 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
             <Info className="h-4 w-4 shrink-0" />
             Zoom in further to load building footprints (current zoom: {zoom}).
           </div>
         )}
 
-        {/* Error banner */}
+        {/* Config error */}
+        {mapsConfigError && (
+          <div className="mb-3 flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            <Info className="h-4 w-4 shrink-0" />
+            Map configuration error: {mapsConfigError.message}
+          </div>
+        )}
+
+        {/* Runtime error */}
         {error && (
           <div className="mb-3 flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
             <Info className="h-4 w-4 shrink-0" />
@@ -234,16 +298,25 @@ export default function MapViewPage() {
         )}
 
         {/* Map container */}
-        <div className="relative rounded-xl overflow-hidden border shadow-sm">
-          <MapView
+        <div className="relative rounded-xl overflow-hidden border shadow-sm bg-muted">
+          {/* Map div — Google Maps SDK renders into this */}
+          <div
+            ref={mapContainerRef}
             className="w-full h-[calc(100vh-260px)] min-h-[500px]"
-            initialCenter={LAGOS_CENTER}
-            initialZoom={14}
-            onMapReady={handleMapReady}
           />
 
-          {/* Loading overlay */}
-          {isLoading && (
+          {/* Loading overlay while SDK initialises */}
+          {!mapsReady && !mapsConfigError && !error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm font-medium">Loading map…</span>
+              </div>
+            </div>
+          )}
+
+          {/* Feature loading indicator */}
+          {mapsReady && isLoading && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-full px-4 py-1.5 text-sm font-medium shadow flex items-center gap-2">
               <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" />
               Loading features…
@@ -301,16 +374,4 @@ export default function MapViewPage() {
       </div>
     </>
   );
-}
-
-/** Compute the centroid of a polygon ring */
-function computeCentroid(ring: number[][]): { lat: number; lng: number } | null {
-  if (!ring || ring.length === 0) return null;
-  let latSum = 0;
-  let lngSum = 0;
-  for (const [lng, lat] of ring) {
-    latSum += lat;
-    lngSum += lng;
-  }
-  return { lat: latSum / ring.length, lng: lngSum / ring.length };
 }

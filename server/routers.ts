@@ -134,6 +134,22 @@ export const appRouter = router({
   // Customer App management (accounts, pickup requests, invites)
   customerApp: customerAppRouter,
 
+  // Maps configuration - returns Google Maps script URL using server-side API key
+  maps: router({
+    getScriptUrl: protectedProcedure.query(() => {
+      const forgeApiUrl = process.env.BUILT_IN_FORGE_API_URL || '';
+      const forgeApiKey = process.env.BUILT_IN_FORGE_API_KEY || '';
+      if (!forgeApiUrl || !forgeApiKey) {
+        throw new Error('Maps API not configured on this server');
+      }
+      const baseUrl = forgeApiUrl.replace(/\/+$/, '');
+      const proxyBase = `${baseUrl}/v1/maps/proxy`;
+      return {
+        scriptUrl: `${proxyBase}/maps/api/js?key=${forgeApiKey}&v=weekly&libraries=marker,places,geocoding,geometry`,
+      };
+    }),
+  }),
+
   // Super-admin only operations
   superAdmin: router({
     triggerGeoBackfill: protectedProcedure
