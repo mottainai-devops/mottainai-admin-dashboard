@@ -89,9 +89,7 @@ export default function SimpleLogin() {
               {isLoading ? 'Logging in...' : 'Login'}
             </Button>
 
-            <div className="text-sm text-center text-muted-foreground mt-4">
-              Default credentials: admin / admin123
-            </div>
+
           </form>
         </CardContent>
       </Card>
