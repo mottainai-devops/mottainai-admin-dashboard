@@ -23,7 +23,7 @@ export type BinType =
   | '1100L'
   | 'MAMMOTH (1100 LITRE)'
   | '7-11 TONNE COMPACTOR'
-  | '27cbm'
+  | '27 CBM DINO BIN'
   | 'sachet'
   | 'other';
 
@@ -63,7 +63,7 @@ const TariffScheduleSchema = new Schema<ITariffSchedule>(
     label: { type: String, required: true },
     binType: {
       type: String,
-      enum: ['120L', '240L', '660L', '1100L', 'MAMMOTH (1100 LITRE)', '7-11 TONNE COMPACTOR', '27cbm', 'sachet', 'other'],
+      enum: ['120L', '240L', '660L', '1100L', 'MAMMOTH (1100 LITRE)', '7-11 TONNE COMPACTOR', '27 CBM DINO BIN', 'sachet', 'other'],
       required: true,
     },
     frequency: {
