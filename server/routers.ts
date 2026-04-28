@@ -142,7 +142,7 @@ export const appRouter = router({
         throw new Error('Maps API not configured on this server (GOOGLE_MAPS_API_KEY missing)');
       }
       return {
-        scriptUrl: `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&v=weekly&libraries=marker,places,geocoding,geometry`,
+        scriptUrl: `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&v=weekly&libraries=places,geocoding,geometry`,
       };
     }),
   }),

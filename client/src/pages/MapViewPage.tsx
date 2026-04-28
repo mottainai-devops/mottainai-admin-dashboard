@@ -99,7 +99,8 @@ export default function MapViewPage() {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const polylinesRef = useRef<google.maps.Polygon[]>([]);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markersRef = useRef<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [featureCount, setFeatureCount] = useState(0);
   const [selectedFeature, setSelectedFeature] = useState<SelectedFeature | null>(null);
@@ -125,7 +126,6 @@ export default function MapViewPage() {
     const map = new window.google.maps.Map(mapContainerRef.current, {
       center: LAGOS_CENTER,
       zoom: 14,
-      mapId: "mottainai_admin_map",
       mapTypeControl: true,
       streetViewControl: false,
       fullscreenControl: true,
@@ -223,10 +223,18 @@ export default function MapViewPage() {
             `;
             labelDiv.textContent = String(buildingId).slice(0, 10);
 
-            const marker = new window.google.maps.marker.AdvancedMarkerElement({
+            const marker = new window.google.maps.Marker({
               map: mapRef.current,
               position: centroid,
-              content: labelDiv,
+              label: {
+                text: String(buildingId).slice(0, 10),
+                fontSize: '9px',
+                color: '#3730a3',
+              },
+              icon: {
+                path: window.google.maps.SymbolPath.CIRCLE,
+                scale: 0,
+              },
             });
             markersRef.current.push(marker);
           }
