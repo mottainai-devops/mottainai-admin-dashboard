@@ -25,7 +25,7 @@ import {
   Navigation,
   BarChart3,
   List,
-  Map,
+  Map as MapIcon,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
@@ -599,7 +599,7 @@ export default function MapViewPage() {
                     List View
                   </button>
                   <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white select-none border-l border-blue-500">
-                    <Map className="h-3.5 w-3.5" />
+                    <MapIcon className="h-3.5 w-3.5" />
                     Map View
                   </span>
                 </div>
