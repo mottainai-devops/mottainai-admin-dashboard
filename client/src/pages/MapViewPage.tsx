@@ -21,6 +21,8 @@ import {
   AlertCircle,
   TrendingUp,
   Package,
+  Search,
+  Navigation,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
@@ -28,6 +30,9 @@ import { format } from "date-fns";
 // ─── ArcGIS Layer Registry ────────────────────────────────────────────────────
 // To add a new ArcGIS layer in the future, append an entry here.
 // The layer control panel UI is generated automatically from this registry.
+const ARCGIS_API_KEY =
+  "AAPTxy8BH1VEsoebNVZXo8HurDkT4HeplNOm_pLCsV2-wHXD7esJFqWCGo3oDxTaOVO68fIzhjQ4gSKqccl-uynuHunhlN5t3E_x5N010mOKYQRyFm3vYXqvila3dJ3Ax81DMK2WyxFt6mqhwzxdkdhmm7USv7-cQi07L_22-MTRC95Rns1BHueP3kR_yXyAyh1WEFAm9Q7KFELPkRpT_5cjWvbDo2rWZhtHOb5xFr_7bOA.AT1_n5wNkDcc";
+
 const ARCGIS_LAYER_REGISTRY = [
   {
     id: "building_footprints",
@@ -42,6 +47,7 @@ const ARCGIS_LAYER_REGISTRY = [
     strokeWeight: 1.5,
     minZoom: 15,
     description: "Nigeria Building Footprint polygons",
+    requiresAuth: false,
   },
   {
     id: "customer_points",
@@ -52,10 +58,11 @@ const ARCGIS_LAYER_REGISTRY = [
     defaultVisible: false,
     strokeColor: "#059669",
     fillColor: "#10b981",
-    fillOpacity: 0.8,
-    strokeWeight: 1,
+    fillOpacity: 0.9,
+    strokeWeight: 1.5,
     minZoom: 13,
     description: "Customer registration points",
+    requiresAuth: true,
   },
 ] as const;
 
@@ -128,38 +135,44 @@ function loadGoogleMapsScript(scriptUrl: string): Promise<void> {
   });
 }
 
-// ─── ArcGIS Fetcher ───────────────────────────────────────────────────────────
+// ─── ArcGIS Fetcher (with token as query param + outSR=4326 for correct coords) ─
 async function fetchArcGISFeatures(
   url: string,
   bounds: google.maps.LatLngBounds,
-  maxRecords = 500
+  maxRecords = 500,
+  requiresAuth = false
 ): Promise<ArcGISFeature[]> {
   const ne = bounds.getNorthEast();
   const sw = bounds.getSouthWest();
   const envelope = `${sw.lng()},${sw.lat()},${ne.lng()},${ne.lat()}`;
-  const params = new URLSearchParams({
+
+  const body = new URLSearchParams({
     where: "1=1",
     geometry: envelope,
     geometryType: "esriGeometryEnvelope",
     inSR: "4326",
-    outSR: "4326",
+    outSR: "4326",   // ← request WGS84 so x/y are lng/lat degrees, not Web Mercator metres
     spatialRel: "esriSpatialRelIntersects",
     outFields: "*",
     returnGeometry: "true",
     f: "json",
     resultRecordCount: String(maxRecords),
   });
-  const res = await fetch(`${url}/query?${params}`);
+
+  // ArcGIS requires token as a body param (not Authorization header) for API keys
+  if (requiresAuth) {
+    body.set("token", ARCGIS_API_KEY);
+  }
+
+  const res = await fetch(`${url}/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
   if (!res.ok) throw new Error(`ArcGIS fetch failed: ${res.status}`);
   const data = await res.json();
+  if (data.error) throw new Error(`ArcGIS error: ${data.error.message}`);
   return (data.features || []) as ArcGISFeature[];
-}
-
-function computeCentroid(ring: number[][]): { lat: number; lng: number } | null {
-  if (!ring?.length) return null;
-  let latSum = 0, lngSum = 0;
-  for (const [lng, lat] of ring) { latSum += lat; lngSum += lng; }
-  return { lat: latSum / ring.length, lng: lngSum / ring.length };
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -172,11 +185,15 @@ export default function MapViewPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heatmapRef = useRef<any>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const arcgisLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [mapsReady, setMapsReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [arcgisLoading, setArcgisLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(14);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = { pickup_markers: true, heatmap: false };
@@ -210,7 +227,13 @@ export default function MapViewPage() {
     arcgisBuildingId: filters.arcgisBuildingId,
   }), [filters]);
 
-  const { data: mapData, isLoading: mapDataLoading, refetch: refetchMapData } = trpc.pickups.mapData.useQuery(mapDataInput);
+  const { data: mapData, isLoading: mapDataLoading, refetch: refetchMapData } = trpc.pickups.mapData.useQuery(
+    mapDataInput,
+    {
+      staleTime: 5 * 60 * 1000,   // cache for 5 minutes — avoids re-fetching on every re-render
+      refetchOnWindowFocus: false,
+    }
+  );
 
   // ── Load Google Maps SDK ───────────────────────────────────────────────────
   useEffect(() => {
@@ -245,7 +268,35 @@ export default function MapViewPage() {
     mapRef.current = map;
     infoWindowRef.current = new window.google.maps.InfoWindow();
     map.addListener("zoom_changed", () => setCurrentZoom(map.getZoom() ?? 14));
-    map.addListener("idle", () => loadArcGISLayers());
+
+    // Debounced ArcGIS load on idle — prevents hammering the API on every pan/zoom
+    map.addListener("idle", () => {
+      if (arcgisLoadTimerRef.current) clearTimeout(arcgisLoadTimerRef.current);
+      arcgisLoadTimerRef.current = setTimeout(() => loadArcGISLayers(), 400);
+    });
+
+    // ── Places SearchBox ──────────────────────────────────────────────────
+    if (searchInputRef.current && window.google.maps.places) {
+      const searchBox = new window.google.maps.places.SearchBox(searchInputRef.current);
+      searchBoxRef.current = searchBox;
+      map.addListener("bounds_changed", () => {
+        searchBox.setBounds(map.getBounds() as google.maps.LatLngBounds);
+      });
+      searchBox.addListener("places_changed", () => {
+        const places = searchBox.getPlaces();
+        if (!places || places.length === 0) return;
+        const bounds = new window.google.maps.LatLngBounds();
+        places.forEach((place) => {
+          if (!place.geometry || !place.geometry.location) return;
+          if (place.geometry.viewport) {
+            bounds.union(place.geometry.viewport);
+          } else {
+            bounds.extend(place.geometry.location);
+          }
+        });
+        map.fitBounds(bounds);
+      });
+    }
   }, [mapsReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Render pickup markers when mapData changes ─────────────────────────────
@@ -359,7 +410,7 @@ export default function MapViewPage() {
 
       try {
         setArcgisLoading(true);
-        const features = await fetchArcGISFeatures(layer.url, bounds);
+        const features = await fetchArcGISFeatures(layer.url, bounds, 500, layer.requiresAuth);
         arcgisPolygonsRef.current.get(layer.id as LayerId)?.forEach((p) => p.setMap(null));
         arcgisMarkersRef.current.get(layer.id as LayerId)?.forEach((m) => m.setMap(null));
 
@@ -387,9 +438,12 @@ export default function MapViewPage() {
             });
             newPolygons.push(polygon);
           } else if (layer.type === "point") {
-            const lat = feature.geometry?.y;
+            // outSR=4326 means geometry.x = longitude, geometry.y = latitude (degrees)
             const lng = feature.geometry?.x;
-            if (lat == null || lng == null) return;
+            const lat = feature.geometry?.y;
+            if (lat == null || lng == null || (lat === 0 && lng === 0)) return;
+            // Sanity check: valid Lagos-area coordinates
+            if (lat < 4 || lat > 14 || lng < 2 || lng > 15) return;
             const marker = new window.google.maps.Marker({
               position: { lat, lng },
               map: mapRef.current!,
@@ -399,14 +453,21 @@ export default function MapViewPage() {
                 fillOpacity: layer.fillOpacity,
                 strokeColor: layer.strokeColor,
                 strokeWeight: layer.strokeWeight,
-                scale: 5,
+                scale: 6,
               },
               zIndex: 50,
             });
             marker.addListener("click", () => {
               const name = String(feature.attributes?.cust_name || feature.attributes?.Name || "Customer");
               const phone = String(feature.attributes?.cust_phone || "");
-              infoWindowRef.current?.setContent(`<div style="font-family:sans-serif;font-size:13px;padding:4px"><strong>${name}</strong>${phone ? `<br/>📞 ${phone}` : ""}</div>`);
+              const buildingId = String(feature.attributes?.building_id || "");
+              infoWindowRef.current?.setContent(`
+                <div style="font-family:sans-serif;font-size:13px;padding:4px;min-width:160px">
+                  <strong>${name}</strong>
+                  ${phone ? `<br/>📞 ${phone}` : ""}
+                  ${buildingId ? `<br/><span style="color:#64748b;font-size:11px">Building: ${buildingId}</span>` : ""}
+                </div>
+              `);
               infoWindowRef.current?.open(mapRef.current!, marker);
             });
             newMarkers.push(marker);
@@ -422,6 +483,36 @@ export default function MapViewPage() {
       }
     }
   }, [layerVisible, layerOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── GPS / My Location ──────────────────────────────────────────────────────
+  const handleMyLocation = useCallback(() => {
+    if (!mapRef.current || !navigator.geolocation) return;
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        mapRef.current!.panTo(loc);
+        mapRef.current!.setZoom(16);
+        new window.google.maps.Marker({
+          position: loc,
+          map: mapRef.current!,
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            fillColor: "#2563eb",
+            fillOpacity: 1,
+            strokeColor: "#ffffff",
+            strokeWeight: 3,
+            scale: 8,
+          },
+          title: "Your location",
+          zIndex: 999,
+        });
+        setGpsLoading(false);
+      },
+      () => setGpsLoading(false),
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  }, []);
 
   // ── Info window content ────────────────────────────────────────────────────
   function buildPickupInfoWindowContent(data: MapMarker): string {
@@ -463,44 +554,44 @@ export default function MapViewPage() {
         {/* ── Left Sidebar ─────────────────────────────────────────────── */}
         <div
           className={`flex flex-col bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-20 flex-shrink-0 ${
-            sidebarOpen ? "w-80" : "w-0 overflow-hidden"
+            sidebarOpen ? "w-72" : "w-0 overflow-hidden"
           }`}
         >
           {sidebarOpen && (
             <div className="flex flex-col h-full min-w-0">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-blue-600" />
+                  <MapPin className="h-4 w-4 text-blue-600 flex-shrink-0" />
                   <span className="font-semibold text-gray-800 text-sm">Pickup Map View</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-7 w-7 p-0">
+                <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-7 w-7 p-0 flex-shrink-0">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-2 p-3 border-b border-gray-100 flex-shrink-0">
+              {/* Stats — 2×2 grid with consistent sizing */}
+              <div className="grid grid-cols-2 gap-1.5 p-2.5 border-b border-gray-100 flex-shrink-0">
                 {[
-                  { icon: Building2, label: "Buildings", value: stats.buildings.toLocaleString(), bg: "bg-blue-50", text: "text-blue-600", val: "text-blue-700" },
-                  { icon: Package, label: "Pickups", value: stats.totalPickups.toLocaleString(), bg: "bg-green-50", text: "text-green-600", val: "text-green-700" },
-                  { icon: TrendingUp, label: "Revenue", value: `₦${(stats.totalAmount / 1000).toFixed(0)}k`, bg: "bg-purple-50", text: "text-purple-600", val: "text-purple-700" },
-                  { icon: AlertCircle, label: "Unlocated", value: stats.unlocated.toLocaleString(), bg: "bg-orange-50", text: "text-orange-600", val: "text-orange-700" },
-                ].map(({ icon: Icon, label, value, bg, text, val }) => (
-                  <div key={label} className={`${bg} rounded-lg p-2.5`}>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Icon className={`h-3.5 w-3.5 ${text}`} />
-                      <span className={`text-xs ${text} font-medium`}>{label}</span>
+                  { icon: Building2, label: "Buildings", value: stats.buildings.toLocaleString(), bg: "bg-blue-50", iconCls: "text-blue-500", valCls: "text-blue-800" },
+                  { icon: Package, label: "Pickups", value: stats.totalPickups.toLocaleString(), bg: "bg-green-50", iconCls: "text-green-500", valCls: "text-green-800" },
+                  { icon: TrendingUp, label: "Revenue", value: `₦${(stats.totalAmount / 1000).toFixed(0)}k`, bg: "bg-purple-50", iconCls: "text-purple-500", valCls: "text-purple-800" },
+                  { icon: AlertCircle, label: "Unlocated", value: stats.unlocated.toLocaleString(), bg: "bg-orange-50", iconCls: "text-orange-500", valCls: "text-orange-800" },
+                ].map(({ icon: Icon, label, value, bg, iconCls, valCls }) => (
+                  <div key={label} className={`${bg} rounded-lg p-2`}>
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <Icon className={`h-3 w-3 ${iconCls} flex-shrink-0`} />
+                      <span className={`text-xs ${iconCls} font-medium truncate`}>{label}</span>
                     </div>
-                    <div className={`text-lg font-bold ${val}`}>{value}</div>
+                    <div className={`text-base font-bold ${valCls} leading-tight`}>{value}</div>
                   </div>
                 ))}
               </div>
 
               {/* Legend */}
               <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Pickup Density</div>
-                <div className="flex flex-col gap-1">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Pickup Density</div>
+                <div className="grid grid-cols-1 gap-0.5">
                   {[
                     { color: "#dc2626", label: "50+ pickups" },
                     { color: "#ea580c", label: "20–49 pickups" },
@@ -508,19 +599,19 @@ export default function MapViewPage() {
                     { color: "#16a34a", label: "5–9 pickups" },
                     { color: "#2563eb", label: "1–4 pickups" },
                   ].map(({ color, label }) => (
-                    <div key={label} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full border border-white shadow-sm flex-shrink-0" style={{ background: color }} />
+                    <div key={label} className="flex items-center gap-2 py-0.5">
+                      <div className="w-2.5 h-2.5 rounded-full border border-white shadow-sm flex-shrink-0" style={{ background: color }} />
                       <span className="text-xs text-gray-600">{label}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Filters */}
-              <ScrollArea className="flex-1">
+              {/* Filters — scrollable */}
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <SlidersHorizontal className="h-3.5 w-3.5 text-gray-500" />
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Filters</span>
                   </div>
                   <PickupFiltersComponent filters={filters} onFiltersChange={setFilters} />
@@ -543,6 +634,21 @@ export default function MapViewPage() {
         {/* ── Map Area ─────────────────────────────────────────────────── */}
         <div className="flex-1 relative min-w-0">
           <div ref={mapContainerRef} className="w-full h-full" />
+
+          {/* ── Location Search Bar (top-left of map) ────────────────── */}
+          {mapsReady && (
+            <div className="absolute top-3 left-3 z-30 flex items-center gap-1.5">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search address or place…"
+                  className="h-9 pl-8 pr-3 text-sm bg-white border border-gray-200 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Loading indicator */}
           {(arcgisLoading || mapDataLoading) && (
@@ -579,6 +685,22 @@ export default function MapViewPage() {
 
           {/* ── Top-right Controls ──────────────────────────────────────── */}
           <div className="absolute top-3 right-14 z-30 flex flex-col gap-2">
+            {/* GPS / My Location */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleMyLocation}
+              className="bg-white shadow-md h-9 w-9 p-0"
+              title="My location"
+              disabled={gpsLoading}
+            >
+              {gpsLoading
+                ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                : <Navigation className="h-4 w-4 text-blue-600" />
+              }
+            </Button>
+
+            {/* Refresh */}
             <Button
               size="sm"
               variant="outline"
@@ -588,6 +710,8 @@ export default function MapViewPage() {
             >
               <RefreshCw className={`h-4 w-4 ${(arcgisLoading || mapDataLoading) ? "animate-spin" : ""}`} />
             </Button>
+
+            {/* Layers toggle */}
             <Button
               size="sm"
               variant={layerPanelOpen ? "default" : "outline"}
@@ -647,7 +771,7 @@ export default function MapViewPage() {
                       <LayerRow
                         icon={<Icon className="h-4 w-4" style={{ color: layer.strokeColor }} />}
                         label={layer.label}
-                        description={`${layer.description} · min zoom ${layer.minZoom}`}
+                        description={`${layer.description} · zoom ${layer.minZoom}+`}
                         visible={visible}
                         onToggle={() => toggleLayer(layer.id)}
                         colorSwatch={layer.fillColor}
@@ -707,24 +831,22 @@ interface LayerRowProps {
 
 function LayerRow({ icon, label, description, visible, onToggle, colorSwatch }: LayerRowProps) {
   return (
-    <div className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <div
-          className="w-3.5 h-3.5 rounded-sm flex-shrink-0 mt-0.5"
-          style={{ background: colorSwatch, opacity: 0.85 }}
-        />
+    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+      <div
+        className="w-3 h-3 rounded-sm flex-shrink-0"
+        style={{ background: colorSwatch, opacity: 0.85 }}
+      />
+      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+        {icon}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            {icon}
-            <span className="text-sm font-medium text-gray-800 truncate">{label}</span>
-          </div>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">{description}</p>
+          <div className="text-sm font-medium text-gray-800 truncate">{label}</div>
+          <p className="text-xs text-gray-400 truncate">{description}</p>
         </div>
       </div>
       <Switch
         checked={visible}
         onCheckedChange={onToggle}
-        className="flex-shrink-0 mt-0.5"
+        className="flex-shrink-0"
       />
     </div>
   );
