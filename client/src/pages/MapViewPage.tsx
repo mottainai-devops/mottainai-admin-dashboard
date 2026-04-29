@@ -26,6 +26,7 @@ import {
   BarChart3,
   List,
   Map as MapIcon,
+  Eye,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
@@ -202,6 +203,7 @@ export default function MapViewPage() {
   const [arcgisLoading, setArcgisLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(14);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [streetViewEnabled, setStreetViewEnabled] = useState(false);
   const [activeTab, setActiveTab] = useState<"stats" | "filters" | "legend">("stats");
 
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() => {
@@ -280,6 +282,8 @@ export default function MapViewPage() {
     });
     mapRef.current = map;
     infoWindowRef.current = new window.google.maps.InfoWindow();
+    // Street View is off by default; toggled via the toolbar button
+    map.setOptions({ streetViewControl: false });
     map.addListener("zoom_changed", () => setCurrentZoom(map.getZoom() ?? 14));
 
     // Debounced ArcGIS load on idle — uses ref so the listener always calls the
@@ -586,6 +590,19 @@ export default function MapViewPage() {
     refetchMapData();
     loadArcGISLayers();
   }, [refetchMapData, loadArcGISLayers]);
+
+  const handleToggleStreetView = useCallback(() => {
+    if (!mapRef.current) return;
+    const next = !streetViewEnabled;
+    setStreetViewEnabled(next);
+    // Show/hide the pegman drag handle on the map
+    mapRef.current.setOptions({ streetViewControl: next });
+    // If turning off, also exit any active Street View panorama
+    if (!next) {
+      const panorama = mapRef.current.getStreetView();
+      if (panorama.getVisible()) panorama.setVisible(false);
+    }
+  }, [streetViewEnabled]);
 
   const toggleLayer = useCallback((id: string) => {
     setLayerVisible((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -894,6 +911,16 @@ export default function MapViewPage() {
               title="Layers"
             >
               <Layers className="h-4 w-4" />
+            </Button>
+            {/* Street View toggle */}
+            <Button
+              size="sm"
+              variant={streetViewEnabled ? "default" : "outline"}
+              onClick={handleToggleStreetView}
+              className={`shadow-md h-9 w-9 p-0 ${streetViewEnabled ? "bg-orange-500 border-orange-500 hover:bg-orange-600" : "bg-white"}`}
+              title={streetViewEnabled ? "Street View ON — drag the pegman onto the map, or click to disable" : "Enable Street View"}
+            >
+              <Eye className={`h-4 w-4 ${streetViewEnabled ? "text-white" : "text-orange-500"}`} />
             </Button>
           </div>
 
