@@ -378,6 +378,105 @@ export const pickupsRouter = router({
       }
     }),
 
+  // Map data — returns one marker per unique building with aggregated pickup stats
+  mapData: publicProcedure
+    .input(
+      z.object({
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+        companyId: z.string().optional(),
+        lotId: z.string().optional(),
+        binType: z.string().optional(),
+        paymentType: z.enum(['PAYT', 'Monthly']).optional(),
+        source: z.string().optional(),
+        arcgisBuildingId: z.string().optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      try {
+        const searchQuery: any = {};
+
+        if (input?.dateFrom || input?.dateTo) {
+          searchQuery.createdAt = {};
+          if (input?.dateFrom) searchQuery.createdAt.$gte = new Date(input.dateFrom);
+          if (input?.dateTo) {
+            const endDate = new Date(input.dateTo);
+            endDate.setHours(23, 59, 59, 999);
+            searchQuery.createdAt.$lte = endDate;
+          }
+        }
+        if (input?.lotId) searchQuery.buildingId = { $regex: `\\s${input.lotId}$`, $options: 'i' };
+        if (input?.binType) searchQuery.binType = input.binType;
+        if (input?.paymentType) searchQuery.isMonthly = input.paymentType === 'Monthly';
+        if (input?.source) searchQuery.source = input.source;
+        if (input?.arcgisBuildingId) searchQuery.arcgisBuildingId = input.arcgisBuildingId;
+
+        if (input?.companyId) {
+          const company = await Company.findById(input.companyId).lean() as any;
+          if (!company) return { markers: [], unlocatedCount: 0, totalCount: 0 };
+          const companyConditions: any[] = [];
+          if (company.splitCodes?.length) companyConditions.push({ splitCode: { $in: company.splitCodes } });
+          if (company.lotCodes?.length) {
+            company.lotCodes.forEach((lc: string) => companyConditions.push({ buildingId: { $regex: `\\s${lc}$`, $options: 'i' } }));
+          }
+          companyConditions.push({ companyId: input.companyId });
+          if (company.companyName) companyConditions.push({ companyName: company.companyName });
+          if (companyConditions.length === 0) return { markers: [], unlocatedCount: 0, totalCount: 0 };
+          searchQuery.$or = companyConditions;
+        }
+
+        const totalCount = await FormSubmission.countDocuments(searchQuery);
+        const unlocatedCount = await FormSubmission.countDocuments({
+          ...searchQuery,
+          $or: [{ latitude: { $exists: false } }, { latitude: null }, { longitude: null }],
+        });
+
+        const results = await FormSubmission.aggregate([
+          { $match: { ...searchQuery, latitude: { $exists: true, $ne: null }, longitude: { $exists: true, $ne: null } } },
+          {
+            $group: {
+              _id: '$buildingId',
+              latitude: { $first: '$latitude' },
+              longitude: { $first: '$longitude' },
+              arcgisBuildingId: { $first: '$arcgisBuildingId' },
+              pickupCount: { $sum: 1 },
+              totalAmount: { $sum: { $ifNull: ['$amount', 0] } },
+              lastPickupDate: { $max: '$createdAt' },
+              binTypes: { $addToSet: '$binType' },
+              paytCount: { $sum: { $cond: [{ $eq: ['$isMonthly', false] }, 1, 0] } },
+              monthlyCount: { $sum: { $cond: [{ $eq: ['$isMonthly', true] }, 1, 0] } },
+              latestPickupId: { $last: '$_id' },
+              customerName: { $first: '$customerName' },
+            },
+          },
+          { $sort: { pickupCount: -1 } },
+          { $limit: 5000 },
+        ]);
+
+        return {
+          markers: results.map((r: any) => ({
+            buildingId: r._id as string,
+            arcgisBuildingId: (r.arcgisBuildingId as string) || null,
+            latitude: r.latitude as number,
+            longitude: r.longitude as number,
+            pickupCount: r.pickupCount as number,
+            totalAmount: r.totalAmount as number,
+            lastPickupDate: r.lastPickupDate as Date,
+            binTypes: ((r.binTypes as string[]) || []).filter(Boolean),
+            paytCount: r.paytCount as number,
+            monthlyCount: r.monthlyCount as number,
+            latestPickupId: r.latestPickupId?.toString() as string,
+            customerName: (r.customerName as string) || null,
+          })),
+          unlocatedCount,
+          totalCount,
+        };
+      } catch (error) {
+        console.error('[Pickups] Error getting map data:', error);
+        return { markers: [], unlocatedCount: 0, totalCount: 0 };
+      }
+    }),
+
   // Get filter options (lots, bin types, companies)
   getFilterOptions: publicProcedure.query(async () => {
     try {
