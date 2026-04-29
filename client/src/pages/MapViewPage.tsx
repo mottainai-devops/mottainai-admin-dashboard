@@ -193,6 +193,9 @@ export default function MapViewPage() {
   const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const arcgisLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stable ref that always points to the latest loadArcGISLayers without
+  // causing the idle listener to become stale when layerVisible/layerOpacity change.
+  const loadArcGISLayersRef = useRef<() => void>(() => {});
 
   const [mapsReady, setMapsReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -279,10 +282,11 @@ export default function MapViewPage() {
     infoWindowRef.current = new window.google.maps.InfoWindow();
     map.addListener("zoom_changed", () => setCurrentZoom(map.getZoom() ?? 14));
 
-    // Debounced ArcGIS load on idle — prevents hammering the API on every pan/zoom
+    // Debounced ArcGIS load on idle — uses ref so the listener always calls the
+    // latest version of loadArcGISLayers without becoming stale.
     map.addListener("idle", () => {
       if (arcgisLoadTimerRef.current) clearTimeout(arcgisLoadTimerRef.current);
-      arcgisLoadTimerRef.current = setTimeout(() => loadArcGISLayers(), 600);
+      arcgisLoadTimerRef.current = setTimeout(() => loadArcGISLayersRef.current(), 600);
     });
 
     // ── Places SearchBox ──────────────────────────────────────────────────
@@ -401,13 +405,15 @@ export default function MapViewPage() {
     });
   }, []);
 
-  // ── Load ArcGIS Layers ─────────────────────────────────────────────────────
+   // ── Load ArcGIS Layers ─────────────────────────────────────────────────────
   const loadArcGISLayers = useCallback(async () => {
     if (!mapRef.current) return;
     const zoom = mapRef.current.getZoom() ?? 0;
     const bounds = mapRef.current.getBounds();
     if (!bounds) return;
-
+    // Set loading once before the loop — not per-layer — to avoid mid-loop re-renders
+    setArcgisLoading(true);
+    try {
     for (const layer of ARCGIS_LAYER_REGISTRY) {
       const visible = layerVisible[layer.id] ?? layer.defaultVisible;
       if (!visible || zoom < layer.minZoom) {
@@ -417,13 +423,10 @@ export default function MapViewPage() {
         arcgisMarkersRef.current.set(layer.id as LayerId, []);
         continue;
       }
-
       try {
-        setArcgisLoading(true);
         const features = await fetchArcGISFeatures(layer.url, bounds, 500, layer.requiresAuth);
         arcgisPolygonsRef.current.get(layer.id as LayerId)?.forEach((p) => p.setMap(null));
         arcgisMarkersRef.current.get(layer.id as LayerId)?.forEach((m) => m.setMap(null));
-
         const newPolygons: google.maps.Polygon[] = [];
         const newMarkers: google.maps.Marker[] = [];
         const opacityFactor = (layerOpacity[layer.id] ?? 70) / 100;
@@ -513,11 +516,19 @@ export default function MapViewPage() {
         arcgisMarkersRef.current.set(layer.id as LayerId, newMarkers);
       } catch (err) {
         console.error(`[MapView] ArcGIS layer ${layer.id} failed:`, err);
-      } finally {
-        setArcgisLoading(false);
       }
+    } // end for loop
+    } finally {
+      // Set loading false once after ALL layers are done, not per-layer
+      setArcgisLoading(false);
     }
   }, [layerVisible, layerOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the ref in sync so the idle listener always calls the latest version
+  // without the listener itself needing to be re-registered on every render.
+  useEffect(() => {
+    loadArcGISLayersRef.current = loadArcGISLayers;
+  }, [loadArcGISLayers]);
 
   // ── GPS / My Location ──────────────────────────────────────────────────────
   const handleMyLocation = useCallback(() => {
