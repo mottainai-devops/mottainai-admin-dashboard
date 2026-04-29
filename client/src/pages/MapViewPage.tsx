@@ -70,7 +70,8 @@ const ARCGIS_LAYER_REGISTRY = [
 type LayerId = (typeof ARCGIS_LAYER_REGISTRY)[number]["id"];
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LAGOS_CENTER = { lat: 6.5244, lng: 3.3792 };
+// Customer data is centred on Ibadan, Oyo State (lat ~7.36, lng ~3.88)
+const IBADAN_CENTER = { lat: 7.3775, lng: 3.9470 };
 
 function getMarkerColor(count: number): string {
   if (count >= 50) return "#dc2626";
@@ -254,7 +255,7 @@ export default function MapViewPage() {
   useEffect(() => {
     if (!mapsReady || !mapContainerRef.current || mapRef.current) return;
     const map = new window.google.maps.Map(mapContainerRef.current, {
-      center: LAGOS_CENTER,
+      center: IBADAN_CENTER,
       zoom: 14,
       mapTypeControl: true,
       mapTypeControlOptions: { position: window.google.maps.ControlPosition.TOP_RIGHT },
