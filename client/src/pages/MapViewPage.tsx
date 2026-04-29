@@ -23,6 +23,7 @@ import {
   Package,
   Search,
   Navigation,
+  BarChart3,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { format } from "date-fns";
@@ -194,6 +195,7 @@ export default function MapViewPage() {
   const [arcgisLoading, setArcgisLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(14);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"stats" | "filters" | "legend">("stats");
 
   const [layerVisible, setLayerVisible] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = { pickup_markers: true, heatmap: false };
@@ -230,7 +232,8 @@ export default function MapViewPage() {
   const { data: mapData, isLoading: mapDataLoading, refetch: refetchMapData } = trpc.pickups.mapData.useQuery(
     mapDataInput,
     {
-      staleTime: 5 * 60 * 1000,   // cache for 5 minutes — avoids re-fetching on every re-render
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
       refetchOnWindowFocus: false,
     }
   );
@@ -272,7 +275,7 @@ export default function MapViewPage() {
     // Debounced ArcGIS load on idle — prevents hammering the API on every pan/zoom
     map.addListener("idle", () => {
       if (arcgisLoadTimerRef.current) clearTimeout(arcgisLoadTimerRef.current);
-      arcgisLoadTimerRef.current = setTimeout(() => loadArcGISLayers(), 400);
+      arcgisLoadTimerRef.current = setTimeout(() => loadArcGISLayers(), 600);
     });
 
     // ── Places SearchBox ──────────────────────────────────────────────────
@@ -438,11 +441,15 @@ export default function MapViewPage() {
             });
             newPolygons.push(polygon);
           } else if (layer.type === "point") {
-            // outSR=4326 means geometry.x = longitude, geometry.y = latitude (degrees)
-            const lng = feature.geometry?.x;
-            const lat = feature.geometry?.y;
+            // ─── CRITICAL FIX ─────────────────────────────────────────────────
+            // Customer Points geometry is Web Mercator (wkid:102100).
+            // geometry.x/y are in METRES (~700,000 range), NOT WGS84 degrees.
+            // The correct WGS84 coordinates are in feature.attributes.Lat / .Long.
+            const lat = feature.attributes?.Lat as number | undefined;
+            const lng = feature.attributes?.Long as number | undefined;
+            // ──────────────────────────────────────────────────────────────────
             if (lat == null || lng == null || (lat === 0 && lng === 0)) return;
-            // Sanity check: valid Lagos-area coordinates
+            // Sanity check: valid Nigeria bounding box
             if (lat < 4 || lat > 14 || lng < 2 || lng > 15) return;
             const marker = new window.google.maps.Marker({
               position: { lat, lng },
@@ -554,69 +561,179 @@ export default function MapViewPage() {
         {/* ── Left Sidebar ─────────────────────────────────────────────── */}
         <div
           className={`flex flex-col bg-white border-r border-gray-200 shadow-sm transition-all duration-300 z-20 flex-shrink-0 ${
-            sidebarOpen ? "w-72" : "w-0 overflow-hidden"
+            sidebarOpen ? "w-96" : "w-0 overflow-hidden"
           }`}
         >
           {sidebarOpen && (
             <div className="flex flex-col h-full min-w-0">
-              {/* Header */}
-              <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                  <span className="font-semibold text-gray-800 text-sm">Pickup Map View</span>
+              {/* Sidebar Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700">
+                <div className="flex items-center gap-2.5">
+                  <MapPin className="h-5 w-5 text-white flex-shrink-0" />
+                  <div>
+                    <span className="font-bold text-white text-sm leading-tight block">Pickup Map View</span>
+                    <span className="text-blue-200 text-xs leading-tight block">Geographic overview</span>
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-7 w-7 p-0 flex-shrink-0">
+                <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-7 w-7 p-0 text-white hover:bg-blue-500 flex-shrink-0">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
               </div>
 
-              {/* Stats — 2×2 grid with consistent sizing */}
-              <div className="grid grid-cols-2 gap-1.5 p-2.5 border-b border-gray-100 flex-shrink-0">
-                {[
-                  { icon: Building2, label: "Buildings", value: stats.buildings.toLocaleString(), bg: "bg-blue-50", iconCls: "text-blue-500", valCls: "text-blue-800" },
-                  { icon: Package, label: "Pickups", value: stats.totalPickups.toLocaleString(), bg: "bg-green-50", iconCls: "text-green-500", valCls: "text-green-800" },
-                  { icon: TrendingUp, label: "Revenue", value: `₦${(stats.totalAmount / 1000).toFixed(0)}k`, bg: "bg-purple-50", iconCls: "text-purple-500", valCls: "text-purple-800" },
-                  { icon: AlertCircle, label: "Unlocated", value: stats.unlocated.toLocaleString(), bg: "bg-orange-50", iconCls: "text-orange-500", valCls: "text-orange-800" },
-                ].map(({ icon: Icon, label, value, bg, iconCls, valCls }) => (
-                  <div key={label} className={`${bg} rounded-lg p-2`}>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <Icon className={`h-3 w-3 ${iconCls} flex-shrink-0`} />
-                      <span className={`text-xs ${iconCls} font-medium truncate`}>{label}</span>
-                    </div>
-                    <div className={`text-base font-bold ${valCls} leading-tight`}>{value}</div>
-                  </div>
+              {/* Tab Navigation */}
+              <div className="flex border-b border-gray-100 flex-shrink-0 bg-gray-50">
+                {([
+                  { id: "stats" as const, icon: BarChart3, label: "Stats" },
+                  { id: "filters" as const, icon: SlidersHorizontal, label: "Filters" },
+                  { id: "legend" as const, icon: Layers, label: "Legend" },
+                ]).map(({ id, icon: Icon, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id)}
+                    className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors border-b-2 ${
+                      activeTab === id
+                        ? "border-blue-600 text-blue-600 bg-white"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
                 ))}
               </div>
 
-              {/* Legend */}
-              <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Pickup Density</div>
-                <div className="grid grid-cols-1 gap-0.5">
-                  {[
-                    { color: "#dc2626", label: "50+ pickups" },
-                    { color: "#ea580c", label: "20–49 pickups" },
-                    { color: "#d97706", label: "10–19 pickups" },
-                    { color: "#16a34a", label: "5–9 pickups" },
-                    { color: "#2563eb", label: "1–4 pickups" },
-                  ].map(({ color, label }) => (
-                    <div key={label} className="flex items-center gap-2 py-0.5">
-                      <div className="w-2.5 h-2.5 rounded-full border border-white shadow-sm flex-shrink-0" style={{ background: color }} />
-                      <span className="text-xs text-gray-600">{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
 
-              {/* Filters — scrollable */}
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <SlidersHorizontal className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Filters</span>
+                {/* Stats Tab */}
+                {activeTab === "stats" && (
+                  <div className="h-full flex flex-col">
+                    <div className="grid grid-cols-2 gap-3 p-4 border-b border-gray-100 flex-shrink-0">
+                      {[
+                        { icon: Building2, label: "Located Buildings", value: stats.buildings.toLocaleString(), bg: "bg-blue-50", border: "border-blue-100", iconCls: "text-blue-500", valCls: "text-blue-800", subtext: "with GPS coordinates" },
+                        { icon: Package, label: "Total Pickups", value: stats.totalPickups.toLocaleString(), bg: "bg-green-50", border: "border-green-100", iconCls: "text-green-500", valCls: "text-green-800", subtext: "all time" },
+                        { icon: TrendingUp, label: "Total Revenue", value: stats.totalAmount >= 1_000_000 ? `₦${(stats.totalAmount / 1_000_000).toFixed(1)}M` : `₦${(stats.totalAmount / 1000).toFixed(0)}k`, bg: "bg-purple-50", border: "border-purple-100", iconCls: "text-purple-500", valCls: "text-purple-800", subtext: "from located pickups" },
+                        { icon: AlertCircle, label: "Unlocated", value: stats.unlocated.toLocaleString(), bg: "bg-orange-50", border: "border-orange-100", iconCls: "text-orange-500", valCls: "text-orange-800", subtext: "missing GPS data" },
+                      ].map(({ icon: Icon, label, value, bg, border, iconCls, valCls, subtext }) => (
+                        <div key={label} className={`${bg} border ${border} rounded-xl p-3`}>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <Icon className={`h-4 w-4 ${iconCls} flex-shrink-0`} />
+                            <span className={`text-xs ${iconCls} font-semibold`}>{label}</span>
+                          </div>
+                          <div className={`text-2xl font-bold ${valCls} leading-none mb-1`}>{value}</div>
+                          <div className="text-xs text-gray-400">{subtext}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {mapDataLoading && (
+                      <div className="flex items-center gap-2 px-4 py-3 text-sm text-gray-500 border-b border-gray-100">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
+                        Loading pickup data…
+                      </div>
+                    )}
+                    <div className="p-4 flex-shrink-0">
+                      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Current Map View</div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Zoom level</span>
+                          <span className="font-semibold text-gray-800">{currentZoom}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Customer Points</span>
+                          <span className={`font-semibold ${currentZoom >= 13 ? "text-green-600" : "text-orange-500"}`}>
+                            {currentZoom >= 13 ? "Active" : `Zoom ${13 - currentZoom} more`}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500">Building Footprints</span>
+                          <span className={`font-semibold ${currentZoom >= 15 ? "text-green-600" : "text-orange-500"}`}>
+                            {currentZoom >= 15 ? "Active" : `Zoom ${15 - currentZoom} more`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-4 pb-4 mt-auto">
+                      <Button variant="outline" className="w-full gap-2" onClick={handleRefresh} disabled={mapDataLoading || arcgisLoading}>
+                        <RefreshCw className={`h-4 w-4 ${(mapDataLoading || arcgisLoading) ? "animate-spin" : ""}`} />
+                        Refresh All Data
+                      </Button>
+                    </div>
                   </div>
-                  <PickupFiltersComponent filters={filters} onFiltersChange={setFilters} />
-                </div>
-              </ScrollArea>
+                )}
+
+                {/* Filters Tab */}
+                {activeTab === "filters" && (
+                  <ScrollArea className="h-full">
+                    <div className="p-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <SlidersHorizontal className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm font-semibold text-gray-700">Filter Pickup Data</span>
+                      </div>
+                      <PickupFiltersComponent filters={filters} onFiltersChange={setFilters} />
+                      {Object.keys(filters).some((k) => filters[k as keyof PickupFilters] !== undefined) && (
+                        <Button variant="outline" size="sm" className="w-full mt-4 text-red-600 border-red-200 hover:bg-red-50" onClick={() => setFilters({})}>
+                          Clear All Filters
+                        </Button>
+                      )}
+                    </div>
+                  </ScrollArea>
+                )}
+
+                {/* Legend Tab */}
+                {activeTab === "legend" && (
+                  <ScrollArea className="h-full">
+                    <div className="p-4 space-y-5">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pickup Marker Density</div>
+                        <div className="space-y-2">
+                          {[
+                            { color: "#dc2626", label: "50+ pickups", desc: "High density" },
+                            { color: "#ea580c", label: "20–49 pickups", desc: "Medium-high" },
+                            { color: "#d97706", label: "10–19 pickups", desc: "Medium" },
+                            { color: "#16a34a", label: "5–9 pickups", desc: "Low-medium" },
+                            { color: "#2563eb", label: "1–4 pickups", desc: "Low density" },
+                          ].map(({ color, label, desc }) => (
+                            <div key={label} className="flex items-center gap-3 py-1">
+                              <div className="w-4 h-4 rounded-full border-2 border-white shadow flex-shrink-0" style={{ background: color }} />
+                              <div>
+                                <div className="text-sm font-medium text-gray-700">{label}</div>
+                                <div className="text-xs text-gray-400">{desc}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">ArcGIS Layers</div>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-4 rounded border-2 flex-shrink-0" style={{ borderColor: "#4f46e5", background: "rgba(99,102,241,0.15)" }} />
+                            <div>
+                              <div className="text-sm font-medium text-gray-700">Building Footprints</div>
+                              <div className="text-xs text-gray-400">Visible at zoom 15+</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded-full border-2 flex-shrink-0" style={{ borderColor: "#059669", background: "#10b981" }} />
+                            <div>
+                              <div className="text-sm font-medium text-gray-700">Customer Points</div>
+                              <div className="text-xs text-gray-400">Visible at zoom 13+</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                        <div className="text-xs font-semibold text-blue-700 mb-2">Zoom Guide</div>
+                        <div className="space-y-1.5 text-xs text-blue-600">
+                          <div className="flex justify-between"><span>Zoom 13+</span><span>Customer Points load</span></div>
+                          <div className="flex justify-between"><span>Zoom 15+</span><span>Building Footprints load</span></div>
+                          <div className="flex justify-between"><span>Any zoom</span><span>Pickup Markers visible</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </ScrollArea>
+                )}
+              </div>
             </div>
           )}
         </div>
