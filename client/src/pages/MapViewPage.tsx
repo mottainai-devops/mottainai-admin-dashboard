@@ -458,6 +458,17 @@ export default function MapViewPage() {
             if (lat == null || lng == null || (lat === 0 && lng === 0)) return;
             // Sanity check: valid Nigeria bounding box
             if (lat < 4 || lat > 14 || lng < 2 || lng > 15) return;
+
+            // Build display name: prefer business_name, fall back to first+last name
+            const bizName = String(feature.attributes?.business_name || "").trim();
+            const firstName = String(feature.attributes?.first_name || "").trim();
+            const lastName = String(feature.attributes?.last_name || "").trim();
+            const displayName = bizName || [firstName, lastName].filter(Boolean).join(" ") || "Customer";
+
+            // Truncate long names to keep labels readable
+            const labelText = displayName.length > 22 ? displayName.slice(0, 20) + "…" : displayName;
+
+            const currentZoomLevel = mapRef.current?.getZoom() ?? 0;
             const marker = new window.google.maps.Marker({
               position: { lat, lng },
               map: mapRef.current!,
@@ -469,17 +480,27 @@ export default function MapViewPage() {
                 strokeWeight: layer.strokeWeight,
                 scale: 6,
               },
+              // Show label only at zoom 16+ to avoid clutter at lower zoom levels
+              label: currentZoomLevel >= 16 ? {
+                text: labelText,
+                color: "#1e3a5f",
+                fontSize: "10px",
+                fontWeight: "600",
+                className: "customer-point-label",
+              } : undefined,
               zIndex: 50,
+              title: displayName,
             });
             marker.addListener("click", () => {
-              const name = String(feature.attributes?.cust_name || feature.attributes?.Name || "Customer");
               const phone = String(feature.attributes?.cust_phone || "");
               const buildingId = String(feature.attributes?.building_id || "");
+              const custType = feature.attributes?.customer_type === "1" ? "Business" : "Residential";
               infoWindowRef.current?.setContent(`
-                <div style="font-family:sans-serif;font-size:13px;padding:4px;min-width:160px">
-                  <strong>${name}</strong>
-                  ${phone ? `<br/>📞 ${phone}` : ""}
-                  ${buildingId ? `<br/><span style="color:#64748b;font-size:11px">Building: ${buildingId}</span>` : ""}
+                <div style="font-family:sans-serif;font-size:13px;padding:6px 8px;min-width:180px;max-width:260px">
+                  <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#1e293b">${displayName}</div>
+                  <div style="display:inline-block;background:#e0f2fe;color:#0369a1;font-size:10px;font-weight:600;padding:1px 6px;border-radius:9px;margin-bottom:6px">${custType}</div>
+                  ${phone ? `<div style="color:#475569;margin-top:4px">📞 ${phone}</div>` : ""}
+                  ${buildingId ? `<div style="color:#64748b;font-size:11px;margin-top:4px">🏠 ${buildingId}</div>` : ""}
                 </div>
               `);
               infoWindowRef.current?.open(mapRef.current!, marker);
