@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Search, Package, ChevronLeft, ChevronRight, Download, Eye } from "lucide-react";
+import { Search, Package, ChevronLeft, ChevronRight, Download, Eye, List, Map } from "lucide-react";
 import { SortableTable, Column } from "@/components/SortableTable";
 import { Badge } from "@/components/ui/badge";
 import { PickupFiltersComponent, PickupFilters } from "@/components/PickupFilters";
@@ -15,15 +16,13 @@ export default function PickupRecords() {
   const [page, setPage] = useState(1);
   const [selectedPickupId, setSelectedPickupId] = useState<string | null>(null);
 
-  // Pre-fill arcgisBuildingId filter from URL query param (drill-down from Buildings page)
-  const urlParams = new URLSearchParams(window.location.search);
-  const prefilledBuildingId = urlParams.get("arcgisBuildingId") || undefined;
-
-  const [filters, setFilters] = useState<PickupFilters>({
-    paymentType: "all",
-    source: "all",
-    arcgisBuildingId: prefilledBuildingId,
-  });
+  // Deserialise all filter params from URL (supports drill-down from Buildings page
+  // and round-trip navigation from Map View).
+  const [filters, setFilters] = useState<PickupFilters>(() =>
+    paramsToFilters(new URLSearchParams(window.location.search))
+  );
+  // Convenience alias used by the drill-down banner
+  const prefilledBuildingId = filters.arcgisBuildingId;
   const limit = 50;
 
   const { data, isLoading } = trpc.pickups.list.useQuery({
@@ -109,7 +108,24 @@ export default function PickupRecords() {
                 <CardTitle>Pickup History ({total.toLocaleString()} records)</CardTitle>
                 <CardDescription>All pickup records from all channels (web form, mobile app, Survey123)</CardDescription>
               </div>
-              <Button
+              <div className="flex items-center gap-2">
+                {/* View toggle: List View (active) | Map View */}
+                <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-blue-600 text-white select-none">
+                    <List className="h-3.5 w-3.5" />
+                    List View
+                  </span>
+                  <button
+                    onClick={() => { window.location.href = buildViewSwitchUrl("/map-view", filters); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors border-l border-gray-200"
+                    title="Switch to Map View (filters are preserved)"
+                  >
+                    <Map className="h-3.5 w-3.5" />
+                    Map View
+                  </button>
+                </div>
+
+                <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
@@ -141,6 +157,7 @@ export default function PickupRecords() {
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
               </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

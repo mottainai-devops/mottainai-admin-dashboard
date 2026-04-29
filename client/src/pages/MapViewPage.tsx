@@ -24,8 +24,11 @@ import {
   Search,
   Navigation,
   BarChart3,
+  List,
+  Map,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
 import { format } from "date-fns";
 
 // ─── ArcGIS Layer Registry ────────────────────────────────────────────────────
@@ -212,7 +215,10 @@ export default function MapViewPage() {
 
   const [layerPanelOpen, setLayerPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [filters, setFilters] = useState<PickupFilters>({});
+  // Deserialise filter params from URL (round-trip from /pickup-records)
+  const [filters, setFilters] = useState<PickupFilters>(() =>
+    paramsToFilters(new URLSearchParams(window.location.search))
+  );
   const [selectedPickupId, setSelectedPickupId] = useState<string | null>(null);
   const [stats, setStats] = useState({ buildings: 0, totalPickups: 0, unlocated: 0, totalAmount: 0 });
 
@@ -579,6 +585,24 @@ export default function MapViewPage() {
                 <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)} className="h-7 w-7 p-0 text-white hover:bg-blue-500 flex-shrink-0">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
+              </div>
+
+              {/* View toggle: List View | Map View (active) */}
+              <div className="flex items-center px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+                <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden shadow-sm w-full">
+                  <button
+                    onClick={() => { window.location.href = buildViewSwitchUrl("/pickup-records", filters); }}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white text-gray-600 hover:bg-gray-50 hover:text-blue-600 transition-colors"
+                    title="Switch to List View (filters are preserved)"
+                  >
+                    <List className="h-3.5 w-3.5" />
+                    List View
+                  </button>
+                  <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white select-none border-l border-blue-500">
+                    <Map className="h-3.5 w-3.5" />
+                    Map View
+                  </span>
+                </div>
               </div>
 
               {/* Tab Navigation */}
