@@ -477,6 +477,71 @@ export const pickupsRouter = router({
       }
     }),
 
+  // Backfill 27 CBM DINO BIN amounts to correct tariff (₦320,000 per bin)
+  // dryRun=true audits without changing; dryRun=false applies the fix
+  backfillDinoBinAmount: publicProcedure
+    .input(z.object({ dryRun: z.boolean().default(true) }))
+    .mutation(async ({ input }) => {
+      try {
+        const DINO_BIN_TYPE = '27 CBM DINO BIN';
+        const UNIT_PRICE = 320000;
+
+        // Fetch all DINO BIN records
+        const records = await FormSubmission.find({ binType: DINO_BIN_TYPE }).lean();
+        const total = records.length;
+
+        // Classify records that need fixing
+        const toFix = records.filter((r: any) => {
+          const expectedAmount = (r.binQuantity || 1) * UNIT_PRICE;
+          return r.amount !== expectedAmount;
+        });
+
+        // Build breakdown by current amount for audit
+        const byCurrentAmount: Record<string, number> = {};
+        toFix.forEach((r: any) => {
+          const key = `₦${r.amount ?? 0} (qty ${r.binQuantity})`;
+          byCurrentAmount[key] = (byCurrentAmount[key] || 0) + 1;
+        });
+
+        if (input.dryRun) {
+          return {
+            dryRun: true,
+            total,
+            alreadyCorrect: total - toFix.length,
+            toFix: toFix.length,
+            byCurrentAmount,
+            updated: 0,
+          };
+        }
+
+        // Apply fix using bulkWrite for efficiency
+        const bulkOps = toFix.map((r: any) => ({
+          updateOne: {
+            filter: { _id: r._id },
+            update: { $set: { amount: (r.binQuantity || 1) * UNIT_PRICE } },
+          },
+        }));
+
+        let updated = 0;
+        if (bulkOps.length > 0) {
+          const result = await FormSubmission.bulkWrite(bulkOps);
+          updated = result.modifiedCount;
+        }
+
+        return {
+          dryRun: false,
+          total,
+          alreadyCorrect: total - toFix.length,
+          toFix: toFix.length,
+          byCurrentAmount,
+          updated,
+        };
+      } catch (error) {
+        console.error('[Pickups] Error in backfillDinoBinAmount:', error);
+        throw error;
+      }
+    }),
+
   // Get filter options (lots, bin types, companies)
   getFilterOptions: publicProcedure.query(async () => {
     try {
