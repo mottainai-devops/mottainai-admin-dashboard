@@ -105,9 +105,17 @@ export const customersRouter = router({
         billingType: fixedBillingMap.has(c.customerId) ? 'Fixed Billing' : 'PAYT / Monthly',
       }));
 
+      // Issue 3 fix: compute activeTotal and digitalisedTotal across the full filtered set
+      const [activeTotal, digitalisedTotal] = await Promise.all([
+        Customer.countDocuments({ ...filter, active: true }),
+        Customer.countDocuments({ ...filter, arcgisBuildingId: { $ne: null, $exists: true } }),
+      ]);
+
       return {
         customers: mappedCustomers,
         total,
+        activeTotal,
+        digitalisedTotal,
         page,
         limit,
         totalPages: Math.ceil(total / limit)

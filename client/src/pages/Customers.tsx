@@ -31,6 +31,8 @@ interface Customer {
   createdAt: Date;
   arcgisBuildingId?: string;
   linkedBuildingId?: string;
+  digitalizationStatus?: 'digitalized' | 'not-digitalized';
+  linkedAt?: Date;
   lgaName?: string;
   lgaCode?: string;
   stateCode?: string;
@@ -121,8 +123,44 @@ export default function Customers() {
       return;
     }
 
-    const text = await csvFile.text();
-    bulkUploadMutation.mutate({ csvData: text });
+    try {
+      const text = await csvFile.text();
+      const lines = text.trim().split('\n').filter(l => l.trim());
+      if (lines.length < 2) {
+        toast.error('CSV must have a header row and at least one data row');
+        return;
+      }
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      const customers = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+        const row: Record<string, string> = {};
+        headers.forEach((h, i) => { row[h] = values[i] || ''; });
+        return {
+          customerName: row['customerName'] || row['name'] || '',
+          address: row['address'] || '',
+          phone: row['phone'] || '',
+          email: row['email'] || '',
+          lotCode: row['lotCode'] || '',
+          customerType: (row['customerType'] || 'residential') as 'residential' | 'commercial',
+        };
+      }).filter(c => c.customerName && c.address && c.lotCode);
+
+      if (customers.length === 0) {
+        toast.error('No valid rows found. Required columns: customerName, address, lotCode');
+        return;
+      }
+
+      // Determine ownerCompanyId from current filter or first company
+      const ownerCompanyId = selectedCompany !== 'all' ? selectedCompany : (companies?.[0]?.companyId ?? '');
+      if (!ownerCompanyId) {
+        toast.error('Please select a company filter before uploading');
+        return;
+      }
+
+      bulkUploadMutation.mutate({ customers, ownerCompanyId });
+    } catch (err: any) {
+      toast.error(`Failed to parse CSV: ${err.message}`);
+    }
   };
 
   const handleTransfer = (e: React.FormEvent<HTMLFormElement>) => {
@@ -139,7 +177,7 @@ export default function Customers() {
   };
 
   const downloadTemplate = () => {
-    const template = "name,email,phone,address,lotCode,companyId\nJohn Doe,john@example.com,+2348012345678,123 Main St,LOT-221,MOTTAINAI\n";
+    const template = "customerName,address,phone,email,lotCode,customerType\nJohn Doe,123 Main St Lagos,+2348012345678,john@example.com,LOT-221,residential\nABC Supermarket,45 Commercial Ave,+2348098765432,,LOT-117,commercial\n";
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -222,7 +260,10 @@ export default function Customers() {
                         required
                       />
                       <p className="text-sm text-muted-foreground">
-                        Required columns: name, address, lotCode, companyId
+                        Required columns: customerName, address, lotCode. Optional: phone, email, customerType
+                      </p>
+                      <p className="text-sm text-amber-600 font-medium">
+                        ⚠ Select a Company filter above before uploading so records are assigned correctly.
                       </p>
                     </div>
 
@@ -320,7 +361,7 @@ export default function Customers() {
         </Card>
 
         {/* Customer Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
@@ -338,7 +379,7 @@ export default function Customers() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {customers?.filter(c => c.status === 'active').length || 0}
+                {customersData?.activeTotal ?? customers?.filter(c => c.status === 'active').length ?? 0}
               </div>
             </CardContent>
           </Card>
@@ -352,6 +393,19 @@ export default function Customers() {
               <div className="text-2xl font-bold">
                 {new Set(customers?.map(c => c.companyId)).size || 0}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Digitalised</CardTitle>
+              <MapPin className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-700">
+                {customersData?.digitalisedTotal ?? customers?.filter((c: any) => c.digitalizationStatus === 'digitalized').length ?? 0}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">linked to ArcGIS polygon</p>
             </CardContent>
           </Card>
         </div>
@@ -432,6 +486,18 @@ export default function Customers() {
                       {customer.status}
                     </Badge>
                   ),
+                },
+                {
+                  key: "digitalizationStatus",
+                  label: "Digitalised",
+                  sortable: true,
+                  render: (customer: any) => {
+                    const status = customer.digitalizationStatus;
+                    if (status === 'digitalized') {
+                      return <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">✓ Linked</Badge>;
+                    }
+                    return <Badge variant="outline" className="text-muted-foreground text-xs">Pending</Badge>;
+                  },
                 },
                 {
                   key: "arcgisBuildingId",
@@ -561,6 +627,14 @@ export default function Customers() {
                   <div><span className="text-muted-foreground">Last Pickup</span><p className="font-medium">{detailCustomer.lastPickupDate ? format(new Date(detailCustomer.lastPickupDate), 'MMM d, yyyy') : '—'}</p></div>
                   <div><span className="text-muted-foreground">Registered</span><p className="font-medium">{detailCustomer.createdAt ? format(new Date(detailCustomer.createdAt), 'MMM d, yyyy') : '—'}</p></div>
                   <div><span className="text-muted-foreground">Customer ID</span><p className="font-mono text-xs">{detailCustomer._id}</p></div>
+                  <div><span className="text-muted-foreground">Digitalisation</span>
+                    <p className="mt-0.5">
+                      {detailCustomer.digitalizationStatus === 'digitalized'
+                        ? <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">✓ Linked to polygon</Badge>
+                        : <Badge variant="outline" className="text-muted-foreground text-xs">Pending — not yet linked</Badge>}
+                    </p>
+                    {detailCustomer.linkedAt && <p className="text-xs text-muted-foreground mt-0.5">Linked on {format(new Date(detailCustomer.linkedAt), 'MMM d, yyyy')}</p>}
+                  </div>
                 </div>
                 {/* ArcGIS Building ID */}
                 <div className="rounded-md border p-3 bg-muted/40">
