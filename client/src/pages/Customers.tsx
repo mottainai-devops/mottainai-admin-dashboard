@@ -360,6 +360,17 @@ export default function Customers() {
           </CardContent>
         </Card>
 
+        {/* Issue 7: LASIKA06 quarantine notice */}
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <span className="text-amber-600 text-lg leading-none mt-0.5">&#9888;</span>
+          <div className="text-sm text-amber-800">
+            <span className="font-semibold">Data Quality Notice — LASIKA06 (Ikeja GRA, LOT 006):</span>{" "}
+            1,022 ArcGIS Customer Layer records in this ward have invalid coordinates and are quarantined.
+            These records will not appear in field-app polygon searches until coordinates are corrected.
+            Contact the Backend/Operations team to remediate. (Ref: Joint API Contract v1.3.0 R8)
+          </div>
+        </div>
+
         {/* Customer Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
