@@ -188,6 +188,7 @@ export const pickupsRouter = router({
         _id: pickup._id,
         buildingId: pickup.buildingId,
         splitCode: pickup.buildingId, // Use buildingId as splitCode for now
+        customerName: pickup.customerName || null,
         nameBin: pickup.binType,
         quantity: pickup.binQuantity,
         amount: pickup.amount || 0,
@@ -540,6 +541,113 @@ export const pickupsRouter = router({
         console.error('[Pickups] Error in backfillDinoBinAmount:', error);
         throw error;
       }
+    }),
+
+  // Export all filtered records as CSV (no pagination limit)
+  exportCsv: publicProcedure
+    .input(
+      z.object({
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+        companyId: z.string().optional(),
+        fieldWorkerId: z.string().optional(),
+        lotId: z.string().optional(),
+        binType: z.string().optional(),
+        paymentType: z.enum(['PAYT', 'Monthly']).optional(),
+        source: z.enum(['webapp_current', 'webapp_old', 'mobile_app', 'unknown']).optional(),
+        arcgisBuildingId: z.string().optional(),
+        search: z.string().optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const searchQuery: any = {};
+
+      if (input?.search) {
+        searchQuery.$or = [
+          { buildingId: { $regex: input.search, $options: 'i' } },
+          { arcgisBuildingId: { $regex: input.search, $options: 'i' } },
+          { splitCode: { $regex: input.search, $options: 'i' } },
+          { nameBin: { $regex: input.search, $options: 'i' } },
+        ];
+      }
+      if (input?.arcgisBuildingId) searchQuery.arcgisBuildingId = input.arcgisBuildingId;
+      if (input?.dateFrom || input?.dateTo) {
+        searchQuery.createdAt = {};
+        if (input.dateFrom) searchQuery.createdAt.$gte = new Date(input.dateFrom);
+        if (input.dateTo) {
+          const endDate = new Date(input.dateTo);
+          endDate.setDate(endDate.getDate() + 1);
+          searchQuery.createdAt.$lt = endDate;
+        }
+      }
+      if (input?.lotId) searchQuery.buildingId = { $regex: `\\s${input.lotId}$`, $options: 'i' };
+      if (input?.binType) searchQuery.binType = input.binType;
+      if (input?.companyId) {
+        const company = await Company.findById(input.companyId).lean() as any;
+        if (company) {
+          const conds: any[] = [];
+          if (company.splitCodes?.length) conds.push({ splitCode: { $in: company.splitCodes } });
+          if (company.lotCodes?.length) {
+            company.lotCodes.forEach((lc: string) => conds.push({ buildingId: { $regex: `\\s${lc}$`, $options: 'i' } }));
+          }
+          conds.push({ companyId: input.companyId });
+          if (company.companyId) conds.push({ companyId: company.companyId });
+          if (company.companyName) conds.push({ companyName: company.companyName });
+          searchQuery.$or = conds;
+        } else {
+          searchQuery.userId = 'no-match';
+        }
+      }
+      if (input?.fieldWorkerId) searchQuery.userId = input.fieldWorkerId;
+      if (input?.paymentType) searchQuery.isMonthly = input.paymentType === 'Monthly';
+      if (input?.source) searchQuery.source = input.source;
+
+      // Fetch all matching records (no pagination)
+      const records = await FormSubmission.find(searchQuery)
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Build CSV rows
+      const headers = [
+        'Customer ID', 'Customer Name', 'Bin Type', 'Quantity', 'Amount',
+        'Billing Type', 'Source', 'Lot', 'LGA', 'Ward', 'Date', 'Zoho Invoice ID',
+      ];
+
+      const rows = records.map((r: any) => {
+        const ct = (r.customerType || '').toLowerCase();
+        const isMonthly = ct.includes('monthly billing');
+        const isBiz = ct.includes('business') || ct === 'commercial';
+        const billingType = isMonthly
+          ? (isBiz ? 'Monthly - Business' : 'Monthly - Residential')
+          : (isBiz ? 'PAYT - Business' : 'PAYT - Residential');
+        const date = r.createdAt ? new Date(r.createdAt).toISOString().substring(0, 10) : '';
+        const lotCode = r.lotCode || (() => {
+          const parts = (r.buildingId || '').trim().split(/\s+/);
+          return parts.length >= 3 ? parts[parts.length - 1] : '';
+        })();
+        // Escape CSV fields that may contain commas
+        const esc = (v: any) => {
+          const s = String(v ?? '');
+          return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        return [
+          esc(r.buildingId),
+          esc(r.customerName || ''),
+          esc(r.binType),
+          r.binQuantity ?? 0,
+          r.amount ?? 0,
+          esc(billingType),
+          esc(r.source || 'unknown'),
+          esc(lotCode),
+          esc(r.lgaName || ''),
+          esc(r.wardName || ''),
+          esc(date),
+          esc(r.zohoInvoiceId || ''),
+        ].join(',');
+      });
+
+      const csv = [headers.join(','), ...rows].join('\n');
+      return { csv, total: records.length };
     }),
 
   // Get filter options (lots, bin types, companies)

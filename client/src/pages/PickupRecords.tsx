@@ -10,6 +10,53 @@ import { SortableTable, Column } from "@/components/SortableTable";
 import { Badge } from "@/components/ui/badge";
 import { PickupFiltersComponent, PickupFilters } from "@/components/PickupFilters";
 import { PickupDetailsModal } from "@/components/PickupDetailsModal";
+import { Loader2 } from "lucide-react";
+
+// ── Full-export CSV button ───────────────────────────────────────────────────
+function ExportAllCsvButton({ filters, searchTerm, total }: { filters: PickupFilters; searchTerm: string; total: number }) {
+  const [exporting, setExporting] = useState(false);
+  const utils = trpc.useUtils();
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const result = await utils.pickups.exportCsv.fetch({
+        search: searchTerm || undefined,
+        dateFrom: filters.dateFrom?.toISOString(),
+        dateTo: filters.dateTo?.toISOString(),
+        companyId: filters.companyId,
+        lotId: filters.lotId,
+        binType: filters.binType,
+        paymentType: filters.paymentType === "all" ? undefined : filters.paymentType,
+        source: filters.source === "all" ? undefined : filters.source,
+        arcgisBuildingId: filters.arcgisBuildingId,
+      });
+      const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const dateStr = new Date().toISOString().substring(0, 10);
+      a.download = `pickup-records-${dateStr}-${result.total}-rows.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("CSV export failed", err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting || total === 0}>
+      {exporting ? (
+        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Exporting {total.toLocaleString()} rows…</>
+      ) : (
+        <><Download className="h-4 w-4 mr-2" />Export CSV ({total.toLocaleString()})</>
+      )}
+    </Button>
+  );
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 export default function PickupRecords() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -125,38 +172,7 @@ export default function PickupRecords() {
                   </button>
                 </div>
 
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  // Export current page to CSV
-                  const csvHeaders = ["Customer ID", "Split Code", "Bin Type", "Quantity", "Amount", "Type", "Source", "Month", "Year", "Status"];
-                  const csvRows = pickups.map((pickup: any) => [
-                    pickup.buildingId || "",
-                    pickup.splitCode || "",
-                    pickup.nameBin || "",
-                    pickup.quantity || 0,
-                    pickup.amount || 0,
-                    pickup.isMonthly ? "Monthly" : "PAYT",
-                    pickup.source || "unknown",
-                    pickup.month || "",
-                    pickup.year || "",
-                    pickup.status ? "Paid" : "Unpaid",
-                  ]);
-                  const csv = [csvHeaders, ...csvRows].map(row => row.join(",")).join("\n");
-                  const blob = new Blob([csv], { type: "text/csv" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `pickup-records-page-${page}.csv`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-                disabled={pickups.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
+<ExportAllCsvButton filters={filters} searchTerm={searchTerm} total={total} />
               </div>
             </div>
           </CardHeader>
@@ -182,6 +198,18 @@ export default function PickupRecords() {
                       label: "Customer ID",
                       sortable: true,
                       render: (pickup: any) => pickup.buildingId || "N/A",
+                    },
+                    {
+                      key: "customerName",
+                      label: "Customer / Business Name",
+                      sortable: true,
+                      render: (pickup: any) => pickup.customerName ? (
+                        <span className="text-sm font-medium max-w-[180px] truncate block" title={pickup.customerName}>
+                          {pickup.customerName}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      ),
                     },
                     {
                       key: "lotCode",
