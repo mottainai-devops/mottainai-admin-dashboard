@@ -179,12 +179,24 @@ export default function Customers() {
   };
 
   const downloadTemplate = () => {
-    const template = "customerName,address,phone,email,lotCode,customerType\nJohn Doe,123 Main St Lagos,+2348012345678,john@example.com,LOT-221,residential\nABC Supermarket,45 Commercial Ave,+2348098765432,,LOT-117,commercial\n";
+    // Build a company-aware template using the selected company's operational lots
+    const selectedCompanyData = companies?.find(c => c.companyId === uploadCompanyId);
+    let exampleRows = "John Doe,123 Main St Lagos,+2348012345678,john@example.com,LOT-221,residential\nABC Supermarket,45 Commercial Ave,+2348098765432,,LOT-117,commercial";
+    let filename = 'customer_upload_template.csv';
+    if (selectedCompanyData?.operationalLots?.length) {
+      const lots = selectedCompanyData.operationalLots;
+      // Generate one example row per lot so the user can see all valid lot codes
+      exampleRows = lots.map((lot: any, i: number) =>
+        `Example Customer ${i + 1},${i + 1} Example Street,+2348012345678,,${lot.lotCode},residential`
+      ).join('\n');
+      filename = `customer_upload_template_${selectedCompanyData.companyId}.csv`;
+    }
+    const template = `customerName,address,phone,email,lotCode,customerType\n${exampleRows}\n`;
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'customer_upload_template.csv';
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -287,10 +299,12 @@ export default function Customers() {
                       variant="outline"
                       size="sm"
                       onClick={downloadTemplate}
+                      disabled={!uploadCompanyId}
                       className="w-full"
+                      title={!uploadCompanyId ? 'Select a company first to get a template with the correct lot codes' : 'Download template pre-filled with this company\'s lot codes'}
                     >
                       <Download className="mr-2 h-4 w-4" />
-                      Download CSV Template
+                      {uploadCompanyId ? 'Download Template (with lot codes)' : 'Download CSV Template'}
                     </Button>
                   </div>
 
