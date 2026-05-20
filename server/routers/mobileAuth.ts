@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { getUserByEmail, getUserById } from '../mongodb';
+import { getCompanyByCompanyId } from '../db';
 import { ENV } from '../_core/env';
 
 const router = Router();
@@ -68,6 +69,32 @@ router.post('/login', async (req, res) => {
 
     console.log(`[MobileAuth] Login successful for ${email} (${user.role})`);
 
+    // Resolve company operationalLots for assignedLots (Part A fix v4.5.4)
+    // This fixes 'No lots assigned to your account' for newly registered users
+    let assignedLots: Array<{ lotCode: string; lotName?: string; description?: string; isActive?: boolean }> = [];
+    let resolvedDefaultLotCode = (user as any).defaultLotCode || null;
+
+    if (user.companyId) {
+      try {
+        const company = await getCompanyByCompanyId(user.companyId);
+        if (company && (company as any).operationalLots?.length > 0) {
+          assignedLots = (company as any).operationalLots.map((lot: any) => ({
+            lotCode: lot.lotCode,
+            lotName: lot.lotName || lot.lotCode,
+            description: lot.description || '',
+            isActive: lot.isActive !== false,
+          }));
+          // Derive defaultLotCode from first active lot if not already set on user
+          if (!resolvedDefaultLotCode) {
+            const firstActive = assignedLots.find(l => l.isActive !== false);
+            resolvedDefaultLotCode = (firstActive || assignedLots[0])?.lotCode || null;
+          }
+        }
+      } catch (err) {
+        console.warn('[MobileAuth] Could not resolve company lots:', err);
+      }
+    }
+
     // Return user data and token
     res.json({
       success: true,
@@ -83,7 +110,8 @@ router.post('/login', async (req, res) => {
         // cherry_picker users have null companyId — they operate across all lots
         companyId: user.companyId || null,
         companyName: user.companyName || null,
-        defaultLotCode: user.defaultLotCode || null,
+        defaultLotCode: resolvedDefaultLotCode,
+        assignedLots, // Part A fix v4.5.4 — resolves 'No lots assigned to your account'
       },
     });
   } catch (error) {
@@ -124,6 +152,30 @@ router.get('/me', async (req, res) => {
       });
     }
 
+    // Resolve company operationalLots for assignedLots (/me endpoint — Part A fix v4.5.4)
+    let meAssignedLots: Array<{ lotCode: string; lotName?: string; description?: string; isActive?: boolean }> = [];
+    let meDefaultLotCode = (user as any).defaultLotCode || null;
+
+    if (user.companyId) {
+      try {
+        const company = await getCompanyByCompanyId(user.companyId);
+        if (company && (company as any).operationalLots?.length > 0) {
+          meAssignedLots = (company as any).operationalLots.map((lot: any) => ({
+            lotCode: lot.lotCode,
+            lotName: lot.lotName || lot.lotCode,
+            description: lot.description || '',
+            isActive: lot.isActive !== false,
+          }));
+          if (!meDefaultLotCode) {
+            const firstActive = meAssignedLots.find(l => l.isActive !== false);
+            meDefaultLotCode = (firstActive || meAssignedLots[0])?.lotCode || null;
+          }
+        }
+      } catch (err) {
+        console.warn('[MobileAuth] /me: Could not resolve company lots:', err);
+      }
+    }
+
     res.json({
       success: true,
       user: {
@@ -135,7 +187,8 @@ router.get('/me', async (req, res) => {
         monthlyBilling: user.monthlyBilling || false,
         companyId: user.companyId || null,
         companyName: user.companyName || null,
-        defaultLotCode: user.defaultLotCode || null,
+        defaultLotCode: meDefaultLotCode,
+        assignedLots: meAssignedLots, // Part A fix v4.5.4
       },
     });
   } catch (error) {
