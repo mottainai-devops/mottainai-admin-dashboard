@@ -96,14 +96,57 @@ export const customersRouter = router({
         fixedBillingMap.set(a.customerId, true);
       }
 
+      // Issue 1 fix: enrich companyName for records that have ownerCompanyId but missing/empty ownerCompanyName
+      // This handles legacy records imported via the mobile app bulk endpoint which stored raw _id as companyId
+      const uniqueOwnerIds = [...new Set(
+        customers
+          .filter((c: any) => c.ownerCompanyId && !c.ownerCompanyName)
+          .map((c: any) => c.ownerCompanyId as string)
+      )];
+      const companyNameMap = new Map<string, string>();
+      if (uniqueOwnerIds.length > 0) {
+        // Try lookup by companyId string first, then by _id
+        const companiesByCompanyId = await Company.find(
+          { companyId: { $in: uniqueOwnerIds } },
+          { companyId: 1, companyName: 1 }
+        ).lean() as any[];
+        for (const co of companiesByCompanyId) {
+          companyNameMap.set(co.companyId, co.companyName);
+        }
+        // For any still unresolved, try lookup by MongoDB _id
+        const unresolvedIds = uniqueOwnerIds.filter(id => !companyNameMap.has(id));
+        if (unresolvedIds.length > 0) {
+          try {
+            const companiesById = await Company.find(
+              { _id: { $in: unresolvedIds } },
+              { _id: 1, companyName: 1, companyId: 1 }
+            ).lean() as any[];
+            for (const co of companiesById) {
+              companyNameMap.set(co._id.toString(), co.companyName);
+              companyNameMap.set(co.companyId, co.companyName);
+            }
+          } catch (_) { /* invalid ObjectId format — skip */ }
+        }
+      }
+
       // Map customerName → name for frontend compatibility (admin UI uses customer.name)
-      const mappedCustomers = customers.map((c: any) => ({
-        ...c,
-        _id: c._id?.toString?.() ?? c._id,
-        name: c.customerName ?? c.name ?? '',
-        isFixedBilling: fixedBillingMap.has(c.customerId),
-        billingType: fixedBillingMap.has(c.customerId) ? 'Fixed Billing' : 'PAYT / Monthly',
-      }));
+      const mappedCustomers = customers.map((c: any) => {
+        const resolvedCompanyName =
+          c.ownerCompanyName ||
+          companyNameMap.get(c.ownerCompanyId) ||
+          c.servingCompanyName ||
+          c.companyName ||
+          c.ownerCompanyId ||
+          '';
+        return {
+          ...c,
+          _id: c._id?.toString?.() ?? c._id,
+          name: c.customerName ?? c.name ?? '',
+          companyName: resolvedCompanyName,
+          isFixedBilling: fixedBillingMap.has(c.customerId),
+          billingType: fixedBillingMap.has(c.customerId) ? 'Fixed Billing' : 'PAYT / Monthly',
+        };
+      });
 
       // Issue 3 fix: compute activeTotal and digitalisedTotal across the full filtered set
       const [activeTotal, digitalisedTotal] = await Promise.all([
@@ -341,8 +384,12 @@ export const customersRouter = router({
         });
       }
       
-      // Load active lots
-      const activeLots = require('../../shared/active_lots.json');
+      // Build a set of valid lot codes from the company's operationalLots
+      // This replaces the hardcoded active_lots.json check which used numeric Lot_IDs
+      // that don't match the string lot codes used by franchisees (e.g. 'LOT-6')
+      const validLotCodes = new Set(
+        ownerCompany.operationalLots.map((l: any) => l.lotCode?.trim().toUpperCase())
+      );
       
       const results = {
         created: 0,
@@ -353,14 +400,21 @@ export const customersRouter = router({
       
       for (const customerData of customersData) {
         try {
-          // Validate lot
-          const lot = activeLots.find((l: any) => l.Lot_ID === customerData.lotCode);
+          // Validate lot against company's own operational lots
+          const normalisedLotCode = customerData.lotCode?.trim().toUpperCase();
+          const matchedLot = ownerCompany.operationalLots.find(
+            (l: any) => l.lotCode?.trim().toUpperCase() === normalisedLotCode
+          );
           
-          if (!lot) {
+          // If company has operational lots defined, validate against them
+          // If company has no lots defined yet, allow any lot code (graceful fallback)
+          if (ownerCompany.operationalLots.length > 0 && !matchedLot) {
             results.failed++;
-            results.errors.push(`Invalid lot code: ${customerData.lotCode} for ${customerData.customerName}`);
+            results.errors.push(`Lot code '${customerData.lotCode}' is not assigned to company '${ownerCompany.companyName}'. Valid lots: ${[...validLotCodes].join(', ')}`);
             continue;
           }
+          
+          const lotName = matchedLot?.lotName || `Lot ${customerData.lotCode}`;
           
           // Check if customer exists (by name + address)
           const existing = await Customer.findOne({
@@ -373,7 +427,7 @@ export const customersRouter = router({
             existing.phone = customerData.phone || existing.phone;
             existing.email = customerData.email || existing.email;
             existing.lotCode = customerData.lotCode;
-            existing.lotName = lot.ward_name || `Lot ${customerData.lotCode}`;
+            existing.lotName = lotName;
             existing.customerType = customerData.customerType || existing.customerType;
             
             await existing.save();
@@ -389,7 +443,7 @@ export const customersRouter = router({
               phone: customerData.phone,
               email: customerData.email,
               lotCode: customerData.lotCode,
-              lotName: lot.ward_name || `Lot ${customerData.lotCode}`,
+              lotName: lotName,
               customerType: customerData.customerType || 'residential',
               servingCompanyId: ownerCompanyId,
               servingCompanyName: ownerCompany.companyName,
