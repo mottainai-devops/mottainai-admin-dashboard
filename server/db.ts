@@ -154,6 +154,7 @@ export interface InsertUser {
   phone?: string | null;
   password?: string | null;
   companyId?: string | null;
+  defaultLotCode?: string | null; // Default lot for mobile app auto-fill (Part B fix v4.5.4)
   role?: 'admin' | 'user';
   monthlyBilling?: boolean;
 }
@@ -223,6 +224,7 @@ export async function createUser(userData: InsertUser): Promise<IUser> {
       phone: userData.phone || null,
       role: userData.role || 'user',
       companyId: userData.companyId || null,
+      defaultLotCode: userData.defaultLotCode || null, // Part B fix v4.5.4
       monthlyBilling: userData.monthlyBilling || false,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -249,6 +251,7 @@ export async function updateUser(id: string, userData: Partial<InsertUser>): Pro
     if (userData.phone !== undefined) updateData.phone = userData.phone || undefined;
     if (userData.role !== undefined) updateData.role = userData.role;
     if (userData.companyId !== undefined) updateData.companyId = userData.companyId;
+    if (userData.defaultLotCode !== undefined) updateData.defaultLotCode = userData.defaultLotCode; // Part B fix v4.5.4
     if (userData.monthlyBilling !== undefined) updateData.monthlyBilling = userData.monthlyBilling;
 
     // If password is being updated, hash it

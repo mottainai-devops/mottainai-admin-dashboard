@@ -31,6 +31,7 @@ export const usersRouter = router({
           phone: user.phone,
           role: user.role,
           companyId: user.companyId,
+          defaultLotCode: (user as any).defaultLotCode ?? null, // Part B fix v4.5.4
           monthlyBilling: user.monthlyBilling,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
@@ -67,6 +68,7 @@ export const usersRouter = router({
         phone: user.phone,
         role: user.role,
         companyId: user.companyId,
+        defaultLotCode: (user as any).defaultLotCode ?? null, // Part B fix v4.5.4
         monthlyBilling: user.monthlyBilling,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -85,6 +87,7 @@ export const usersRouter = router({
       phone: z.string().optional(),
       role: z.enum(['admin', 'user', 'cherry_picker', 'viewer']).default('user'),
       companyId: z.string().optional(),
+      defaultLotCode: z.string().optional(), // Part B fix v4.5.4
     }))
     .mutation(async ({ input }) => {
       try {
@@ -96,6 +99,7 @@ export const usersRouter = router({
           phone: input.phone || null,
           role: input.role,
           companyId: input.companyId || null,
+          defaultLotCode: input.defaultLotCode || null, // Part B fix v4.5.4
         });
 
         return {
@@ -133,6 +137,7 @@ export const usersRouter = router({
       phone: z.string().optional(),
       role: z.enum(['admin', 'user', 'cherry_picker', 'viewer']).optional(),
       companyId: z.string().optional(),
+      defaultLotCode: z.string().nullable().optional(), // Part B fix v4.5.4
       password: z.string().min(6).optional(),
     }))
     .mutation(async ({ input }) => {

@@ -22,6 +22,7 @@ import BatchReinvoice from "@/pages/BatchReinvoice";
 import WebhookMonitoring from "@/pages/WebhookMonitoring";
 import FranchiseDashboard from "@/pages/FranchiseDashboard";
 import CustomerApp from "@/pages/CustomerApp";
+import FieldUsers from "@/pages/FieldUsers";
 import PEBuildings from "@/pages/PropertyEnumeration/Buildings";
 import PESessions from "@/pages/PropertyEnumeration/Sessions";
 import PEAnalytics from "@/pages/PropertyEnumeration/Analytics";
@@ -141,6 +142,11 @@ function Router() {
       <Route path="/users">
         <ProtectedRoute>
           <Users />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/field-users">
+        <ProtectedRoute>
+          <FieldUsers />
         </ProtectedRoute>
       </Route>
       <Route path="/lots">
