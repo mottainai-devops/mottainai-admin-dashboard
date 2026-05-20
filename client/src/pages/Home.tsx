@@ -157,6 +157,30 @@ export default function Home() {
             </Card>
           </Link>
 
+          <Link href="/field-users">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-indigo-100 rounded-lg">
+                    <Smartphone className="h-8 w-8 text-indigo-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Field Users</CardTitle>
+                    <CardDescription>Manage mobile app field workers</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600 mb-4">
+                  Create and manage property enumeration field workers. Assign companies and lot codes so enumerators can register buildings.
+                </p>
+                <div className="flex items-center text-indigo-600 font-medium">
+                  Manage Field Users <ArrowRight className="ml-2 h-4 w-4" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
           <Link href="/cherry-pickers">
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>
