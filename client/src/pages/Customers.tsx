@@ -50,6 +50,7 @@ export default function Customers() {
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [uploadCompanyId, setUploadCompanyId] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
@@ -98,6 +99,7 @@ export default function Customers() {
       utils.customers.list.invalidate();
       setIsUploadDialogOpen(false);
       setCsvFile(null);
+      setUploadCompanyId("");
     },
     onError: (error) => {
       toast.error(`Bulk upload failed: ${error.message}`);
@@ -150,10 +152,10 @@ export default function Customers() {
         return;
       }
 
-      // Determine ownerCompanyId from current filter or first company
-      const ownerCompanyId = selectedCompany !== 'all' ? selectedCompany : (companies?.[0]?.companyId ?? '');
+      // Determine ownerCompanyId from the dialog's own company selector
+      const ownerCompanyId = uploadCompanyId;
       if (!ownerCompanyId) {
-        toast.error('Please select a company filter before uploading');
+        toast.error('Please select a company before uploading');
         return;
       }
 
@@ -251,6 +253,22 @@ export default function Customers() {
                 <form onSubmit={handleBulkUpload}>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
+                      <Label htmlFor="upload-company">Company <span className="text-destructive">*</span></Label>
+                      <Select value={uploadCompanyId} onValueChange={setUploadCompanyId} required>
+                        <SelectTrigger id="upload-company">
+                          <SelectValue placeholder="Select a company..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies?.map((c) => (
+                            <SelectItem key={c.companyId} value={c.companyId}>
+                              {c.companyName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">All uploaded records will be assigned to this company.</p>
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="csvFile">CSV File</Label>
                       <Input
                         id="csvFile"
@@ -261,9 +279,6 @@ export default function Customers() {
                       />
                       <p className="text-sm text-muted-foreground">
                         Required columns: customerName, address, lotCode. Optional: phone, email, customerType
-                      </p>
-                      <p className="text-sm text-amber-600 font-medium">
-                        ⚠ Select a Company filter above before uploading so records are assigned correctly.
                       </p>
                     </div>
 
@@ -283,7 +298,7 @@ export default function Customers() {
                     <Button type="button" variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={bulkUploadMutation.isPending}>
+                    <Button type="submit" disabled={bulkUploadMutation.isPending || !uploadCompanyId}>
                       {bulkUploadMutation.isPending ? "Uploading..." : "Upload"}
                     </Button>
                   </DialogFooter>
