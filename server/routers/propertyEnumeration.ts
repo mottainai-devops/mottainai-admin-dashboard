@@ -627,6 +627,7 @@ export const propertyEnumerationRouter = router({
         notes: z.string().optional().nullable(),
         propertyType: z.string().optional(),
         numberOfUnits: z.number().optional(),
+        syncedToArcGIS: z.boolean().optional(), // Allow admin to manually mark sync status
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -669,6 +670,12 @@ export const propertyEnumerationRouter = router({
       }
       if (input.numberOfUnits !== undefined) {
         updateFields.numberOfUnits = input.numberOfUnits;
+      }
+      if (input.syncedToArcGIS !== undefined) {
+        updateFields.syncedToArcGIS = input.syncedToArcGIS;
+        if (input.syncedToArcGIS) {
+          updateFields.syncedAt = new Date();
+        }
       }
 
       await buildingsCollection.updateOne(
