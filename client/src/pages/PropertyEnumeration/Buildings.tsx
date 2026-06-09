@@ -364,13 +364,30 @@ export default function Buildings() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedBuilding(building)}
-                        >
-                          View Details
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedBuilding(building)}
+                          >
+                            View Details
+                          </Button>
+                          {!building.syncedToArcGIS && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                updateBuildingMutation.mutate({
+                                  buildingId: building._id,
+                                  syncedToArcGIS: true,
+                                })
+                              }
+                              disabled={updateBuildingMutation.isPending}
+                            >
+                              Mark Synced
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
