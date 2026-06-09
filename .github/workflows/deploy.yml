@@ -96,7 +96,8 @@ jobs:
             # Swap — rsync WITHOUT --delete to preserve server-side files
             # (start.sh, .env, uploads, etc.) that are not in the build tarball.
             # Rule: never use rsync --delete when deploying to the live directory.
-            rsync -a /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
+            # Use --checksum so files with same name+size but different content are overwritten.
+            rsync -a --checksum /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
 
             echo "=== Restarting PM2 process ==="
             pm2 restart mottainai-dashboard --update-env
