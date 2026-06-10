@@ -138,6 +138,10 @@ export const customersRouter = router({
           c.companyName ||
           c.ownerCompanyId ||
           '';
+        // ArcGIS-native Customer ID: arcgisBuildingId + unitCode (v3.5.0)
+        const arcgisCustomerId = c.arcgisBuildingId && c.unitCode
+          ? `${c.arcgisBuildingId} ${c.unitCode}`
+          : null;
         return {
           ...c,
           _id: c._id?.toString?.() ?? c._id,
@@ -145,6 +149,10 @@ export const customersRouter = router({
           companyName: resolvedCompanyName,
           isFixedBilling: fixedBillingMap.has(c.customerId),
           billingType: fixedBillingMap.has(c.customerId) ? 'Fixed Billing' : 'PAYT / Monthly',
+          // Expose ArcGIS composite fields explicitly for frontend
+          arcgisBuildingId: c.arcgisBuildingId ?? null,
+          unitCode: c.unitCode ?? null,
+          customerId: arcgisCustomerId ?? c.customerId ?? null,
         };
       });
 
@@ -367,7 +375,10 @@ export const customersRouter = router({
         phone: z.string().optional(),
         email: z.string().optional(),
         lotCode: z.string(),
-        customerType: z.enum(['residential', 'commercial']).optional()
+        customerType: z.enum(['residential', 'commercial']).optional(),
+        // ArcGIS-native identity fields (v3.5.0)
+        arcgisBuildingId: z.string().optional(),
+        unitCode: z.string().optional()
       })),
       ownerCompanyId: z.string()
     }))
@@ -434,7 +445,13 @@ export const customersRouter = router({
             results.updated++;
           } else {
             // Create new customer
-            const customerId = `CUST-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+            // ArcGIS-native Customer ID: arcgisBuildingId + unitCode (v3.5.0)
+            // Fall back to CUST- format only when ArcGIS fields are not available
+            const arcgisCustomerId = customerData.arcgisBuildingId && customerData.unitCode
+              ? `${customerData.arcgisBuildingId} ${customerData.unitCode}`
+              : null;
+            const customerId = arcgisCustomerId ||
+              `CUST-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
             
             await Customer.create({
               customerId,
@@ -445,6 +462,9 @@ export const customersRouter = router({
               lotCode: customerData.lotCode,
               lotName: lotName,
               customerType: customerData.customerType || 'residential',
+              // ArcGIS identity fields
+              arcgisBuildingId: customerData.arcgisBuildingId || null,
+              unitCode: customerData.unitCode || null,
               servingCompanyId: ownerCompanyId,
               servingCompanyName: ownerCompany.companyName,
               ownerCompanyId: ownerCompanyId,

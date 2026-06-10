@@ -194,10 +194,21 @@ export default function PickupRecords() {
                   keyExtractor={(pickup: any) => pickup._id}
                   columns={[
                     {
-                      key: "buildingId",
+                      key: "customerId",
                       label: "Customer ID",
                       sortable: true,
-                      render: (pickup: any) => pickup.buildingId || "N/A",
+                      render: (pickup: any) => {
+                        // ArcGIS-native Customer ID: arcgisBuildingId + unitCode (v3.5.0)
+                        const arcgisId = pickup.arcgisBuildingId || pickup.buildingId;
+                        const unitCode = pickup.unitCode || pickup.flat_no;
+                        const compositeId = pickup.customerId ||
+                          (arcgisId && unitCode ? `${arcgisId} ${unitCode}` : null);
+                        return (
+                          <span className="font-mono text-xs" title={compositeId || arcgisId || 'N/A'}>
+                            {compositeId || arcgisId || 'N/A'}
+                          </span>
+                        );
+                      },
                     },
                     {
                       key: "customerName",

@@ -30,6 +30,8 @@ interface Customer {
   lastPickupDate?: Date;
   createdAt: Date;
   arcgisBuildingId?: string;
+  unitCode?: string;
+  customerId?: string;
   linkedBuildingId?: string;
   digitalizationStatus?: 'digitalized' | 'not-digitalized';
   linkedAt?: Date;
@@ -541,16 +543,27 @@ export default function Customers() {
                 },
                 {
                   key: "arcgisBuildingId",
-                  label: "ArcGIS Building ID",
+                  label: "Customer ID",
                   sortable: true,
-                  render: (customer) => customer.arcgisBuildingId ? (
-                    <span className="font-mono text-xs flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-blue-500 shrink-0" />
-                      {customer.arcgisBuildingId}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground text-xs">—</span>
-                  ),
+                  render: (customer: any) => {
+                    // ArcGIS-native Customer ID: arcgisBuildingId + unitCode (v3.5.0)
+                    const arcgisId = customer.arcgisBuildingId;
+                    const unitCode = customer.unitCode;
+                    const compositeId = arcgisId && unitCode ? `${arcgisId} ${unitCode}` : null;
+                    return compositeId ? (
+                      <span className="font-mono text-xs flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-green-500 shrink-0" />
+                        {compositeId}
+                      </span>
+                    ) : arcgisId ? (
+                      <span className="font-mono text-xs flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-blue-500 shrink-0" />
+                        {arcgisId}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    );
+                  },
                 },
                 {
                   key: "createdAt",
@@ -666,7 +679,14 @@ export default function Customers() {
                   <div><span className="text-muted-foreground">Total Pickups</span><p className="font-medium">{detailCustomer.totalPickups}</p></div>
                   <div><span className="text-muted-foreground">Last Pickup</span><p className="font-medium">{detailCustomer.lastPickupDate ? format(new Date(detailCustomer.lastPickupDate), 'MMM d, yyyy') : '—'}</p></div>
                   <div><span className="text-muted-foreground">Registered</span><p className="font-medium">{detailCustomer.createdAt ? format(new Date(detailCustomer.createdAt), 'MMM d, yyyy') : '—'}</p></div>
-                  <div><span className="text-muted-foreground">Customer ID</span><p className="font-mono text-xs">{detailCustomer._id}</p></div>
+                  <div><span className="text-muted-foreground">Customer ID</span>
+                    <p className="font-mono text-xs">
+                      {/* ArcGIS-native Customer ID: arcgisBuildingId + unitCode (v3.5.0) */}
+                      {detailCustomer.arcgisBuildingId && detailCustomer.unitCode
+                        ? `${detailCustomer.arcgisBuildingId} ${detailCustomer.unitCode}`
+                        : (detailCustomer.customerId || detailCustomer._id)}
+                    </p>
+                  </div>
                   <div><span className="text-muted-foreground">Digitalisation</span>
                     <p className="mt-0.5">
                       {detailCustomer.digitalizationStatus === 'digitalized'
@@ -676,17 +696,38 @@ export default function Customers() {
                     {detailCustomer.linkedAt && <p className="text-xs text-muted-foreground mt-0.5">Linked on {format(new Date(detailCustomer.linkedAt), 'MMM d, yyyy')}</p>}
                   </div>
                 </div>
-                {/* ArcGIS Building ID */}
+                {/* ArcGIS Identity */}
                 <div className="rounded-md border p-3 bg-muted/40">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <MapPin className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium">ArcGIS Building ID</span>
+                    <span className="text-sm font-medium">ArcGIS Identity</span>
                   </div>
-                  {detailCustomer.arcgisBuildingId ? (
-                    <p className="font-mono text-sm text-blue-700 break-all">{detailCustomer.arcgisBuildingId}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not linked to any ArcGIS polygon</p>
-                  )}
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground text-xs">Building ID (polygon)</span>
+                      {detailCustomer.arcgisBuildingId ? (
+                        <p className="font-mono text-xs text-blue-700 break-all mt-0.5">{detailCustomer.arcgisBuildingId}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5">Not linked</p>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs">Unit Code (flat_no)</span>
+                      {detailCustomer.unitCode ? (
+                        <p className="font-mono text-xs font-semibold mt-0.5">{detailCustomer.unitCode}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5">—</p>
+                      )}
+                    </div>
+                    {detailCustomer.arcgisBuildingId && detailCustomer.unitCode && (
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground text-xs">Customer ID (composite)</span>
+                        <p className="font-mono text-xs text-green-700 font-semibold mt-0.5">
+                          {detailCustomer.arcgisBuildingId} {detailCustomer.unitCode}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                   {detailCustomer.linkedBuildingId && (
                     <p className="text-xs text-muted-foreground mt-1">Linked Building: {detailCustomer.linkedBuildingId}</p>
                   )}
