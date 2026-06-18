@@ -100,6 +100,8 @@ export async function updateCompany(
       monthlyWebhook: string;
     }>;
     active: boolean;
+    companyType: 'franchisor' | 'franchisee' | 'independent';
+    parentCompanyId: string | null;
   }>
 ): Promise<ICompany | null> {
   try {

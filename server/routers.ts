@@ -105,6 +105,8 @@ export const appRouter = router({
           monthlyWebhook: z.string(),
         })).optional(),
         active: z.boolean().optional(),
+        companyType: z.enum(['franchisor', 'franchisee', 'independent']).optional(),
+        parentCompanyId: z.string().nullable().optional(),
       }))
       .mutation(async ({ input }) => {
         const { id, ...updateData } = input;
