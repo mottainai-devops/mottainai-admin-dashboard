@@ -8,16 +8,13 @@ import { Search, MapPin, Building2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface Lot {
-  OBJECTID: number;
-  lga_code: number;
-  ward_name: string;
-  ward_code: string;
-  Lot_ID: number;
-  socio_economic_groups: string;
-  lga_name: string;
-  state_code: string;
-  state_name: string;
-  Business_Name: string;
+  id: string;
+  lotCode: string;
+  lotName: string;
+  paytWebhook: string;
+  monthlyWebhook: string;
+  companyId: string;
+  companyName: string;
 }
 
 interface SelectedLot {
@@ -35,44 +32,53 @@ interface LotSelectorProps {
 export function LotSelector({ selectedLots, onLotsChange }: LotSelectorProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  
-  const { data: availableLots, isLoading } = trpc.lots.list.useQuery();
-  
+
+  // lots.list returns { lots: [...], totalCount: N, ... } — unwrap the array
+  const { data: lotsResponse, isLoading } = trpc.lots.list.useQuery(undefined);
+  const availableLots: Lot[] = Array.isArray(lotsResponse)
+    ? lotsResponse
+    : Array.isArray((lotsResponse as any)?.lots)
+      ? (lotsResponse as any).lots
+      : [];
+
   const filteredLots = useMemo(() => {
-    if (!availableLots || !searchQuery) return availableLots || [];
-    
+    if (!searchQuery) return availableLots;
     const query = searchQuery.toLowerCase();
     return availableLots.filter((lot: Lot) =>
-      lot.Lot_ID.toString().includes(query) ||
-      lot.ward_name.toLowerCase().includes(query) ||
-      lot.Business_Name.toLowerCase().includes(query) ||
-      lot.lga_name.toLowerCase().includes(query)
+      lot.lotCode.toLowerCase().includes(query) ||
+      lot.lotName.toLowerCase().includes(query) ||
+      lot.companyName.toLowerCase().includes(query)
     );
   }, [availableLots, searchQuery]);
-  
+
   const handleSelectLot = (lot: Lot) => {
+    // Avoid duplicates
+    if (selectedLots.some((s) => s.lotCode === lot.lotCode)) return;
     const newLot: SelectedLot = {
-      lotCode: `LOT-${lot.Lot_ID}`,
-      lotName: `${lot.ward_name} (${lot.lga_name})`,
-      paytWebhook: "",
-      monthlyWebhook: "",
+      lotCode: lot.lotCode,
+      lotName: lot.lotName,
+      paytWebhook: lot.paytWebhook || "",
+      monthlyWebhook: lot.monthlyWebhook || "",
     };
-    
     onLotsChange([...selectedLots, newLot]);
     setSearchQuery("");
     setShowDropdown(false);
   };
-  
+
   const handleRemoveLot = (index: number) => {
     onLotsChange(selectedLots.filter((_, i) => i !== index));
   };
-  
-  const handleWebhookChange = (index: number, field: "paytWebhook" | "monthlyWebhook", value: string) => {
+
+  const handleWebhookChange = (
+    index: number,
+    field: "paytWebhook" | "monthlyWebhook",
+    value: string
+  ) => {
     const updated = [...selectedLots];
     updated[index][field] = value;
     onLotsChange(updated);
   };
-  
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -87,46 +93,40 @@ export function LotSelector({ selectedLots, onLotsChange }: LotSelectorProps) {
               setShowDropdown(true);
             }}
             onFocus={() => setShowDropdown(true)}
+            onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
             className="pl-10"
           />
-          
+
           {showDropdown && searchQuery && (
-            <Card className="absolute z-50 w-full mt-2 max-h-[300px] overflow-y-auto">
+            <Card className="absolute z-50 w-full mt-2 max-h-[300px] overflow-y-auto shadow-lg">
               <CardContent className="p-2">
                 {isLoading ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     Loading lots...
                   </div>
-                ) : filteredLots && filteredLots.length > 0 ? (
+                ) : filteredLots.length > 0 ? (
                   <div className="space-y-1">
                     {filteredLots.map((lot: Lot) => (
                       <button
-                        key={lot.OBJECTID}
+                        key={lot.id}
                         type="button"
-                        onClick={() => handleSelectLot(lot)}
+                        onMouseDown={() => handleSelectLot(lot)}
                         className="w-full text-left p-3 hover:bg-accent rounded-md transition-colors"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <Badge variant="outline" className="font-mono">
-                                LOT-{lot.Lot_ID}
-                              </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {lot.socio_economic_groups}
+                                {lot.lotCode}
                               </Badge>
                             </div>
                             <div className="text-sm font-medium truncate">
-                              {lot.ward_name}
+                              {lot.lotName}
                             </div>
                             <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                               <span className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {lot.lga_name}, {lot.state_name}
-                              </span>
-                              <span className="flex items-center gap-1">
                                 <Building2 className="h-3 w-3" />
-                                {lot.Business_Name}
+                                {lot.companyName}
                               </span>
                             </div>
                           </div>
@@ -136,7 +136,7 @@ export function LotSelector({ selectedLots, onLotsChange }: LotSelectorProps) {
                   </div>
                 ) : (
                   <div className="p-4 text-center text-sm text-muted-foreground">
-                    No lots found matching "{searchQuery}"
+                    No lots found matching &quot;{searchQuery}&quot;
                   </div>
                 )}
               </CardContent>
@@ -144,10 +144,10 @@ export function LotSelector({ selectedLots, onLotsChange }: LotSelectorProps) {
           )}
         </div>
         <p className="text-sm text-muted-foreground">
-          {availableLots?.length || 0} active operational lots available
+          {availableLots.length} active operational lots available
         </p>
       </div>
-      
+
       {selectedLots.length > 0 && (
         <div className="space-y-3">
           <Label>Selected Lots ({selectedLots.length})</Label>
@@ -175,7 +175,9 @@ export function LotSelector({ selectedLots, onLotsChange }: LotSelectorProps) {
                   <Input
                     id={`paytWebhook_${index}`}
                     value={lot.paytWebhook}
-                    onChange={(e) => handleWebhookChange(index, "paytWebhook", e.target.value)}
+                    onChange={(e) =>
+                      handleWebhookChange(index, "paytWebhook", e.target.value)
+                    }
                     placeholder="https://..."
                     required
                   />
@@ -185,7 +187,9 @@ export function LotSelector({ selectedLots, onLotsChange }: LotSelectorProps) {
                   <Input
                     id={`monthlyWebhook_${index}`}
                     value={lot.monthlyWebhook}
-                    onChange={(e) => handleWebhookChange(index, "monthlyWebhook", e.target.value)}
+                    onChange={(e) =>
+                      handleWebhookChange(index, "monthlyWebhook", e.target.value)
+                    }
                     placeholder="https://..."
                     required
                   />

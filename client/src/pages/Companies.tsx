@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -370,6 +371,7 @@ export default function Companies() {
   const [isBackfillOpen, setIsBackfillOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [createLots, setCreateLots] = useState<OperationalLot[]>([]);
+  const [createCompanyType, setCreateCompanyType] = useState<'franchisee' | 'independent'>('franchisee');
   const [editLots, setEditLots] = useState<OperationalLot[]>([]);
   const [showPins, setShowPins] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState('all');
@@ -405,16 +407,37 @@ export default function Companies() {
     onError: (error) => toast.error(`Failed to delete company: ${error.message}`),
   });
 
+  // Mottainai is the franchisor — find it from the companies list
+  const mottainaiCompany = (companies as Company[] | undefined)?.find(
+    (c: Company) => c.companyType === 'franchisor'
+  );
+
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     if (createLots.length === 0) { toast.error("Please add at least one operational lot"); return; }
-    createMutation.mutate({
-      companyId: formData.get('companyId') as string,
-      companyName: formData.get('companyName') as string,
-      pin: formData.get('pin') as string,
-      operationalLots: createLots,
-    });
+    createMutation.mutate(
+      {
+        companyId: formData.get('companyId') as string,
+        companyName: formData.get('companyName') as string,
+        pin: formData.get('pin') as string,
+        operationalLots: createLots,
+      },
+      {
+        onSuccess: (created: any) => {
+          // After creation, set companyType and parentCompanyId via update
+          if (created?._id) {
+            updateMutation.mutate({
+              id: created._id,
+              companyType: createCompanyType,
+              parentCompanyId: createCompanyType === 'franchisee' && mottainaiCompany
+                ? mottainaiCompany._id
+                : null,
+            });
+          }
+        },
+      }
+    );
   };
 
   const handleEdit = (company: Company) => {
@@ -524,6 +547,21 @@ export default function Companies() {
                     <div className="space-y-2">
                       <Label htmlFor="pin">Mobile App PIN (4-6 digits)</Label>
                       <Input id="pin" name="pin" required placeholder="e.g., 1234" minLength={4} maxLength={6} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Company Type</Label>
+                      <Select
+                        value={createCompanyType}
+                        onValueChange={(v) => setCreateCompanyType(v as 'franchisee' | 'independent')}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="franchisee">Franchisee (under Mottainai)</SelectItem>
+                          <SelectItem value="independent">Independent</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <LotSelector selectedLots={createLots} onLotsChange={setCreateLots} />
                   </div>
