@@ -331,6 +331,7 @@ export default function PickupRecords() {
                           webapp_current: "default",
                           webapp_old: "secondary",
                           mobile_app: "outline",
+                          field_worker: "secondary",
                           survey123: "outline",
                           unknown: "destructive",
                         };
@@ -338,6 +339,7 @@ export default function PickupRecords() {
                           webapp_current: "Web Form",
                           webapp_old: "Web Form (Legacy)",
                           mobile_app: "Mobile App",
+                          field_worker: "FieldWorker",
                           survey123: "Survey123",
                           unknown: "Unknown",
                         };

@@ -28,7 +28,7 @@ export interface PickupFilters {
   lotId?: string;
   binType?: string;
   paymentType?: "PAYT" | "Monthly" | "all";
-  source?: "webapp_current" | "webapp_old" | "mobile_app" | "unknown" | "all";
+  source?: "webapp_current" | "webapp_old" | "mobile_app" | "field_worker" | "unknown" | "all";
   arcgisBuildingId?: string;
 }
 
@@ -286,7 +286,7 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
               onValueChange={(value) =>
                 onFiltersChange({
                   ...filters,
-                  source: value as "webapp_current" | "webapp_old" | "mobile_app" | "unknown" | "all",
+                  source: value as "webapp_current" | "webapp_old" | "mobile_app" | "field_worker" | "unknown" | "all",
                 })
               }
             >
@@ -298,6 +298,7 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
                 <SelectItem value="webapp_current">Webapp (Current)</SelectItem>
                 <SelectItem value="webapp_old">Webapp (Old)</SelectItem>
                 <SelectItem value="mobile_app">Mobile App</SelectItem>
+                <SelectItem value="field_worker">FieldWorker</SelectItem>
                 <SelectItem value="unknown">Unknown</SelectItem>
               </SelectContent>
             </Select>
