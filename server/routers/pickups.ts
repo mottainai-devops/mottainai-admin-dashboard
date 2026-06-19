@@ -20,7 +20,7 @@ export const pickupsRouter = router({
         lotId: z.string().optional(),
         binType: z.string().optional(),
         paymentType: z.enum(["PAYT", "Monthly"]).optional(),
-        source: z.enum(["webapp_current", "webapp_old", "mobile_app", "unknown"]).optional(),
+        source: z.enum(["webapp_current", "webapp_old", "mobile_app", "field_worker", "unknown"]).optional(),
         arcgisBuildingId: z.string().optional(),
       }).optional()
     )
@@ -554,7 +554,7 @@ export const pickupsRouter = router({
         lotId: z.string().optional(),
         binType: z.string().optional(),
         paymentType: z.enum(['PAYT', 'Monthly']).optional(),
-        source: z.enum(['webapp_current', 'webapp_old', 'mobile_app', 'unknown']).optional(),
+        source: z.enum(['webapp_current', 'webapp_old', 'mobile_app', 'field_worker', 'unknown']).optional(),
         arcgisBuildingId: z.string().optional(),
         search: z.string().optional(),
       }).optional()
