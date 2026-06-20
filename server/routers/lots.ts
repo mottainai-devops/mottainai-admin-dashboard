@@ -26,6 +26,12 @@ export const lotsRouter = router({
     .input(z.object({
       userId: z.string().optional(), // User ID for role-based filtering
       companyId: z.string().optional(), // Optional: filter lots to a specific company (admin use)
+      // search: free-text filter applied after role/company filtering.
+      // Used by FieldScheduler server-to-server enrichment calls to narrow
+      // the result to a specific lotCode without a separate endpoint.
+      search: z.string().optional(),
+      page: z.number().optional(),
+      limit: z.number().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
       try {
@@ -83,6 +89,18 @@ export const lotsRouter = router({
         // Apply optional admin company filter (overrides role-based result for admins/cherry-pickers)
         if (input?.companyId && user.role !== 'user') {
           filteredLots = filteredLots.filter(lot => lot.companyId === input.companyId);
+        }
+
+        // Apply optional free-text search filter (lotCode or lotName, case-insensitive).
+        // This is the primary path used by FieldScheduler server-to-server enrichment:
+        // it passes search=<lotCode> to resolve webhook URLs for a specific lot.
+        if (input?.search) {
+          const s = input.search.toLowerCase();
+          filteredLots = filteredLots.filter(
+            lot =>
+              lot.lotCode.toLowerCase().includes(s) ||
+              lot.lotName.toLowerCase().includes(s)
+          );
         }
 
         return {
