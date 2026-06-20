@@ -37,11 +37,72 @@ export const lotsRouter = router({
       try {
         // Resolve the acting user:
         // 1. Prefer session user from ctx (admin dashboard cookie/JWT login)
-        // 2. Fall back to userId input (mobile app)
+        // 2. Fall back to userId input (legacy mobile app path)
+        // 3. Fall back to companyId-only service-to-server path (FieldScheduler enrichment)
+        //    In this case no user record is needed — the caller is trusted to pass a valid
+        //    companyId and we filter directly by it.
+        //    TODO(security): Replace with a signed JWT or shared secret header so that
+        //    companyId cannot be guessed/spoofed by an unauthenticated caller.
         let user: any = ctx.user || null;
         if (!user && input?.userId && input.userId !== 'admin-placeholder') {
           user = await User.findById(input.userId);
         }
+
+        // Service-to-server path: companyId provided without a user session.
+        // Return all lots for that company directly, bypassing role-based filtering.
+        if (!user && input?.companyId) {
+          const companies = await Company.find({ active: true }).select('companyName operationalLots');
+          const allLots = companies.flatMap(company =>
+            company.operationalLots.map(lot => ({
+              id: `${company._id}_${lot.lotCode}`,
+              lotCode: lot.lotCode,
+              lotName: lot.lotName,
+              paytWebhook: lot.paytWebhook,
+              monthlyWebhook: lot.monthlyWebhook,
+              companyId: company._id.toString(),
+              companyName: company.companyName,
+            }))
+          );
+          // Filter by the short companyId string stored on the Company document
+          // (e.g. "MOTTAINAI") — match against both _id and the companyId field.
+          let filteredLots = allLots.filter(lot =>
+            lot.companyId === input.companyId ||
+            lot.companyName?.toUpperCase() === input.companyId.toUpperCase()
+          );
+          // Also try matching against Company.companyId field directly
+          if (filteredLots.length === 0) {
+            const matchedCompany = await (Company as any).findOne({
+              $or: [
+                { companyId: input.companyId },
+                { companyId: { $regex: new RegExp(`^${input.companyId}$`, 'i') } },
+              ]
+            }).select('_id companyName operationalLots');
+            if (matchedCompany) {
+              filteredLots = matchedCompany.operationalLots.map((lot: any) => ({
+                id: `${matchedCompany._id}_${lot.lotCode}`,
+                lotCode: lot.lotCode,
+                lotName: lot.lotName,
+                paytWebhook: lot.paytWebhook,
+                monthlyWebhook: lot.monthlyWebhook,
+                companyId: matchedCompany._id.toString(),
+                companyName: matchedCompany.companyName,
+              }));
+            }
+          }
+          if (input?.search) {
+            const s = input.search.toLowerCase();
+            filteredLots = filteredLots.filter(
+              lot => lot.lotCode.toLowerCase().includes(s) || lot.lotName.toLowerCase().includes(s)
+            );
+          }
+          return {
+            lots: filteredLots,
+            totalCount: filteredLots.length,
+            userRole: 'service',
+            message: `Showing ${filteredLots.length} lots for company ${input.companyId}`
+          };
+        }
+
         // If still no user, require authentication
         if (!user) {
           return {
