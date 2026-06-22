@@ -63,8 +63,9 @@ import {
 const fmt = (kobo: number) =>
   `₦${(kobo / 100).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
 
-// 120L Wheelie removed — deprecated, not in tariff matrix (Item 4, 2026-06-22)
-const BIN_TYPES = ["240L", "660L", "1100L", "MAMMOTH (1100 LITRE)", "7-11 TONNE COMPACTOR", "27 CBM DINO BIN", "sachet", "other"] as const;
+// Canonical bin types aligned with server normalizeBinType() and Zoho item IDs.
+// Removed: 120L (deprecated → 240L per 2026-06-22), sachet, other (no pricing/Zoho item mapping).
+const BIN_TYPES = ["240L", "660L", "1100L", "MAMMOTH (1100 LITRE)", "7-11 TONNE COMPACTOR", "27 CBM DINO BIN"] as const;
 const FREQUENCIES = [
   { value: "once_weekly", label: "Once a week" },
   { value: "twice_weekly", label: "Twice a week" },
@@ -446,7 +447,7 @@ function AgreementsTab() {
       `# Customer IDs for ${scopeLabel}`,
       '# Full name (auto-filled from system)',
       `# Options: ${tariffCodes || 'see Tariff Schedule tab'}`,
-      '# 240L | 360L | 1100L | MAMMOTH (1100 LITRE) | 7-11 TONNE COMPACTOR | 27 CBM DINO BIN',
+      '# 240L | 660L | 1100L | MAMMOTH (1100 LITRE) | 7-11 TONNE COMPACTOR | 27 CBM DINO BIN',
       '# Once a week | Twice a week | Three times a week | Daily',
       '# Number of bins (default 1)',
       '# Agreed price in Naira e.g. 10500.00',
