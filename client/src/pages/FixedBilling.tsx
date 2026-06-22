@@ -63,7 +63,8 @@ import {
 const fmt = (kobo: number) =>
   `₦${(kobo / 100).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
 
-const BIN_TYPES = ["120L", "240L", "660L", "1100L", "MAMMOTH (1100 LITRE)", "7-11 TONNE COMPACTOR", "27 CBM DINO BIN", "sachet", "other"] as const;
+// 120L Wheelie removed — deprecated, not in tariff matrix (Item 4, 2026-06-22)
+const BIN_TYPES = ["240L", "660L", "1100L", "MAMMOTH (1100 LITRE)", "7-11 TONNE COMPACTOR", "27 CBM DINO BIN", "sachet", "other"] as const;
 const FREQUENCIES = [
   { value: "once_weekly", label: "Once a week" },
   { value: "twice_weekly", label: "Twice a week" },
