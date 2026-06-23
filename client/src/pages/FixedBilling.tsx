@@ -63,9 +63,20 @@ import {
 const fmt = (kobo: number) =>
   `₦${(kobo / 100).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
 
-// Canonical bin types aligned with server normalizeBinType() and Zoho item IDs.
-// Removed: 120L (deprecated → 240L per 2026-06-22), sachet, other (no pricing/Zoho item mapping).
-const BIN_TYPES = ["240L", "660L", "1100L", "MAMMOTH (1100 LITRE)", "7-11 TONNE COMPACTOR", "27 CBM DINO BIN"] as const;
+// Canonical bin types — must match CANONICAL_COMMERCIAL_BIN_TYPES in normalizeBinType.js
+// and BinTypeEnum in server/routers/fixedBilling.ts.
+// Item 5 (Tranche 5B): removed stale values (120L, 660L, 1100L, sachet, other).
+// 660L was never a Zoho item; 1100L is superseded by MAMMOTH (1100 LITRE).
+// 27 CBM DINO BIN maps to 18 CBM DINO BIN_ in Zoho via normalizeBinType.
+const BIN_TYPES = [
+  "240 LITRE WHEELIE BIN",
+  "MAMMOTH (1100 LITRE)",
+  "6CBM SKIP BIN",
+  "10 CBM SKIP BIN",
+  "18 CBM DINO BIN_",
+  "27 CBM COMPACTOR_",
+  "7-11 TONNE COMPACTOR",
+] as const;
 const FREQUENCIES = [
   { value: "once_weekly", label: "Once a week" },
   { value: "twice_weekly", label: "Twice a week" },
@@ -98,7 +109,7 @@ function TariffScheduleTab() {
   const [form, setForm] = useState({
     tariffCode: "",
     label: "",
-    binType: "240L",
+    binType: "240 LITRE WHEELIE BIN",
     frequency: "once_weekly",
     binsCount: 1,
     monthlyPriceKobo: 0,
@@ -373,7 +384,7 @@ function AgreementsTab() {
     companyName: "",
     lotCode: "",
     tariffCode: "",
-    binType: "240L",
+    binType: "240 LITRE WHEELIE BIN",
     frequency: "once_weekly",
     binsCount: 1,
     officialMonthlyPriceKobo: 0,
@@ -447,7 +458,7 @@ function AgreementsTab() {
       `# Customer IDs for ${scopeLabel}`,
       '# Full name (auto-filled from system)',
       `# Options: ${tariffCodes || 'see Tariff Schedule tab'}`,
-      '# 240L | 660L | 1100L | MAMMOTH (1100 LITRE) | 7-11 TONNE COMPACTOR | 27 CBM DINO BIN',
+      '# 240 LITRE WHEELIE BIN | MAMMOTH (1100 LITRE) | 6CBM SKIP BIN | 10 CBM SKIP BIN | 18 CBM DINO BIN_ | 27 CBM COMPACTOR_ | 7-11 TONNE COMPACTOR',
       '# Once a week | Twice a week | Three times a week | Daily',
       '# Number of bins (default 1)',
       '# Agreed price in Naira e.g. 10500.00',
@@ -459,7 +470,7 @@ function AgreementsTab() {
     ]);
     (templateCustomers ?? []).forEach((c: any) => {
       rows.push([
-        c.customerId, c.customerName, '', '240L',
+        c.customerId, c.customerName, '', '240 LITRE WHEELIE BIN',
         'Once a week', '1', '', '0',
         today, 'TRUE', 'TRUE', '',
       ]);
@@ -550,7 +561,7 @@ function AgreementsTab() {
           return {
             customerId: row['customerid'] || row['customer_id'] || '',
             tariffCode: row['tariffcode'] || row['tariff_code'] || '',
-            binType: row['bintype'] || row['bin_type'] || '240L',
+            binType: row['bintype'] || row['bin_type'] || '240 LITRE WHEELIE BIN',
             frequency: row['frequency'] || 'once_weekly',
             binsCount: parseInt(row['binscount'] || row['bins_count'] || '1') || 1,
             agreedMonthlyPriceKobo: Math.round(parseFloat(row['agreedmonthlyprice'] || row['agreed_monthly_price'] || '0') * 100),
@@ -1193,6 +1204,7 @@ function AgreementsTab() {
               <p className="font-semibold mb-1">Required CSV columns:</p>
               <code>customerId, tariffCode, agreedMonthlyPrice, openingBalance, startDate, notifyBySms, notifyByEmail, notes</code>
               <p className="mt-1">Optional: binType, frequency, binsCount. Prices in Naira (e.g. 10500.00). Dates as YYYY-MM-DD.</p>
+              <p className="mt-1">Valid binType values: <code>240 LITRE WHEELIE BIN | MAMMOTH (1100 LITRE) | 6CBM SKIP BIN | 10 CBM SKIP BIN | 18 CBM DINO BIN_ | 27 CBM COMPACTOR_ | 7-11 TONNE COMPACTOR</code></p>
               <p className="mt-1 text-blue-600">Customer IDs must exist in the system under the selected company scope.</p>
             </div>
 

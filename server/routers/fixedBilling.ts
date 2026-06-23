@@ -30,7 +30,18 @@ import {
 
 // ─── Shared Zod Schemas ───────────────────────────────────────────────────────
 
-const BinTypeEnum = z.enum(['120L', '240L', '660L', '1100L', 'MAMMOTH (1100 LITRE)', '7-11 TONNE COMPACTOR', '27 CBM DINO BIN', 'sachet', 'other']);
+// Item 5 (Tranche 5B): updated to match CANONICAL_COMMERCIAL_BIN_TYPES in normalizeBinType.js.
+// Removed: 120L (deprecated → 240L), 240L (stale shorthand), 660L (no Zoho item), 1100L (superseded),
+// 27 CBM DINO BIN (maps to 18 CBM DINO BIN_ via normalizeBinType), sachet, other.
+const BinTypeEnum = z.enum([
+  '240 LITRE WHEELIE BIN',
+  'MAMMOTH (1100 LITRE)',
+  '6CBM SKIP BIN',
+  '10 CBM SKIP BIN',
+  '18 CBM DINO BIN_',
+  '27 CBM COMPACTOR_',
+  '7-11 TONNE COMPACTOR',
+]);
 const FrequencyEnum = z.enum([
   'once_weekly',
   'twice_weekly',
