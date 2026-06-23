@@ -30,16 +30,16 @@ import {
 
 // ─── Shared Zod Schemas ───────────────────────────────────────────────────────
 
-// Item 5 (Tranche 5B): updated to match CANONICAL_COMMERCIAL_BIN_TYPES in normalizeBinType.js.
-// Removed: 120L (deprecated → 240L), 240L (stale shorthand), 660L (no Zoho item), 1100L (superseded),
-// 27 CBM DINO BIN (maps to 18 CBM DINO BIN_ via normalizeBinType), sachet, other.
+// 6 canonical entries — must match BIN_TYPES in client/src/pages/FixedBilling.tsx
+// and CANONICAL_COMMERCIAL_BIN_TYPES in normalizeBinType.js.
+// '27 CBM COMPACTOR_' removed (Tranche 5B correction): it is a variant input that normalizes
+// TO '7-11 TONNE COMPACTOR', not a canonical entry. Including it reintroduces drift.
 const BinTypeEnum = z.enum([
   '240 LITRE WHEELIE BIN',
   'MAMMOTH (1100 LITRE)',
   '6CBM SKIP BIN',
   '10 CBM SKIP BIN',
   '18 CBM DINO BIN_',
-  '27 CBM COMPACTOR_',
   '7-11 TONNE COMPACTOR',
 ]);
 const FrequencyEnum = z.enum([

@@ -63,18 +63,16 @@ import {
 const fmt = (kobo: number) =>
   `₦${(kobo / 100).toLocaleString("en-NG", { minimumFractionDigits: 2 })}`;
 
-// Canonical bin types — must match CANONICAL_COMMERCIAL_BIN_TYPES in normalizeBinType.js
-// and BinTypeEnum in server/routers/fixedBilling.ts.
-// Item 5 (Tranche 5B): removed stale values (120L, 660L, 1100L, sachet, other).
-// 660L was never a Zoho item; 1100L is superseded by MAMMOTH (1100 LITRE).
-// 27 CBM DINO BIN maps to 18 CBM DINO BIN_ in Zoho via normalizeBinType.
+// Canonical bin types (6 entries) — must match BinTypeEnum in server/routers/fixedBilling.ts
+// and CANONICAL_COMMERCIAL_BIN_TYPES in normalizeBinType.js.
+// Tranche 5B Item 5: removed stale values (120L, 660L, 1100L, sachet, other, 27 CBM COMPACTOR_).
+// '27 CBM COMPACTOR_' is a variant INPUT that normalizes TO '7-11 TONNE COMPACTOR' — not a canonical entry.
 const BIN_TYPES = [
   "240 LITRE WHEELIE BIN",
   "MAMMOTH (1100 LITRE)",
   "6CBM SKIP BIN",
   "10 CBM SKIP BIN",
   "18 CBM DINO BIN_",
-  "27 CBM COMPACTOR_",
   "7-11 TONNE COMPACTOR",
 ] as const;
 const FREQUENCIES = [
@@ -458,7 +456,7 @@ function AgreementsTab() {
       `# Customer IDs for ${scopeLabel}`,
       '# Full name (auto-filled from system)',
       `# Options: ${tariffCodes || 'see Tariff Schedule tab'}`,
-      '# 240 LITRE WHEELIE BIN | MAMMOTH (1100 LITRE) | 6CBM SKIP BIN | 10 CBM SKIP BIN | 18 CBM DINO BIN_ | 27 CBM COMPACTOR_ | 7-11 TONNE COMPACTOR',
+      '# 240 LITRE WHEELIE BIN | MAMMOTH (1100 LITRE) | 6CBM SKIP BIN | 10 CBM SKIP BIN | 18 CBM DINO BIN_ | 7-11 TONNE COMPACTOR',
       '# Once a week | Twice a week | Three times a week | Daily',
       '# Number of bins (default 1)',
       '# Agreed price in Naira e.g. 10500.00',
@@ -1204,7 +1202,7 @@ function AgreementsTab() {
               <p className="font-semibold mb-1">Required CSV columns:</p>
               <code>customerId, tariffCode, agreedMonthlyPrice, openingBalance, startDate, notifyBySms, notifyByEmail, notes</code>
               <p className="mt-1">Optional: binType, frequency, binsCount. Prices in Naira (e.g. 10500.00). Dates as YYYY-MM-DD.</p>
-              <p className="mt-1">Valid binType values: <code>240 LITRE WHEELIE BIN | MAMMOTH (1100 LITRE) | 6CBM SKIP BIN | 10 CBM SKIP BIN | 18 CBM DINO BIN_ | 27 CBM COMPACTOR_ | 7-11 TONNE COMPACTOR</code></p>
+              <p className="mt-1">Valid binType values: <code>240 LITRE WHEELIE BIN | MAMMOTH (1100 LITRE) | 6CBM SKIP BIN | 10 CBM SKIP BIN | 18 CBM DINO BIN_ | 7-11 TONNE COMPACTOR</code></p>
               <p className="mt-1 text-blue-600">Customer IDs must exist in the system under the selected company scope.</p>
             </div>
 
