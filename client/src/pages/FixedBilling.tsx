@@ -65,14 +65,13 @@ const fmt = (kobo: number) =>
 
 // Canonical bin types (6 entries) — must match BinTypeEnum in server/routers/fixedBilling.ts
 // and CANONICAL_COMMERCIAL_BIN_TYPES in normalizeBinType.js.
-// Tranche 5B Item 5: removed stale values (120L, 660L, 1100L, sachet, other, 27 CBM COMPACTOR_).
-// '27 CBM COMPACTOR_' is a variant INPUT that normalizes TO '7-11 TONNE COMPACTOR' — not a canonical entry.
+// Tranche 5B Item 5: removed stale values (120L, 660L, 1100L, sachet, other).
 const BIN_TYPES = [
   "240 LITRE WHEELIE BIN",
   "MAMMOTH (1100 LITRE)",
   "6CBM SKIP BIN",
   "10 CBM SKIP BIN",
-  "18 CBM DINO BIN_",
+  "27 CBM DINO BIN",
   "7-11 TONNE COMPACTOR",
 ] as const;
 const FREQUENCIES = [
@@ -234,7 +233,7 @@ function TariffScheduleTab() {
             <div className="space-y-1">
               <Label>Tariff Code</Label>
               <Input
-                placeholder="e.g. RES-240L-2W"
+                placeholder="e.g. RES-240L-2W → RES-WHEELIE-2W"
                 value={form.tariffCode}
                 onChange={(e) => setForm({ ...form, tariffCode: e.target.value.toUpperCase() })}
               />
@@ -242,7 +241,7 @@ function TariffScheduleTab() {
             <div className="space-y-1">
               <Label>Label</Label>
               <Input
-                placeholder="e.g. Residential 240L Twice Weekly"
+                placeholder="e.g. Residential 240 LITRE WHEELIE BIN Twice Weekly"
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
               />
