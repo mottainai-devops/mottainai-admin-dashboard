@@ -2,8 +2,8 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { getUserByEmail, getUserById } from '../mongodb';
-import { getCompanyByCompanyId } from '../db';
 import { ENV } from '../_core/env';
+import { resolveMobileAssignedLots } from '../services/mobileAssignedLots';
 
 const router = Router();
 
@@ -69,31 +69,9 @@ router.post('/login', async (req, res) => {
 
     console.log(`[MobileAuth] Login successful for ${email} (${user.role})`);
 
-    // Resolve company operationalLots for assignedLots (Part A fix v4.5.4)
-    // This fixes 'No lots assigned to your account' for newly registered users
-    let assignedLots: Array<{ lotCode: string; lotName?: string; description?: string; isActive?: boolean }> = [];
-    let resolvedDefaultLotCode = (user as any).defaultLotCode || null;
-
-    if (user.companyId) {
-      try {
-        const company = await getCompanyByCompanyId(user.companyId);
-        if (company && (company as any).operationalLots?.length > 0) {
-          assignedLots = (company as any).operationalLots.map((lot: any) => ({
-            lotCode: lot.lotCode,
-            lotName: lot.lotName || lot.lotCode,
-            description: lot.description || '',
-            isActive: lot.isActive !== false,
-          }));
-          // Derive defaultLotCode from first active lot if not already set on user
-          if (!resolvedDefaultLotCode) {
-            const firstActive = assignedLots.find(l => l.isActive !== false);
-            resolvedDefaultLotCode = (firstActive || assignedLots[0])?.lotCode || null;
-          }
-        }
-      } catch (err) {
-        console.warn('[MobileAuth] Could not resolve company lots:', err);
-      }
-    }
+    // One shared resolver keeps /login and /me consistent. All-lots roles are
+    // restricted to active Mottainai-parented franchisees, never Independents.
+    const { assignedLots, defaultLotCode: resolvedDefaultLotCode } = await resolveMobileAssignedLots(user);
 
     // Return user data and token
     res.json({
@@ -152,29 +130,8 @@ router.get('/me', async (req, res) => {
       });
     }
 
-    // Resolve company operationalLots for assignedLots (/me endpoint — Part A fix v4.5.4)
-    let meAssignedLots: Array<{ lotCode: string; lotName?: string; description?: string; isActive?: boolean }> = [];
-    let meDefaultLotCode = (user as any).defaultLotCode || null;
-
-    if (user.companyId) {
-      try {
-        const company = await getCompanyByCompanyId(user.companyId);
-        if (company && (company as any).operationalLots?.length > 0) {
-          meAssignedLots = (company as any).operationalLots.map((lot: any) => ({
-            lotCode: lot.lotCode,
-            lotName: lot.lotName || lot.lotCode,
-            description: lot.description || '',
-            isActive: lot.isActive !== false,
-          }));
-          if (!meDefaultLotCode) {
-            const firstActive = meAssignedLots.find(l => l.isActive !== false);
-            meDefaultLotCode = (firstActive || meAssignedLots[0])?.lotCode || null;
-          }
-        }
-      } catch (err) {
-        console.warn('[MobileAuth] /me: Could not resolve company lots:', err);
-      }
-    }
+    // Use the same resolver as /login so a refresh cannot erase an all-lots cache.
+    const { assignedLots: meAssignedLots, defaultLotCode: meDefaultLotCode } = await resolveMobileAssignedLots(user);
 
     res.json({
       success: true,
