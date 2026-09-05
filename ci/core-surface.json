@@ -12,6 +12,8 @@
     "server/routers/companiesSetup.ts",
     "server/routers/companyPortal.ts",
     "server/routers/pickups.ts",
+    "server/routers/realWebhook.ts",
+    "server/routers/testing.ts",
     "server/routers/webhook.ts",
     "shared/types.ts"
   ],

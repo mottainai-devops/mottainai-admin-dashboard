@@ -36,8 +36,9 @@ export default function QATools() {
   const [backfillLimit, setBackfillLimit] = useState(100);
   const [backfillResult, setBackfillResult] = useState<{ total: number; enriched: number; failed: number; message: string } | null>(null);
 
-  const { data: companies } = trpc.companies.list.useQuery();
+  const { data: configuredWebhookTargets } = trpc.webhook.getConfiguredTestTargets.useQuery();
   const testWebhookMutation = trpc.testing.testWebhook.useMutation();
+  const testConfiguredWebhookMutation = trpc.webhook.testConfiguredEndpoint.useMutation();
   const geoBackfillMutation = trpc.propertyEnumeration.triggerGeoBackfill.useMutation({
     onSuccess: (result) => {
       setBackfillResult(result);
@@ -77,9 +78,26 @@ export default function QATools() {
     }
   };
 
-  const handleQuickTest = (url: string) => {
-    setWebhookUrl(url);
-    setTimeout(() => handleTestWebhook(), 100);
+  const handleQuickTest = async (target: {
+    companyId: string;
+    lotCode: string;
+    webhookType: "payt" | "monthly";
+  }) => {
+    setIsTesting(true);
+    try {
+      const result = await testConfiguredWebhookMutation.mutateAsync(target);
+      setTestResult(result);
+      if (result.status === 'pass') {
+        toast.success("Configured webhook test passed!");
+      } else {
+        toast.error("Configured webhook test failed");
+      }
+    } catch (error: any) {
+      setTestResult({ name: 'Configured webhook test', status: 'fail', message: error.message || 'Test execution failed' });
+      toast.error("Failed to test configured webhook");
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   return (
@@ -139,19 +157,23 @@ export default function QATools() {
             </div>
 
             {/* Quick Test Buttons */}
-            {companies && companies.length > 0 && (
+            {configuredWebhookTargets && configuredWebhookTargets.length > 0 && (
               <div className="space-y-2">
                 <Label>Quick Test (Select Company Webhook)</Label>
                 <div className="flex flex-wrap gap-2">
-                  {companies.slice(0, 3).map((company: any) =>
-                    company.operationalLots?.slice(0, 1).map((lot: any) => (
+                  {configuredWebhookTargets.slice(0, 3).map((target) =>
+                    target.availableTypes.slice(0, 1).map((webhookType) => (
                       <Button
-                        key={`${company.companyId}-${lot.lotCode}`}
+                        key={`${target.companyId}-${target.lotCode}-${webhookType}`}
                         variant="outline"
                         size="sm"
-                        onClick={() => handleQuickTest(lot.paytWebhook)}
+                        onClick={() => handleQuickTest({
+                          companyId: target.companyId,
+                          lotCode: target.lotCode,
+                          webhookType,
+                        })}
                       >
-                        {company.companyName} - {lot.lotCode} (PAYT)
+                        {target.companyName} - {target.lotCode} ({webhookType.toUpperCase()})
                       </Button>
                     ))
                   )}

@@ -39,6 +39,8 @@ describe("core-green CI boundary", () => {
     expect(rootRouter).toContain("billing: billingRouter");
     expect(rootRouter).toContain("companiesSetup: companiesSetupRouter");
     expect(rootRouter).toContain("pickups: pickupsRouter");
+    expect(rootRouter).toContain("realWebhook: realWebhookRouter");
+    expect(rootRouter).toContain("testing: testingRouter");
     expect(rootRouter).toContain("webhook: webhookRouter");
   });
 });

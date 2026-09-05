@@ -197,19 +197,6 @@ export const appRouter = router({
   // Customer App management (accounts, pickup requests, invites)
   customerApp: customerAppRouter,
 
-  // Maps configuration - returns Google Maps script URL using server-side API key
-  maps: router({
-    getScriptUrl: publicProcedure.query(() => {
-      const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || '';
-      if (!googleMapsApiKey) {
-        throw new Error('Maps API not configured on this server (GOOGLE_MAPS_API_KEY missing)');
-      }
-      return {
-        scriptUrl: `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&v=weekly&libraries=places,geocoding,geometry,visualization`,
-      };
-    }),
-  }),
-
   // Super-admin only operations
   superAdmin: router({
     triggerGeoBackfill: protectedProcedure

@@ -1,17 +1,16 @@
 import { z } from 'zod';
-import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
+import { adminProcedure, publicProcedure, router } from '../_core/trpc';
 import { TRPCError } from '@trpc/server';
 
 const BACKEND_API_URL = 'http://172.232.24.180:3000';
 const ARCGIS_BASE_URL = 'https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/Nigeria_Building_Footprints/FeatureServer/0';
-const ARCGIS_API_KEY = 'AAPTxy8BH1VEsoebNVZXo8HurDkT4HeplNOm_pLCsV2-wHXD7esJFqWCGo3oDxTaOVO68fIzhjQ4gSKqccl-uynuHunhlN5t3E_x5N010mOKYQRyFm3vYXqvila3dJ3Ax81DMK2WyxFt6mqhwzxdkdhmm7USv7-cQi07L_22-MTRC95Rns1BHueP3kR_yXyAyh1WEFAm9Q7KFELPkRpT_5cjWvbDo2rWZhtHOb5xFr_7bOA.AT1_n5wNkDcc';
+const ARCGIS_SERVER_KEY = process.env.ARCGIS_SERVER_KEY || "";
 
 interface TestResult {
   name: string;
   status: 'pass' | 'fail' | 'warning';
   message: string;
   duration: number;
-  details?: any;
 }
 
 /**
@@ -21,7 +20,7 @@ export const testingRouter = router({
   /**
    * Test company API endpoint
    */
-  testCompanyAPI: protectedProcedure.query(async (): Promise<TestResult> => {
+  testCompanyAPI: adminProcedure.query(async (): Promise<TestResult> => {
     const startTime = Date.now();
     
     try {
@@ -49,24 +48,15 @@ export const testingRouter = router({
           status: 'fail',
           message: 'Invalid response format',
           duration,
-          details: data,
         };
       }
 
-      return {
-        name: 'Company API',
-        status: 'pass',
-        message: `Successfully fetched ${data.data.length} companies`,
-        duration,
-        details: {
-          companyCount: data.data.length,
-          companies: data.data.map((c: any) => ({
-            id: c.companyId,
-            name: c.companyName,
-            lots: c.operationalLots.length,
-          })),
-        },
-      };
+        return {
+          name: 'Company API',
+          status: 'pass',
+          message: `Successfully fetched ${data.data.length} companies`,
+          duration,
+        };
     } catch (error) {
       return {
         name: 'Company API',
@@ -80,13 +70,21 @@ export const testingRouter = router({
   /**
    * Test ArcGIS Feature Service
    */
-  testArcGIS: protectedProcedure
+  testArcGIS: adminProcedure
     .input(z.object({
       lat: z.number().default(6.5244), // Lagos, Nigeria
       lon: z.number().default(3.3792),
     }))
     .query(async ({ input }): Promise<TestResult> => {
       const startTime = Date.now();
+      if (!ARCGIS_SERVER_KEY) {
+        return {
+          name: 'ArcGIS Feature Service',
+          status: 'warning',
+          message: 'ArcGIS server credential is not configured',
+          duration: 0,
+        };
+      }
       
       try {
         const geometry = encodeURIComponent(JSON.stringify({
@@ -104,7 +102,7 @@ export const testingRouter = router({
           `&outFields=building_id,lga_name,lga_code,state_code,ward_name,ward_code,latitude,longitude,house_name,flat_no,Description,Enlistment` +
           `&returnGeometry=true` +
           `&f=json` +
-          `&token=${ARCGIS_API_KEY}`;
+          `&token=${encodeURIComponent(ARCGIS_SERVER_KEY)}`;
 
         const response = await fetch(url, {
           method: 'GET',
@@ -129,7 +127,6 @@ export const testingRouter = router({
             status: 'fail',
             message: data.error.message || 'ArcGIS API error',
             duration,
-            details: data.error,
           };
         }
 
@@ -139,7 +136,6 @@ export const testingRouter = router({
             status: 'warning',
             message: 'No features found in response',
             duration,
-            details: data,
           };
         }
 
@@ -148,17 +144,6 @@ export const testingRouter = router({
           status: 'pass',
           message: `Found ${data.features.length} building polygons`,
           duration,
-          details: {
-            featureCount: data.features.length,
-            sampleFeatures: data.features.slice(0, 3).map((f: any) => ({
-              buildingId: f.attributes?.building_id,
-              lgaName: f.attributes?.lga_name,
-              stateCode: f.attributes?.state_code,
-              latitude: f.attributes?.latitude,
-              longitude: f.attributes?.longitude,
-              hasGeometry: !!f.geometry,
-            })),
-          },
         };
       } catch (error) {
         return {
@@ -173,7 +158,7 @@ export const testingRouter = router({
   /**
    * Test webhook endpoint
    */
-  testWebhook: protectedProcedure
+  testWebhook: adminProcedure
     .input(z.object({
       webhookUrl: z.string().url(),
     }))
@@ -214,23 +199,11 @@ export const testingRouter = router({
           };
         }
 
-        const responseText = await response.text();
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch {
-          responseData = responseText;
-        }
-
         return {
           name: 'Webhook Test',
           status: 'pass',
           message: 'Webhook accepted test payload',
           duration,
-          details: {
-            url: input.webhookUrl,
-            response: responseData,
-          },
         };
       } catch (error) {
         return {
@@ -245,7 +218,7 @@ export const testingRouter = router({
   /**
    * Run all tests
    */
-  runAllTests: protectedProcedure.query(async ({ ctx }) => {
+  runAllTests: adminProcedure.query(async ({ ctx }) => {
     const results: TestResult[] = [];
 
     // Test 1: Company API
@@ -317,13 +290,15 @@ export const testingRouter = router({
 
     // Check ArcGIS
     try {
-      const response = await fetch(`${ARCGIS_BASE_URL}?f=json&token=${ARCGIS_API_KEY}`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
-      });
+      const response = ARCGIS_SERVER_KEY
+        ? await fetch(`${ARCGIS_BASE_URL}?f=json&token=${encodeURIComponent(ARCGIS_SERVER_KEY)}`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(5000),
+          })
+        : null;
       checks.push({
         service: 'ArcGIS',
-        status: response.ok ? 'healthy' : 'unhealthy',
+        status: response?.ok ? 'healthy' : 'unhealthy',
         responseTime: 0,
       });
     } catch {
