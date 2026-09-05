@@ -1,4 +1,4 @@
-import { router, publicProcedure } from '../_core/trpc';
+import { adminProcedure, router, publicProcedure } from '../_core/trpc';
 import { z } from 'zod';
 import { FormSubmission } from '../models/FormSubmission';
 import { Company } from '../models/Company';
@@ -306,7 +306,7 @@ export const pickupsRouter = router({
     }),
 
   // Update pickup status (not applicable to FormSubmission, kept for compatibility)
-  updateStatus: publicProcedure
+  updateStatus: adminProcedure
     .input(
       z.object({
         id: z.string(),
@@ -480,7 +480,7 @@ export const pickupsRouter = router({
 
   // Backfill 27 CBM DINO BIN amounts to correct tariff (₦320,000 per bin)
   // dryRun=true audits without changing; dryRun=false applies the fix
-  backfillDinoBinAmount: publicProcedure
+  backfillDinoBinAmount: adminProcedure
     .input(z.object({ dryRun: z.boolean().default(true) }))
     .mutation(async ({ input }) => {
       try {

@@ -277,6 +277,7 @@ function AgreementsTab({ companyId }: { companyId: string }) {
 // ─── Ledger Tab ───────────────────────────────────────────────────────────────
 
 function LedgerTab({ companyId }: { companyId: string }) {
+  const { token } = useCompanyPortal();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
   const [batchConfirm, setBatchConfirm] = useState(false);
@@ -289,13 +290,22 @@ function LedgerTab({ companyId }: { companyId: string }) {
     limit: 20,
   });
 
-  // Poll batch job status via billing router
-  const { data: jobStatus } = trpc.billing.getBatchJobStatus.useQuery(
-    { jobId: jobId! },
-    { enabled: !!jobId, refetchInterval: jobId ? 3000 : false }
+  const { data: batchPreview } = trpc.companyPortal.getBatchPreview.useQuery(
+    { portalToken: token ?? "", page: 1, limit: 100 },
+    { enabled: !!token }
   );
 
-  const batchMutation = trpc.billing.triggerBatchReinvoice.useMutation({
+  const eligibleRecordIds = (batchPreview?.records ?? [])
+    .map((record: any) => String(record._id))
+    .filter(Boolean);
+
+  // The portal operation must remain scoped by its verified portal token.
+  const { data: jobStatus } = trpc.companyPortal.getBatchJobStatus.useQuery(
+    { portalToken: token ?? "", jobId: jobId! },
+    { enabled: !!jobId && !!token, refetchInterval: jobId && token ? 3000 : false }
+  );
+
+  const batchMutation = trpc.companyPortal.triggerBatch.useMutation({
     onSuccess: (r) => {
       setJobId(r.jobId ?? null);
       setBatchConfirm(false);
@@ -305,7 +315,7 @@ function LedgerTab({ companyId }: { companyId: string }) {
   });
 
   // Stop polling when done
-  if (jobStatus?.job && (jobStatus.job.status === "completed" || jobStatus.job.status === "failed")) {
+  if (jobStatus && (jobStatus.status === "done" || jobStatus.status === "failed")) {
     if (jobId) {
       setJobId(null);
       refetch();
@@ -340,7 +350,7 @@ function LedgerTab({ companyId }: { companyId: string }) {
           {statusFilter !== "paid" && statusFilter !== "waived" && (
             <Button
               onClick={() => setBatchConfirm(true)}
-              disabled={!!jobId || batchMutation.isPending}
+              disabled={!!jobId || batchMutation.isPending || !token || eligibleRecordIds.length === 0}
             >
               {jobId ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -359,20 +369,20 @@ function LedgerTab({ companyId }: { companyId: string }) {
           <div className="flex items-center gap-2 mb-2">
             <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
             <span className="font-medium text-blue-800">
-              Sending payment requests… {jobStatus?.job?.processed ?? 0}/{jobStatus?.job?.total ?? 0}
+              Sending payment requests… {jobStatus?.processed ?? 0}/{jobStatus?.total ?? 0}
             </span>
           </div>
           <div className="w-full bg-blue-200 rounded-full h-2">
             <div
               className="bg-blue-600 h-2 rounded-full transition-all"
               style={{
-                width: `${(jobStatus?.job?.total ?? 0) > 0 ? ((jobStatus?.job?.processed ?? 0) / (jobStatus?.job?.total ?? 1)) * 100 : 0}%`,
+                width: `${(jobStatus?.total ?? 0) > 0 ? ((jobStatus?.processed ?? 0) / (jobStatus?.total ?? 1)) * 100 : 0}%`,
               }}
             />
           </div>
           <div className="flex gap-4 mt-2 text-sm text-blue-700">
-            <span>✓ {jobStatus?.job?.success ?? 0} sent</span>
-            <span>✗ {jobStatus?.job?.failed ?? 0} failed</span>
+            <span>✓ {jobStatus?.success ?? 0} sent</span>
+            <span>✗ {jobStatus?.failed ?? 0} failed</span>
           </div>
         </div>
       )}
@@ -500,8 +510,12 @@ function LedgerTab({ companyId }: { companyId: string }) {
               Cancel
             </Button>
             <Button
-              onClick={() => batchMutation.mutate({ recordIds: [], dryRun: false })}
-              disabled={batchMutation.isPending}
+              onClick={() => batchMutation.mutate({
+                portalToken: token ?? "",
+                recordIds: eligibleRecordIds,
+                dryRun: false,
+              })}
+              disabled={batchMutation.isPending || !token || eligibleRecordIds.length === 0}
             >
               {batchMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Send Payment Requests

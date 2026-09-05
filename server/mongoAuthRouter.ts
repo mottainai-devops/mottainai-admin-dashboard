@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -192,7 +192,7 @@ export const mongoAuthRouter = router({
   }),
 
   // Create new user
-  createUser: publicProcedure
+  createUser: adminProcedure
     .input(
       z.object({
         username: z.string().min(3),
@@ -251,7 +251,7 @@ export const mongoAuthRouter = router({
     }),
 
   // Update user
-  updateUser: publicProcedure
+  updateUser: adminProcedure
     .input(
       z.object({
         id: z.string(),
@@ -332,7 +332,7 @@ export const mongoAuthRouter = router({
     }),
 
   // Delete user
-  deleteUser: publicProcedure
+  deleteUser: adminProcedure
     .input(
       z.object({
         id: z.string(),
@@ -498,7 +498,7 @@ export const mongoAuthRouter = router({
     }),
 
   // Bulk import users from CSV
-  bulkImportUsers: publicProcedure
+  bulkImportUsers: adminProcedure
     .input(
       z.object({
         users: z.array(
