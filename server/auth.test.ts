@@ -1,137 +1,194 @@
 import { describe, it, expect } from 'vitest';
+import fs from "node:fs";
+import { randomBytes } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-describe('Authentication Flow', () => {
-  const API_BASE = 'http://localhost:3000/api/trpc';
+const mocks = vi.hoisted(() => ({
+  addAuditLog: vi.fn(),
+  countDocuments: vi.fn().mockResolvedValue(1),
+  findById: vi.fn(),
+  findOne: vi.fn().mockResolvedValue({ _id: { toString: () => "bootstrap-admin" } }),
+  findUsers: vi.fn(),
+  jwtSign: vi.fn(() => "test-token"),
+  jwtVerify: vi.fn(),
+  sendPasswordResetEmail: vi.fn().mockResolvedValue(true),
+}));
 
-  it('should login with correct credentials', async () => {
-    const response = await fetch(`${API_BASE}/simpleAuth.login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        json: {
-          username: 'admin',
-          password: 'admin123',
-        },
-      }),
-    });
+vi.mock("./models/User", () => ({
+  User: {
+    countDocuments: mocks.countDocuments,
+    find: mocks.findUsers,
+    findById: mocks.findById,
+    findOne: mocks.findOne,
+  },
+}));
 
-    expect(response.ok).toBe(true);
-    const data = await response.json();
-    
-    expect(data.result.data.json.success).toBe(true);
-    expect(data.result.data.json.token).toBeDefined();
-    expect(data.result.data.json.user.username).toBe('admin');
-    expect(data.result.data.json.user.role).toBe('admin');
+vi.mock("./mongodb", () => ({
+  connectToMongoDB: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("./auditLog", () => ({ addAuditLog: mocks.addAuditLog }));
+vi.mock("./emailNotification", () => ({
+  sendPasswordResetEmail: mocks.sendPasswordResetEmail,
+}));
+vi.mock("jsonwebtoken", () => ({
+  default: { sign: mocks.jwtSign, verify: mocks.jwtVerify },
+}));
+
+import { mongoAuthRouter } from "./mongoAuthRouter";
+
+const serverDirectory = path.dirname(fileURLToPath(import.meta.url));
+
+const adminUser = {
+  _id: { toString: () => "admin-id" },
+  comparePassword: vi.fn(),
+  email: "admin@example.test",
+  fullName: "Test Administrator",
+  role: "admin",
+  save: vi.fn().mockResolvedValue(undefined),
+  username: "admin",
+};
+
+const createCaller = (user: unknown, authorization?: string) =>
+  mongoAuthRouter.createCaller({
+    adminToken: null,
+    req: {
+      headers: authorization ? { authorization } : {},
+      ip: "127.0.0.1",
+    },
+    res: {},
+    user,
+  } as any);
+
+describe("Mongo authentication router", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.findOne.mockResolvedValue(adminUser);
+    mocks.findById.mockResolvedValue(adminUser);
+    mocks.findUsers.mockReturnValue({ sort: vi.fn().mockResolvedValue([adminUser]) });
+    mocks.sendPasswordResetEmail.mockResolvedValue(true);
+    adminUser.comparePassword.mockResolvedValue(true);
+    adminUser.save.mockResolvedValue(undefined);
+    mocks.jwtSign.mockReturnValue("test-token");
+    mocks.jwtVerify.mockReturnValue({ id: "admin-id", role: "admin", username: "admin" });
   });
 
-  it('should reject login with incorrect password', async () => {
-    const response = await fetch(`${API_BASE}/simpleAuth.login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        json: {
-          username: 'admin',
-          password: 'wrongpassword',
-        },
-      }),
+  it("authenticates a valid Mongo-backed user and returns a signed token", async () => {
+    const result = await createCaller(null).login({
+      password: "test-password",
+      username: "ADMIN",
     });
 
-    const data = await response.json();
-    // Just check that there's an error response
-    expect(data.error).toBeDefined();
+    expect(mocks.findOne).toHaveBeenCalledWith({ username: "admin" });
+    expect(adminUser.comparePassword).toHaveBeenCalledWith("test-password");
+    expect(mocks.jwtSign).toHaveBeenCalled();
+    expect(result).toMatchObject({
+      success: true,
+      token: "test-token",
+      user: { id: "admin-id", role: "admin", username: "admin" },
+    });
   });
 
-  it('should verify token and return user info', async () => {
-    // First login to get token
-    const loginResponse = await fetch(`${API_BASE}/simpleAuth.login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        json: {
-          username: 'admin',
-          password: 'admin123',
-        },
-      }),
-    });
+  it("rejects an unknown user and a wrong password without issuing a token", async () => {
+    mocks.findOne.mockResolvedValueOnce(null);
+    await expect(
+      createCaller(null).login({ password: "test-password", username: "missing" })
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.jwtSign).not.toHaveBeenCalled();
 
-    const loginData = await loginResponse.json();
-    const token = loginData.result.data.json.token;
-
-    // Then verify token
-    const meResponse = await fetch(`${API_BASE}/simpleAuth.me`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    expect(meResponse.ok).toBe(true);
-    const meData = await meResponse.json();
-    
-    expect(meData.result.data.json).toBeDefined();
-    expect(meData.result.data.json.username).toBe('admin');
-    expect(meData.result.data.json.role).toBe('admin');
+    adminUser.comparePassword.mockResolvedValueOnce(false);
+    await expect(
+      createCaller(null).login({ password: "wrong-password", username: "admin" })
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.jwtSign).not.toHaveBeenCalled();
   });
 
-  it('should list users', async () => {
-    const response = await fetch(`${API_BASE}/simpleAuth.listUsers`);
+  it("resolves the current user only from a verified bearer token", async () => {
+    await expect(createCaller(null).me()).resolves.toBeNull();
 
-    expect(response.ok).toBe(true);
-    const data = await response.json();
-    
-    expect(Array.isArray(data.result.data.json)).toBe(true);
-    expect(data.result.data.json.length).toBeGreaterThan(0);
-    expect(data.result.data.json[0].username).toBe('admin');
+    const result = await createCaller(null, "Bearer test-token").me();
+    expect(mocks.jwtVerify).toHaveBeenCalled();
+    expect(mocks.findById).toHaveBeenCalledWith("admin-id");
+    expect(result).toMatchObject({ id: "admin-id", role: "admin", username: "admin" });
   });
 
-  it('should create a new user with hashed password', async () => {
-    // Use unique username to avoid conflicts
-    const uniqueUsername = 'user' + Math.random().toString(36).substring(7);
-    
-    const response = await fetch(`${API_BASE}/simpleAuth.createUser`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        json: {
-          username: uniqueUsername,
-          password: 'testpass123',
-          name: 'Test User',
-          email: 'test@example.com',
-          role: 'user',
-        },
-      }),
+  it("keeps user-directory reads behind the actual verified-admin boundary", async () => {
+    await expect(createCaller(null).listUsers()).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
     });
-
-    expect(response.ok).toBe(true);
-    const data = await response.json();
-    
-    expect(data.result.data.json.success).toBe(true);
-    expect(data.result.data.json.user.username).toBe(uniqueUsername);
-    expect(data.result.data.json.user.role).toBe('user');
-
-    // Verify the new user can login
-    const loginResponse = await fetch(`${API_BASE}/simpleAuth.login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        json: {
-          username: uniqueUsername,
-          password: 'testpass123',
-        },
-      }),
+    await expect(createCaller({ _id: "user-id", role: "user" }).listUsers()).rejects.toMatchObject({
+      code: "FORBIDDEN",
     });
+    await expect(createCaller({ _id: "admin-id", role: "admin" }).listUsers()).resolves.toHaveLength(1);
+  });
 
-    expect(loginResponse.ok).toBe(true);
-    const loginData = await loginResponse.json();
-    expect(loginData.result.data.json.success).toBe(true);
+  it("uses the complete reset-email contract and rejects missing, mismatched, and expired tokens", async () => {
+    const caller = createCaller(null);
+    await expect(
+      caller.requestPasswordReset({ email: "admin@example.test" })
+    ).resolves.toEqual({ success: true });
+
+    expect(mocks.sendPasswordResetEmail).toHaveBeenCalledWith(
+      "admin@example.test",
+      "admin",
+      expect.any(String),
+      expect.any(Date)
+    );
+
+    const [, , issuedToken, expiresAt] = mocks.sendPasswordResetEmail.mock.calls[0] as [
+      string,
+      string,
+      string,
+      Date,
+    ];
+
+    await expect(
+      caller.resetPassword({ newPassword: "test-password", token: "" })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.resetPassword({ newPassword: "test-password" } as never)
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.resetPassword({ newPassword: "test-password", token: null } as never)
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.resetPassword({ newPassword: "test-password", token: randomBytes(32).toString("hex") })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(expiresAt.getTime() + 1));
+    await expect(
+      caller.resetPassword({ newPassword: "test-password", token: issuedToken })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    vi.useRealTimers();
+  });
+
+  it("revokes a reset token when email delivery fails while preserving the generic response", async () => {
+    const caller = createCaller(null);
+    mocks.sendPasswordResetEmail.mockResolvedValueOnce(false);
+
+    await expect(
+      caller.requestPasswordReset({ email: "admin@example.test" })
+    ).resolves.toEqual({ success: true });
+
+    const [, , undeliveredToken] = mocks.sendPasswordResetEmail.mock.calls[0] as [
+      string,
+      string,
+      string,
+      Date,
+    ];
+    await expect(
+      caller.resetPassword({ newPassword: "test-password", token: undeliveredToken })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("mounts the Mongo-backed auth router and never the quarantined legacy router", () => {
+    const rootRouter = fs.readFileSync(path.join(serverDirectory, "routers.ts"), "utf8");
+
+    expect(rootRouter).toContain('import { mongoAuthRouter } from "./mongoAuthRouter"');
+    expect(rootRouter).toContain("simpleAuth: mongoAuthRouter");
+    expect(rootRouter).not.toContain('from "./simpleAuthRouter"');
   });
 });

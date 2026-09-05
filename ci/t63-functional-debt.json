@@ -1,0 +1,131 @@
+{
+  "description": "Mounted functional contract defects excluded from the core-green typecheck. Each item was reviewed as functional-only: no item changes a server authorization tier, creates an anonymous data path, or permits an unauthenticated mutation. Any contrary evidence is a T62 security finding and removes the item from this register.",
+  "items": [
+    {
+      "id": "T63-01",
+      "priority": 1,
+      "area": "Customer transfer",
+      "path": "client/src/pages/Customers.tsx",
+      "route": "/customers",
+      "effect": "The admin-only transfer mutation input and response-state assumptions differ from the mounted server contract.",
+      "securityReview": "functional-only; server/routers/customers.ts declares transfer as adminProcedure"
+    },
+    {
+      "id": "T63-02",
+      "priority": 2,
+      "area": "Audit log",
+      "path": "client/src/pages/AuditLog.tsx",
+      "route": "/audit-log",
+      "effect": "The protected page calls an absent Mongo-auth audit-log procedure and cannot load its expected data.",
+      "securityReview": "functional-only; the mismatch is an absent procedure, not an access-control bypass"
+    },
+    {
+      "id": "T63-03",
+      "priority": 3,
+      "area": "Password reset UI",
+      "path": "client/src/pages/ForgotPassword.tsx",
+      "route": "/forgot-password",
+      "effect": "The UI submits username and expects token details while the repaired server requires email and returns generic success.",
+      "securityReview": "functional-only; the token consumer is tested fail-closed"
+    },
+    {
+      "id": "T63-04",
+      "priority": 4,
+      "area": "Property Enumeration building detail",
+      "path": "server/routers/propertyEnumeration.ts",
+      "route": "propertyEnumeration.getBuildingGeoFields",
+      "effect": "A missing building can trigger an unhandled null dereference instead of a defined not-found result.",
+      "securityReview": "functional-only availability/error-handling issue; procedure remains protectedProcedure"
+    },
+    {
+      "id": "T63-05",
+      "priority": 5,
+      "area": "Property Enumeration building export",
+      "path": "client/src/pages/PropertyEnumeration/Buildings.tsx",
+      "route": "/property-enumeration/buildings",
+      "effect": "The client invokes a query as a mutation and its building response model is incomplete.",
+      "securityReview": "functional-only client/server contract mismatch; route is behind ProtectedRoute"
+    },
+    {
+      "id": "T63-06",
+      "priority": 6,
+      "area": "Property Enumeration analytics",
+      "path": "client/src/pages/PropertyEnumeration/Analytics.tsx",
+      "route": "/property-enumeration/analytics",
+      "effect": "The page calls an absent propertyEnumeration.getCompanies procedure.",
+      "securityReview": "functional-only absent protected-route procedure"
+    },
+    {
+      "id": "T63-07",
+      "priority": 7,
+      "area": "Property Enumeration sessions",
+      "path": "client/src/pages/PropertyEnumeration/Sessions.tsx",
+      "route": "/property-enumeration/sessions",
+      "effect": "The page calls absent getCompanies and getLotCodes procedures for filters.",
+      "securityReview": "functional-only absent protected-route procedures"
+    },
+    {
+      "id": "T63-08",
+      "priority": 8,
+      "area": "Property Enumeration sync monitor",
+      "path": "client/src/pages/PropertyEnumeration/SyncMonitor.tsx",
+      "route": "/property-enumeration/sync-monitor",
+      "effect": "The page calls absent getCompanies and getLotCodes procedures for filters.",
+      "securityReview": "functional-only absent protected-route procedures"
+    },
+    {
+      "id": "T63-09",
+      "priority": 9,
+      "area": "User management",
+      "path": "client/src/pages/Users.tsx",
+      "route": "/users",
+      "effect": "The UI role and audit-field assumptions diverge from the mounted Mongo user-management contract.",
+      "securityReview": "functional-only contract mismatch; user lifecycle mutations remain adminProcedure"
+    },
+    {
+      "id": "T63-10",
+      "priority": 10,
+      "area": "Bulk user import",
+      "path": "client/src/components/BulkUserImport.tsx",
+      "route": "/users",
+      "effect": "The component submits nullable required values and expects an absent import-summary field.",
+      "securityReview": "functional-only client contract mismatch; import remains adminProcedure"
+    },
+    {
+      "id": "T63-11",
+      "priority": 11,
+      "area": "Cherry picker management",
+      "path": "client/src/pages/CherryPickers.tsx",
+      "route": "/cherry-pickers",
+      "effect": "The page sends unsupported directory filters and assumes obsolete object-envelope identifiers.",
+      "securityReview": "functional-only client contract mismatch; route is behind ProtectedRoute"
+    },
+    {
+      "id": "T63-12",
+      "priority": 12,
+      "area": "Franchise dashboard",
+      "path": "client/src/pages/FranchiseDashboard.tsx",
+      "route": "/franchise",
+      "effect": "Filtering and status display assume company/customer fields absent from their current response contracts.",
+      "securityReview": "functional-only presentation/filtering mismatch; route is behind ProtectedRoute"
+    },
+    {
+      "id": "T63-13",
+      "priority": 13,
+      "area": "Billing reports",
+      "path": "client/src/pages/BillingReports.tsx",
+      "route": "/billing-reports",
+      "effect": "Raw report responses do not match the dashboard chart component property model.",
+      "securityReview": "functional-only rendering mismatch; route is behind ProtectedRoute"
+    },
+    {
+      "id": "T63-14",
+      "priority": 14,
+      "area": "Webhook monitoring",
+      "path": "client/src/pages/WebhookMonitoring.tsx",
+      "route": "/webhook-monitoring",
+      "effect": "The page expects unsupported health literals and absent summary fields.",
+      "securityReview": "functional-only health-label mismatch; route is behind ProtectedRoute"
+    }
+  ]
+}

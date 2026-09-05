@@ -7,7 +7,7 @@ export type AuditLogEntry = {
   id: number;
   timestamp: Date;
   action: string;
-  userId?: number;
+  userId?: string | number;
   username?: string;
   details: string;
   ipAddress?: string;
@@ -52,7 +52,10 @@ export function getAuditLogs(limit: number = 100): AuditLogEntry[] {
 /**
  * Get audit logs for a specific user
  */
-export function getUserAuditLogs(userId: number, limit: number = 50): AuditLogEntry[] {
+export function getUserAuditLogs(
+  userId: string | number,
+  limit: number = 50
+): AuditLogEntry[] {
   return AUDIT_LOGS
     .filter(log => log.userId === userId)
     .slice(-limit)

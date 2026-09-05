@@ -1,0 +1,19 @@
+{
+  "description": "Every currently known compiler-error source outside the 13-file security-critical core typecheck. These paths are not silently ignored: functional contract defects are tracked in T63, unmounted legacy files are labeled here, and safe type-only drift remains separately visible for later cleanup.",
+  "items": [
+    { "path": "client/src/components/Header.tsx", "classification": "safe-type-drift", "note": "Authentication context property naming drift." },
+    { "path": "client/src/components/PickupFilters.tsx", "classification": "safe-type-drift", "note": "Nullable select values and callback signature drift." },
+    { "path": "client/src/components/SuperAdminRoute.tsx", "classification": "safe-type-drift", "note": "Authentication hook loading-property naming drift." },
+    { "path": "client/src/pages/CustomerApp.tsx", "classification": "safe-type-drift", "note": "Locally declared response interfaces need alignment with inferred query data." },
+    { "path": "client/src/pages/LotsManagement.tsx", "classification": "safe-type-drift", "note": "TanStack Query v5 option migration is pending." },
+    { "path": "client/src/pages/MonthlyBilling.tsx", "classification": "safe-type-drift", "note": "Explicit any response and filter handler types need replacement." },
+    { "path": "server/lotValidation.ts", "classification": "safe-type-drift", "note": "Obsolete superadmin literal remains in a narrowed role comparison." },
+    { "path": "server/routers/lots.ts", "classification": "safe-type-drift", "note": "Company identifier narrowing is lost inside a callback closure." },
+    { "path": "server/routers/mobileAuth.ts", "classification": "safe-type-drift", "note": "Native Mongo lookup has no assignment-user document type." },
+    { "path": "server/routers/propertyEnumerationRest.ts", "classification": "safe-type-drift", "note": "Express authenticated-request and native Mongo identifier types need alignment." },
+    { "path": "server/routers/users.ts", "classification": "safe-type-drift", "note": "Database helper role union lags the existing Mongo user role model." },
+    { "path": "client/src/pages/Buildings.tsx", "classification": "unmounted-legacy", "note": "Superseded property-enumeration page; not imported by App.tsx." },
+    { "path": "client/src/pages/PickupVerification.tsx", "classification": "unmounted-legacy", "note": "Legacy page; not imported by App.tsx." },
+    { "path": "server/routers/DashboardWidgets.tsx", "classification": "unmounted-legacy", "note": "Legacy React component in server directory; not mounted by the root router." }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "description": "Security-critical active-core modules that must remain type-safe before any further T62 security work resumes. This is intentionally narrower than the full application while T63 functional debt is separately visible and tracked.",
+  "typecheckFiles": [
+    "server/_core/context.ts",
+    "server/_core/trpc.ts",
+    "server/auditLog.ts",
+    "server/emailNotification.ts",
+    "server/models/Company.ts",
+    "server/models/User.ts",
+    "server/mongoAuthRouter.ts",
+    "server/routers/billing.ts",
+    "server/routers/companiesSetup.ts",
+    "server/routers/companyPortal.ts",
+    "server/routers/pickups.ts",
+    "server/routers/webhook.ts",
+    "shared/types.ts"
+  ],
+  "t63Register": "ci/t63-functional-debt.json",
+  "nonCoreTypeDebtRegister": "ci/noncore-type-debt.json",
+  "legacyQuarantine": [
+    "server/simpleAuthRouter.ts",
+    "client/src/pages/Buildings.tsx",
+    "client/src/pages/PickupVerification.tsx",
+    "server/routers/DashboardWidgets.tsx"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [],
+  "exclude": [],
+  "files": [
+    "server/_core/context.ts",
+    "server/_core/trpc.ts",
+    "server/auditLog.ts",
+    "server/emailNotification.ts",
+    "server/models/Company.ts",
+    "server/models/User.ts",
+    "server/mongoAuthRouter.ts",
+    "server/routers/billing.ts",
+    "server/routers/companiesSetup.ts",
+    "server/routers/companyPortal.ts",
+    "server/routers/pickups.ts",
+    "server/routers/webhook.ts",
+    "shared/types.ts"
+  ]
+}

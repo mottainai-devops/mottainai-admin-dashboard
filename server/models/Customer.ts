@@ -96,6 +96,10 @@ export interface ICustomer extends Document {
   
   // Status
   active: boolean;
+  // Backend compatibility aliases used by mobile customer search
+  companyId?: string;
+  isActive?: boolean;
+  phoneNumber?: string;
   createdAt: Date;
   updatedAt: Date;
   createdBy: string; // User ID who added this customer

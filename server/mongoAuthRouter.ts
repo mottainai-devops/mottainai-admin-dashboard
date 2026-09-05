@@ -427,8 +427,25 @@ export const mongoAuthRouter = router({
         expiresAt,
       });
 
-      // Send email
-      await sendPasswordResetEmail(user.email!, resetToken);
+      // Send email. Keep the stored token valid only if the delivery helper
+      // accepts the complete recipient, username, token, and expiry contract.
+      const emailSent = await sendPasswordResetEmail(
+        user.email!,
+        user.username || "",
+        resetToken,
+        expiresAt
+      );
+
+      if (!emailSent) {
+        const tokenIndex = RESET_TOKENS.findIndex(t => t.token === resetToken);
+        if (tokenIndex > -1) {
+          RESET_TOKENS.splice(tokenIndex, 1);
+        }
+
+        // Preserve the existing anti-enumeration response while ensuring an
+        // undelivered reset token cannot subsequently be consumed.
+        return { success: true };
+      }
 
       // Log password reset request
       addAuditLog({

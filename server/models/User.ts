@@ -10,7 +10,7 @@ export interface IUser extends Document {
   fullName: string; // Full name (matches production schema)
   username?: string; // Optional username for login
   email: string | null;
-  phone?: string; // Phone number
+  phone?: string | null; // Phone number
   password: string | null; // Hashed password (bcrypt)
   role: 'admin' | 'user' | 'cherry_picker' | 'viewer';
   companyId?: string | null; // Assigned company for regular users
