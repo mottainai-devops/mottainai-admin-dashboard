@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, router } from "../_core/trpc";
 import { 
   WEBHOOK_ENDPOINTS, 
   checkWebhookHealth, 
@@ -8,15 +8,27 @@ import {
   type WebhookHealthResult 
 } from "../services/realWebhookMonitoring";
 
+export function serializeWebhookHealthForAdmin(result: WebhookHealthResult) {
+  return {
+    id: result.id,
+    name: result.name,
+    category: result.category,
+    status: result.status,
+    statusCode: result.statusCode,
+    responseTime: result.responseTime,
+    checkedAt: result.checkedAt,
+    error: result.error ? 'Health check failed' : undefined,
+  };
+}
+
 export const realWebhookRouter = router({
   /**
    * Get all webhook endpoints configuration
    */
-  getEndpoints: publicProcedure.query(async () => {
+  getEndpoints: adminProcedure.query(async () => {
     return WEBHOOK_ENDPOINTS.map(endpoint => ({
       id: endpoint.id,
       name: endpoint.name,
-      url: endpoint.url,
       method: endpoint.method,
       category: endpoint.category,
       description: endpoint.description,
@@ -26,12 +38,12 @@ export const realWebhookRouter = router({
   /**
    * Check health of all webhooks
    */
-  checkAll: publicProcedure.query(async () => {
+  checkAll: adminProcedure.query(async () => {
     const results = await checkAllWebhooksHealth();
     const summary = getWebhookHealthSummary(results);
     
     return {
-      results,
+      results: results.map(serializeWebhookHealthForAdmin),
       summary,
       lastChecked: new Date(),
     };
@@ -40,7 +52,7 @@ export const realWebhookRouter = router({
   /**
    * Check health of a single webhook
    */
-  checkOne: publicProcedure
+  checkOne: adminProcedure
     .input(z.object({
       id: z.string(),
     }))
@@ -52,13 +64,13 @@ export const realWebhookRouter = router({
       }
       
       const result = await checkWebhookHealth(endpoint);
-      return result;
+      return serializeWebhookHealthForAdmin(result);
     }),
 
   /**
    * Get webhook health summary only (faster)
    */
-  getSummary: publicProcedure.query(async () => {
+  getSummary: adminProcedure.query(async () => {
     const results = await checkAllWebhooksHealth();
     const summary = getWebhookHealthSummary(results);
     
@@ -68,7 +80,7 @@ export const realWebhookRouter = router({
   /**
    * Get webhooks by category
    */
-  getByCategory: publicProcedure
+  getByCategory: adminProcedure
     .input(z.object({
       category: z.enum(['payment', 'accounting', 'sms', 'email', 'database', 'api']),
     }))
@@ -78,6 +90,6 @@ export const realWebhookRouter = router({
         endpoints.map(endpoint => checkWebhookHealth(endpoint))
       );
       
-      return results;
+      return results.map(serializeWebhookHealthForAdmin);
     }),
 });

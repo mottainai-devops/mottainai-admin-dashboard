@@ -35,8 +35,11 @@ import { format } from "date-fns";
 // ─── ArcGIS Layer Registry ────────────────────────────────────────────────────
 // To add a new ArcGIS layer in the future, append an entry here.
 // The layer control panel UI is generated automatically from this registry.
-const ARCGIS_API_KEY =
-  "AAPTxy8BH1VEsoebNVZXo8HurDkT4HeplNOm_pLCsV2-wHXD7esJFqWCGo3oDxTaOVO68fIzhjQ4gSKqccl-uynuHunhlN5t3E_x5N010mOKYQRyFm3vYXqvila3dJ3Ax81DMK2WyxFt6mqhwzxdkdhmm7USv7-cQi07L_22-MTRC95Rns1BHueP3kR_yXyAyh1WEFAm9Q7KFELPkRpT_5cjWvbDo2rWZhtHOb5xFr_7bOA.AT1_n5wNkDcc";
+const ARCGIS_BROWSER_KEY = import.meta.env.VITE_ARCGIS_BROWSER_KEY || "";
+const GOOGLE_MAPS_BROWSER_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY || "";
+const GOOGLE_MAPS_SCRIPT_URL = GOOGLE_MAPS_BROWSER_KEY
+  ? `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY)}&v=weekly&libraries=places,geocoding,geometry,visualization`
+  : null;
 
 const ARCGIS_LAYER_REGISTRY = [
   {
@@ -165,7 +168,10 @@ async function fetchArcGISFeatures(
 
   // ArcGIS requires token as a body param (not Authorization header) for API keys
   if (requiresAuth) {
-    body.set("token", ARCGIS_API_KEY);
+    if (!ARCGIS_BROWSER_KEY) {
+      throw new Error("The browser-restricted ArcGIS key is not configured");
+    }
+    body.set("token", ARCGIS_BROWSER_KEY);
   }
 
   const res = await fetch(`${url}/query`, {
@@ -226,8 +232,6 @@ export default function MapViewPage() {
   const [stats, setStats] = useState({ buildings: 0, totalPickups: 0, unlocated: 0, totalAmount: 0 });
 
   // ── tRPC ───────────────────────────────────────────────────────────────────
-  const { data: mapsConfig, error: mapsConfigError } = trpc.maps.getScriptUrl.useQuery();
-
   const mapDataInput = useMemo(() => ({
     dateFrom: filters.dateFrom?.toISOString(),
     dateTo: filters.dateTo?.toISOString(),
@@ -250,15 +254,14 @@ export default function MapViewPage() {
 
   // ── Load Google Maps SDK ───────────────────────────────────────────────────
   useEffect(() => {
-    if (!mapsConfig?.scriptUrl) return;
-    loadGoogleMapsScript(mapsConfig.scriptUrl)
+    if (!GOOGLE_MAPS_SCRIPT_URL) {
+      setMapError("The browser-restricted Google Maps key is not configured");
+      return;
+    }
+    loadGoogleMapsScript(GOOGLE_MAPS_SCRIPT_URL)
       .then(() => setMapsReady(true))
       .catch((err) => setMapError(err.message));
-  }, [mapsConfig?.scriptUrl]);
-
-  useEffect(() => {
-    if (mapsConfigError) setMapError("Failed to load Maps configuration");
-  }, [mapsConfigError]);
+  }, []);
 
   // ── Initialise map ─────────────────────────────────────────────────────────
   useEffect(() => {
