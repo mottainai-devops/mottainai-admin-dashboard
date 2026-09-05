@@ -1,0 +1,46 @@
+name: Core Green CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  core-green:
+    name: Core Green
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run full isolated test suite
+        run: pnpm test
+
+      - name: Verify visible T63 register and security-critical core types
+        run: pnpm check:core
+
+      - name: Build without deployment
+        env:
+          VITE_APP_TITLE: CI
+          VITE_APP_LOGO: /favicon.ico
+          VITE_ANALYTICS_ENDPOINT: ""
+          VITE_ANALYTICS_WEBSITE_ID: ""
+        run: pnpm build
