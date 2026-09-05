@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { router, publicProcedure } from '../_core/trpc';
+import { adminProcedure, router, publicProcedure } from '../_core/trpc';
 import { Company } from '../models/Company';
 import { MonthlyBillData } from '../models/MonthlyBillData';
 import {
@@ -128,7 +128,7 @@ export const companiesSetupRouter = router({
    * 4. Auto-generate webhook URLs for all operational lots
    * 5. Save everything to the Company document
    */
-  setupPaystack: publicProcedure
+  setupPaystack: adminProcedure
     .input(z.object({
       companyId: z.string(),
       bankCode: z.string(),
@@ -223,7 +223,7 @@ export const companiesSetupRouter = router({
    * It does NOT create new Paystack resources — it only reads what already
    * exists in the billing data and stores the codes on the Company document.
    */
-  backfillSplitCodes: publicProcedure
+  backfillSplitCodes: adminProcedure
     .input(z.object({
       companyId: z.string(),
       dryRun: z.boolean().default(true),
@@ -278,7 +278,7 @@ export const companiesSetupRouter = router({
    * Bulk backfill for ALL independent companies.
    * Runs the inference for each company and returns a summary.
    */
-  bulkBackfillSplitCodes: publicProcedure
+  bulkBackfillSplitCodes: adminProcedure
     .input(z.object({
       dryRun: z.boolean().default(true),
     }))
@@ -370,7 +370,7 @@ export const companiesSetupRouter = router({
   /**
    * Update Paystack percentage charge for a company (without re-creating subaccount).
    */
-  updatePercentage: publicProcedure
+  updatePercentage: adminProcedure
     .input(z.object({
       companyId: z.string(),
       percentageCharge: z.number().min(1).max(99),
@@ -388,7 +388,7 @@ export const companiesSetupRouter = router({
   /**
    * Enable or disable portal access for a company.
    */
-  togglePortalAccess: publicProcedure
+  togglePortalAccess: adminProcedure
     .input(z.object({
       companyId: z.string(),
       enabled: z.boolean(),

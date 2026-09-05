@@ -1,4 +1,4 @@
-import { router, publicProcedure } from '../_core/trpc';
+import { adminProcedure, router, publicProcedure } from '../_core/trpc';
 import { z } from 'zod';
 import {
   testWebhookEndpoint,
@@ -34,7 +34,7 @@ export const webhookRouter = router({
   }),
 
   // Test a single webhook endpoint
-  testEndpoint: publicProcedure
+  testEndpoint: adminProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -59,13 +59,13 @@ export const webhookRouter = router({
     }),
 
   // Check all webhooks
-  checkAll: publicProcedure.mutation(async () => {
+  checkAll: adminProcedure.mutation(async () => {
     await checkAllWebhooks();
     return { success: true, message: 'All webhooks checked successfully' };
   }),
 
   // Send alert for unhealthy webhooks
-  sendAlerts: publicProcedure.mutation(async () => {
+  sendAlerts: adminProcedure.mutation(async () => {
     const unhealthyWebhooks = await getUnhealthyWebhooks();
     
     let alertsSent = 0;

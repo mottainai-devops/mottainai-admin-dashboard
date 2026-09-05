@@ -1,4 +1,4 @@
-import { router, publicProcedure } from '../_core/trpc';
+import { adminProcedure, router, publicProcedure } from '../_core/trpc';
 import { z } from 'zod';
 import {
   getOverallStats,
@@ -412,7 +412,7 @@ export const billingRouter = router({
     }),
 
   /** Trigger a batch reinvoice job — processes entirely within this server */
-  triggerBatchReinvoice: publicProcedure
+  triggerBatchReinvoice: adminProcedure
     .input(
       z.object({
         recordIds: z.array(z.string()).min(1).max(100),
@@ -587,4 +587,3 @@ export const billingRouter = router({
       };
     }),
 });
-

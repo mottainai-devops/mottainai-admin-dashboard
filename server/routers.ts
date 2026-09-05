@@ -20,7 +20,7 @@ import { companiesSetupRouter } from "./routers/companiesSetup";
 import { companyPortalRouter } from "./routers/companyPortal";
 import { fixedBillingRouter } from "./routers/fixedBilling";
 import { customerAppRouter } from "./routers/customerApp";
-import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { adminProcedure, publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import activeLots from "../shared/active_lots.json";
@@ -75,7 +75,7 @@ export const appRouter = router({
         return company;
       }),
     
-    create: publicProcedure
+    create: adminProcedure
       .input(z.object({
         companyId: z.string(),
         companyName: z.string(),
@@ -92,7 +92,7 @@ export const appRouter = router({
         return company;
       }),
     
-    update: publicProcedure
+    update: adminProcedure
       .input(z.object({
         id: z.string(),
         companyId: z.string().optional(),
@@ -114,7 +114,7 @@ export const appRouter = router({
         return company;
       }),
     
-    delete: publicProcedure
+    delete: adminProcedure
       .input(z.object({ id: z.string() }))
       .mutation(async ({ input }) => {
         const success = await db.deleteCompany(input.id);
