@@ -11,6 +11,7 @@ describe("core-green CI boundary", () => {
   it("keeps the core typecheck and visible T63 register in explicit alignment", () => {
     const core = loadJson("ci/core-surface.json");
     const register = loadJson(core.t63Register);
+    const nonCoreDebt = loadJson(core.nonCoreTypeDebtRegister);
     const tsconfig = loadJson("tsconfig.core.json");
 
     expect(register.items).toHaveLength(14);
@@ -25,6 +26,13 @@ describe("core-green CI boundary", () => {
     ).toBe(true);
     expect(tsconfig.files).toEqual(core.typecheckFiles);
     expect(core.legacyQuarantine).toContain("server/simpleAuthRouter.ts");
+    expect(nonCoreDebt.items).toHaveLength(14);
+    expect(new Set(nonCoreDebt.items.map((item: { path: string }) => item.path)).size).toBe(14);
+    expect(
+      nonCoreDebt.items.every((item: { classification: string }) =>
+        ["safe-type-drift", "unmounted-legacy"].includes(item.classification)
+      )
+    ).toBe(true);
 
     const rootRouter = fs.readFileSync(path.join(projectRoot, "server/routers.ts"), "utf8");
     expect(rootRouter).toContain("simpleAuth: mongoAuthRouter");

@@ -16,6 +16,7 @@
     "shared/types.ts"
   ],
   "t63Register": "ci/t63-functional-debt.json",
+  "nonCoreTypeDebtRegister": "ci/noncore-type-debt.json",
   "legacyQuarantine": [
     "server/simpleAuthRouter.ts",
     "client/src/pages/Buildings.tsx",

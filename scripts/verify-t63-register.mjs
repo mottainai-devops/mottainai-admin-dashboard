@@ -7,6 +7,7 @@ const loadJson = relativePath =>
   JSON.parse(fs.readFileSync(path.join(projectRoot, relativePath), "utf8"));
 const core = loadJson("ci/core-surface.json");
 const register = loadJson(core.t63Register);
+const nonCoreDebt = loadJson(core.nonCoreTypeDebtRegister);
 const tsconfig = loadJson("tsconfig.core.json");
 
 const assert = (condition, message) => {
@@ -37,13 +38,29 @@ assert(
   core.legacyQuarantine.includes("server/simpleAuthRouter.ts"),
   "the legacy simple-auth router quarantine must remain explicit"
 );
+assert(nonCoreDebt.items.length === 14, "the non-core type-debt register must list all 14 recorded sources");
+assert(
+  unique(nonCoreDebt.items.map(item => item.path)),
+  "each non-core type-debt source path must be listed once"
+);
+assert(
+  nonCoreDebt.items.every(item => ["safe-type-drift", "unmounted-legacy"].includes(item.classification)),
+  "non-core type debt must use an explicit approved classification"
+);
 assert(
   fs.readFileSync(path.join(projectRoot, "tsconfig.json"), "utf8").includes("server/simpleAuthRouter.ts"),
   "the root configuration must visibly retain the legacy simple-auth quarantine"
 );
 
-for (const relativePath of [...core.typecheckFiles, ...core.legacyQuarantine, ...paths]) {
+for (const relativePath of [
+  ...core.typecheckFiles,
+  ...core.legacyQuarantine,
+  ...paths,
+  ...nonCoreDebt.items.map(item => item.path),
+]) {
   assert(fs.existsSync(path.join(projectRoot, relativePath)), `${relativePath} must exist`);
 }
 
-console.log(`T63 register verified: ${register.items.length} functional-only items; ${core.typecheckFiles.length} core typecheck files.`);
+console.log(
+  `Core scope verified: ${register.items.length} T63 functional-only items; ${nonCoreDebt.items.length} non-core type-debt items; ${core.typecheckFiles.length} core typecheck files.`
+);
