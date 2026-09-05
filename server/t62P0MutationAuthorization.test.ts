@@ -135,7 +135,7 @@ describe("T62-P0 pure-mutation authorization boundary", () => {
   it.each(protectedRouteChecks)(
     "actual $label procedure denies unauthenticated and non-admin callers before side effects",
     async ({ call }) => {
-      await expect(call(null)).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(call(null)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
       await expect(call({ _id: "user-1", role: "user" })).rejects.toMatchObject(
         { code: "FORBIDDEN" }
       );
@@ -148,7 +148,7 @@ describe("T62-P0 pure-mutation authorization boundary", () => {
       await expect(
         callerFor(null).mutate({ requestedActorId: "attacker" })
       ).rejects.toMatchObject({
-        code: "FORBIDDEN",
+        code: "UNAUTHORIZED",
       });
 
       await expect(

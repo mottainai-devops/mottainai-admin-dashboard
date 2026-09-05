@@ -56,19 +56,19 @@ export const appRouter = router({
 
   // Company management router - now using MongoDB directly
   companies: router({
-    list: publicProcedure.query(async () => {
+    list: adminProcedure.query(async () => {
       const companies = await db.getAllCompanies();
       return companies;
     }),
     
-    getById: publicProcedure
+    getById: adminProcedure
       .input(z.object({ id: z.string() }))
       .query(async ({ input }) => {
         const company = await db.getCompanyById(input.id);
         return company;
       }),
     
-    getByPin: publicProcedure
+    getByPin: adminProcedure
       .input(z.object({ pin: z.string() }))
       .query(async ({ input }) => {
         const company = await db.getCompanyByPin(input.pin);

@@ -11,6 +11,11 @@ export default function SimpleLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [reloginNotice] = useState(() => {
+    const notice = sessionStorage.getItem('mottainai_admin_relogin_notice');
+    sessionStorage.removeItem('mottainai_admin_relogin_notice');
+    return notice;
+  });
   const { login, error } = useSimpleAuth();
   const [, setLocation] = useLocation();
 
@@ -50,6 +55,11 @@ export default function SimpleLogin() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {reloginNotice && (
+              <Alert>
+                <AlertDescription>{reloginNotice}</AlertDescription>
+              </Alert>
+            )}
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>

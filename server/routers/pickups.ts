@@ -7,12 +7,12 @@ import { FixedBillingAgreement } from '../models/FixedBillingAgreement';
 
 export const pickupsRouter = router({
   // List pickup records with pagination and search
-  list: publicProcedure
+  list: adminProcedure
     .input(
       z.object({
         search: z.string().optional(),
         page: z.number().default(1),
-        limit: z.number().default(50),
+        limit: z.number().min(1).max(200).default(50),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
         companyId: z.string().optional(),
@@ -236,7 +236,7 @@ export const pickupsRouter = router({
     }),
 
   // Get pickup by ID with photo data from form submissions
-  getById: publicProcedure
+  getById: adminProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
       try {
@@ -380,7 +380,7 @@ export const pickupsRouter = router({
     }),
 
   // Map data — returns one marker per unique building with aggregated pickup stats
-  mapData: publicProcedure
+  mapData: adminProcedure
     .input(
       z.object({
         dateFrom: z.string().optional(),
@@ -544,7 +544,7 @@ export const pickupsRouter = router({
     }),
 
   // Export all filtered records as CSV (no pagination limit)
-  exportCsv: publicProcedure
+  exportCsv: adminProcedure
     .input(
       z.object({
         dateFrom: z.string().optional(),

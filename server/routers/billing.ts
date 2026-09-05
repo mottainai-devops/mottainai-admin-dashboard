@@ -229,19 +229,19 @@ export const billingRouter = router({
     return await getMonthlyTrends();
   }),
 
-  exportCompanyCSV: publicProcedure.query(async () => {
+  exportCompanyCSV: adminProcedure.query(async () => {
     const data = await getCompanyBreakdown();
     const csv = generateBillingCSV(data);
     return { csv };
   }),
 
-  exportLotCSV: publicProcedure.query(async () => {
+  exportLotCSV: adminProcedure.query(async () => {
     const data = await getLotBreakdown();
     const csv = generateBillingCSV(data);
     return { csv };
   }),
 
-  getReconciliation: publicProcedure
+  getReconciliation: adminProcedure
     .input(
       z.object({
         page: z.number().optional(),
@@ -267,7 +267,7 @@ export const billingRouter = router({
       });
     }),
 
-  exportReconciliationCSV: publicProcedure
+  exportReconciliationCSV: adminProcedure
     .input(
       z.object({
         status: z.enum(['paid', 'invoiced', 'yet_to_bill', 'not_billed', 'free', 'all']).optional(),
@@ -313,7 +313,7 @@ export const billingRouter = router({
   // ============================================================
 
   /** Preview yet-to-bill records (paginated, with filters) */
-  getBatchReinvoicePreview: publicProcedure
+  getBatchReinvoicePreview: adminProcedure
     .input(
       z.object({
         page: z.number().min(1).default(1),
@@ -403,7 +403,7 @@ export const billingRouter = router({
     }),
 
   /** Get status of a batch job by jobId */
-  getBatchJobStatus: publicProcedure
+  getBatchJobStatus: adminProcedure
     .input(z.object({ jobId: z.string() }))
     .query(({ input }) => {
       const job = batchJobStore[input.jobId];
@@ -463,7 +463,7 @@ export const billingRouter = router({
    * List Monthly Billing records (isMonthly: true) with filters.
    * Used by the new Monthly Billing Management page in the admin dashboard.
    */
-  listMonthlyBillingRecords: publicProcedure
+  listMonthlyBillingRecords: adminProcedure
     .input(
       z.object({
         page: z.number().min(1).default(1),

@@ -174,7 +174,7 @@ export const mongoAuthRouter = router({
   }),
 
   // List all users (for user management page)
-  listUsers: publicProcedure.query(async () => {
+  listUsers: adminProcedure.query(async () => {
     const users = await User.find({}).sort({ createdAt: -1 });
     
     return users.map(u => ({
