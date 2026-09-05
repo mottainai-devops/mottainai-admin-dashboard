@@ -11,9 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import {
-  Plus, Edit, Trash2, Building2, Zap, RefreshCw, CheckCircle2,
-  AlertCircle, ExternalLink, CreditCard, Settings2, Loader2, Copy, Eye, EyeOff,
+import { Plus, Edit, Trash2, Building2, Zap, RefreshCw, CheckCircle2,
+  AlertCircle, ExternalLink, CreditCard, Loader2, Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { LotSelector } from "@/components/LotSelector";
@@ -21,6 +20,9 @@ import { LotSelector } from "@/components/LotSelector";
 interface OperationalLot {
   lotCode: string;
   lotName: string;
+}
+
+interface EditableOperationalLot extends OperationalLot {
   paytWebhook: string;
   monthlyWebhook: string;
 }
@@ -30,8 +32,6 @@ interface Company {
   companyId: string;
   companyName: string;
   companyType?: string;
-  pin: string;
-  portalPin?: string;
   operationalLots: OperationalLot[];
   active: boolean;
   paystackSetupStatus?: string;
@@ -370,10 +370,9 @@ export default function Companies() {
   const [isPaystackWizardOpen, setIsPaystackWizardOpen] = useState(false);
   const [isBackfillOpen, setIsBackfillOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [createLots, setCreateLots] = useState<OperationalLot[]>([]);
+  const [createLots, setCreateLots] = useState<EditableOperationalLot[]>([]);
   const [createCompanyType, setCreateCompanyType] = useState<'franchisee' | 'independent'>('franchisee');
-  const [editLots, setEditLots] = useState<OperationalLot[]>([]);
-  const [showPins, setShowPins] = useState<Record<string, boolean>>({});
+  const [editLots, setEditLots] = useState<EditableOperationalLot[]>([]);
   const [activeTab, setActiveTab] = useState('all');
 
   const utils = trpc.useUtils();
@@ -442,7 +441,11 @@ export default function Companies() {
 
   const handleEdit = (company: Company) => {
     setSelectedCompany(company);
-    setEditLots(company.operationalLots);
+    setEditLots(company.operationalLots.map(lot => ({
+      ...lot,
+      paytWebhook: '',
+      monthlyWebhook: '',
+    })));
     setIsEditDialogOpen(true);
   };
 
@@ -451,11 +454,12 @@ export default function Companies() {
     if (!selectedCompany) return;
     const formData = new FormData(e.currentTarget);
     if (editLots.length === 0) { toast.error("Please add at least one operational lot"); return; }
+    const pin = String(formData.get('pin') || '').trim();
     updateMutation.mutate({
       id: selectedCompany._id,
       companyName: formData.get('companyName') as string,
-      pin: formData.get('pin') as string,
       operationalLots: editLots,
+      ...(pin ? { pin } : {}),
     });
   };
 
@@ -687,26 +691,14 @@ export default function Companies() {
                   )}
                 </div>
 
-                {/* Portal PIN for independent companies */}
                 {company.companyType === 'independent' && (
                   <div className="mt-3 pt-3 border-t">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Settings2 className="w-3.5 h-3.5" />
-                      <span>Portal PIN:</span>
-                      <code className="font-mono">
-                        {showPins[company._id] ? (company.portalPin || company.pin) : '••••••'}
-                      </code>
-                      <button
-                        onClick={() => setShowPins(p => ({ ...p, [company._id]: !p[company._id] }))}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        {showPins[company._id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      </button>
                       <a
                         href={`/company-portal?companyId=${company.companyId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="ml-auto flex items-center gap-1 text-blue-500 hover:underline"
+                        className="flex items-center gap-1 text-blue-500 hover:underline"
                       >
                         Open Portal <ExternalLink className="w-3 h-3" />
                       </a>
@@ -733,8 +725,8 @@ export default function Companies() {
                     <Input id="edit-companyName" name="companyName" defaultValue={selectedCompany.companyName} required />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="edit-pin">Mobile App PIN</Label>
-                    <Input id="edit-pin" name="pin" defaultValue={selectedCompany.pin} required minLength={4} maxLength={8} />
+                    <Label htmlFor="edit-pin">Set new Mobile App PIN (optional)</Label>
+                    <Input id="edit-pin" name="pin" placeholder="Leave empty to retain the existing PIN" minLength={4} maxLength={8} />
                   </div>
                   <LotSelector selectedLots={editLots} onLotsChange={setEditLots} />
                 </div>

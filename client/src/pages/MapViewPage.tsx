@@ -105,7 +105,6 @@ interface ArcGISFeature {
 
 interface MapMarker {
   buildingId: string;
-  arcgisBuildingId: string | null;
   latitude: number;
   longitude: number;
   pickupCount: number;
@@ -115,7 +114,6 @@ interface MapMarker {
   paytCount: number;
   monthlyCount: number;
   latestPickupId: string;
-  customerName: string | null;
 }
 
 // ─── Google Maps Loader ───────────────────────────────────────────────────────
@@ -578,7 +576,6 @@ export default function MapViewPage() {
           <tr><td style="color:#64748b;padding:2px 8px 2px 0">Last Pickup</td><td>${lastDate}</td></tr>
           <tr><td style="color:#64748b;padding:2px 8px 2px 0">Bin Types</td><td style="font-size:11px">${bins}</td></tr>
           <tr><td style="color:#64748b;padding:2px 8px 2px 0">PAYT / Monthly</td><td>${data.paytCount} / ${data.monthlyCount}</td></tr>
-          ${data.customerName ? `<tr><td style="color:#64748b;padding:2px 8px 2px 0">Customer</td><td>${data.customerName}</td></tr>` : ""}
         </table>
         ${data.latestPickupId ? `<button id="view-details-${data.latestPickupId}" style="margin-top:8px;width:100%;padding:5px 0;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600">View Latest Pickup Details</button>` : ""}
       </div>

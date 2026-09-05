@@ -2,9 +2,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { appRouter } from "./routers";
-import { billingRouter } from "./routers/billing";
-import { pickupsRouter } from "./routers/pickups";
+import {
+  appRouter,
+  mergeOperationalLotsForAdminUpdate,
+  serializeCompanyForAdminRead,
+} from "./routers";
+import {
+  billingRouter,
+  serializeBatchJobForAdmin,
+  serializeBatchReinvoicePreviewRecord,
+} from "./routers/billing";
+import {
+  pickupsRouter,
+  serializePickupDetailForAdmin,
+  serializePickupMapMarkerForAdmin,
+} from "./routers/pickups";
 import { mongoAuthRouter } from "./mongoAuthRouter";
 
 const serverDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -173,5 +185,181 @@ describe("T62-P0 high-severity read authorization and re-login UX", () => {
     expect(client).toContain('window.location.assign("/login")');
     expect(login).toContain("mottainai_admin_relogin_notice");
     expect(login).toContain("{reloginNotice}");
+  });
+
+  it("returns only allowlisted company, pickup, map, and billing fields", () => {
+    const company = serializeCompanyForAdminRead({
+      _id: "company-1",
+      companyId: "COMPANY-1",
+      companyName: "Test Company",
+      companyType: "franchisee",
+      active: true,
+      pin: "private-pin",
+      portalPin: "private-portal-pin",
+      paystackBankCode: "private-bank-code",
+      paystackAccountNumber: "private-account-number",
+      paystackSubaccountId: "private-subaccount-id",
+      zohoOrganizationId: "private-zoho-organization-id",
+      operationalLots: [
+        {
+          lotCode: "LOT-1",
+          lotName: "Test Lot",
+          paytWebhook: "private-webhook",
+          monthlyWebhook: "private-webhook",
+        },
+      ],
+    });
+    expect(company).toEqual(
+      expect.objectContaining({
+        _id: "company-1",
+        companyId: "COMPANY-1",
+        companyName: "Test Company",
+        operationalLots: [{ lotCode: "LOT-1", lotName: "Test Lot" }],
+      })
+    );
+    for (const hiddenField of [
+      "pin",
+      "portalPin",
+      "paystackBankCode",
+      "paystackAccountNumber",
+      "paystackSubaccountId",
+      "zohoOrganizationId",
+    ]) {
+      expect(company).not.toHaveProperty(hiddenField);
+    }
+    expect(company.operationalLots[0]).not.toHaveProperty("paytWebhook");
+    expect(company.operationalLots[0]).not.toHaveProperty("monthlyWebhook");
+
+    const preservedLots = mergeOperationalLotsForAdminUpdate(
+      [{ lotCode: "LOT-1", lotName: "Renamed Lot" }],
+      [
+        {
+          lotCode: "LOT-1",
+          lotName: "Test Lot",
+          paytWebhook: "server-managed-webhook",
+          monthlyWebhook: "server-managed-webhook",
+        },
+      ]
+    );
+    expect(preservedLots[0]).toEqual(
+      expect.objectContaining({
+        lotCode: "LOT-1",
+        lotName: "Renamed Lot",
+        paytWebhook: "server-managed-webhook",
+        monthlyWebhook: "server-managed-webhook",
+      })
+    );
+
+    const pickup = serializePickupDetailForAdmin({
+      _id: "pickup-1",
+      buildingId: "BUILDING-1",
+      customerName: "Test Customer",
+      customerPhone: "0000000000",
+      customerEmail: "test@example.invalid",
+      customerAddress: "Test Address",
+      customerType: "Monthly Billing - Residential",
+      binType: "120L",
+      binQuantity: 1,
+      amount: 1,
+      zohoInvoiceId: "invoice-1",
+      firstPhotoUrl: "photo-reference",
+      firstPhoto: "duplicate-photo-reference",
+      secondPhoto: "second-photo-reference",
+      incidentReport: "Test incident",
+      pickUpDate: "2026-09-05",
+      pickupDate: new Date("2026-09-05T00:00:00Z"),
+      lotCode: "LOT-1",
+      lgaName: "LGA",
+      wardName: "Ward",
+      stateCode: "OY",
+      country: "Nigeria",
+      createdAt: new Date("2026-09-05T00:00:00Z"),
+      userId: "internal-user-id",
+      companyId: "internal-company-id",
+      companyName: "Internal Company",
+      transactionId: "internal-transaction-id",
+      socioClass: "internal-classification",
+    });
+    expect(pickup).toEqual(
+      expect.objectContaining({
+        _id: "pickup-1",
+        firstPhoto: "photo-reference",
+        secondPhoto: "second-photo-reference",
+      })
+    );
+    for (const hiddenField of [
+      "userId",
+      "companyId",
+      "companyName",
+      "transactionId",
+      "socioClass",
+      "splitCode",
+      "firstPhotoUrl",
+      "secondPhotoUrl",
+    ]) {
+      expect(pickup).not.toHaveProperty(hiddenField);
+    }
+
+    const marker = serializePickupMapMarkerForAdmin({
+      _id: "BUILDING-1",
+      latitude: 1,
+      longitude: 2,
+      pickupCount: 1,
+      totalAmount: 1,
+      lastPickupDate: new Date("2026-09-05T00:00:00Z"),
+      binTypes: ["120L"],
+      paytCount: 1,
+      monthlyCount: 0,
+      latestPickupId: "pickup-1",
+      arcgisBuildingId: "internal-arcgis-id",
+      customerName: "Test Customer",
+    });
+    expect(marker).not.toHaveProperty("arcgisBuildingId");
+    expect(marker).not.toHaveProperty("customerName");
+
+    const preview = serializeBatchReinvoicePreviewRecord(
+      {
+        _id: { toString: () => "record-1" },
+        buildingId: "BUILDING-1",
+        amount: 1,
+        quantity: 1,
+        nameBin: "120L",
+        splitCode: "split-1",
+        createdAt: new Date("2026-09-05T00:00:00Z"),
+        isMonthly: true,
+      },
+      {
+        fullName: "Test Customer",
+        email: "test@example.invalid",
+        phone: "0000000000",
+      }
+    );
+    expect(preview).not.toHaveProperty("customerEmail");
+    expect(preview).not.toHaveProperty("customerPhone");
+
+    const batchJob = serializeBatchJobForAdmin({
+      status: "failed",
+      startedAt: new Date("2026-09-05T00:00:00Z"),
+      total: 1,
+      processed: 1,
+      success: 0,
+      failed: 1,
+      skipped: 0,
+      dryRun: false,
+      errors: [
+        {
+          id: "record-1",
+          buildingId: "BUILDING-1",
+          error: "upstream provider detail",
+        },
+      ],
+    });
+    expect(batchJob.errors).toEqual([
+      {
+        id: "record-1",
+        buildingId: "BUILDING-1",
+        error: "Invoice request failed",
+      },
+    ]);
   });
 });

@@ -74,8 +74,6 @@ type PreviewRecord = {
   createdAt: string;
   isMonthly: boolean;
   customerName: string;
-  customerEmail: string | null;
-  customerPhone: string | null;
   hasValidEmail: boolean;
   hasValidPhone: boolean;
 };
@@ -402,9 +400,6 @@ export default function BatchReinvoice() {
                         </TableCell>
                         <TableCell>
                           <div className="text-sm font-medium">{record.customerName}</div>
-                          <div className="text-xs text-muted-foreground truncate max-w-[160px]">
-                            {record.customerEmail || "no email"}
-                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">

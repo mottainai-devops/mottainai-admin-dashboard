@@ -24,6 +24,43 @@ interface BatchJob {
   dryRun: boolean;
   errors: Array<{ id: string; buildingId?: string; error: string }>;
 }
+
+export function serializeBatchReinvoicePreviewRecord(record: any, customer: any) {
+  const email = customer?.email || null;
+  const phone = customer?.phone || null;
+  return {
+    _id: record._id.toString(),
+    buildingId: record.buildingId,
+    amount: record.amount,
+    quantity: record.quantity,
+    nameBin: record.nameBin,
+    splitCode: record.splitCode,
+    createdAt: record.createdAt,
+    isMonthly: record.isMonthly,
+    customerName: customer?.fullName || 'Unknown',
+    hasValidEmail: !!(email && !email.includes('null') && email.includes('@')),
+    hasValidPhone: !!(phone && phone.length >= 7),
+  };
+}
+
+export function serializeBatchJobForAdmin(job: BatchJob) {
+  return {
+    status: job.status,
+    startedAt: job.startedAt,
+    total: job.total,
+    processed: job.processed,
+    success: job.success,
+    failed: job.failed,
+    skipped: job.skipped,
+    dryRun: job.dryRun,
+    errors: job.errors.slice(0, 10).map(({ id, buildingId }) => ({
+      id,
+      buildingId,
+      error: 'Invoice request failed',
+    })),
+  };
+}
+
 const batchJobStore: Record<string, BatchJob> = {};
 
 // ============================================================
@@ -361,23 +398,7 @@ export const billingRouter = router({
 
       const enriched = records.map((r: any) => {
         const cust = custMap[r.userId?.toString()] || null;
-        const email = cust?.email || null;
-        const phone = cust?.phone || null;
-        return {
-          _id: r._id.toString(),
-          buildingId: r.buildingId,
-          amount: r.amount,
-          quantity: r.quantity,
-          nameBin: r.nameBin,
-          splitCode: r.splitCode,
-          createdAt: r.createdAt,
-          isMonthly: r.isMonthly,
-          customerName: cust?.fullName || 'Unknown',
-          customerEmail: email,
-          customerPhone: phone,
-          hasValidEmail: !!(email && !email.includes('null') && email.includes('@')),
-          hasValidPhone: !!(phone && phone.length >= 7),
-        };
+        return serializeBatchReinvoicePreviewRecord(r, cust);
       });
 
       // Unique split codes for filter dropdown
@@ -408,7 +429,7 @@ export const billingRouter = router({
     .query(({ input }) => {
       const job = batchJobStore[input.jobId];
       if (!job) return { found: false, job: null };
-      return { found: true, job };
+      return { found: true, job: serializeBatchJobForAdmin(job) };
     }),
 
   /** Trigger a batch reinvoice job — processes entirely within this server */
