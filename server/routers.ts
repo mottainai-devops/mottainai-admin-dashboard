@@ -25,6 +25,53 @@ import { z } from "zod";
 import * as db from "./db";
 import activeLots from "../shared/active_lots.json";
 
+export function serializeCompanyForAdminRead(company: any) {
+  if (!company) return null;
+  const source = typeof company.toObject === "function" ? company.toObject() : company;
+  return {
+    _id: source._id?.toString(),
+    companyId: source.companyId,
+    companyName: source.companyName,
+    companyType: source.companyType,
+    active: Boolean(source.active),
+    operationalLots: (source.operationalLots || []).map((lot: any) => ({
+      lotCode: lot.lotCode,
+      lotName: lot.lotName,
+    })),
+    paystackSetupStatus: source.paystackSetupStatus,
+    paystackSubaccountCode: source.paystackSubaccountCode,
+    paystackSplitCodeResidential: source.paystackSplitCodeResidential,
+    paystackSplitCodeCommercial: source.paystackSplitCodeCommercial,
+    paystackPercentageCharge: source.paystackPercentageCharge,
+  };
+}
+
+export function mergeOperationalLotsForAdminUpdate(
+  requestedLots: Array<{
+    lotCode: string;
+    lotName: string;
+    paytWebhook?: string;
+    monthlyWebhook?: string;
+  }>,
+  existingLots: Array<{
+    lotCode: string;
+    lotName: string;
+    paytWebhook?: string;
+    monthlyWebhook?: string;
+  }>
+) {
+  const existingLotByCode = new Map(existingLots.map(lot => [lot.lotCode, lot]));
+  return requestedLots.map(lot => {
+    const existingLot = existingLotByCode.get(lot.lotCode);
+    return {
+      lotCode: lot.lotCode,
+      lotName: lot.lotName,
+      paytWebhook: lot.paytWebhook || existingLot?.paytWebhook || "",
+      monthlyWebhook: lot.monthlyWebhook || existingLot?.monthlyWebhook || "",
+    };
+  });
+}
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -56,23 +103,23 @@ export const appRouter = router({
 
   // Company management router - now using MongoDB directly
   companies: router({
-    list: publicProcedure.query(async () => {
+    list: adminProcedure.query(async () => {
       const companies = await db.getAllCompanies();
-      return companies;
+      return companies.map(serializeCompanyForAdminRead);
     }),
     
-    getById: publicProcedure
+    getById: adminProcedure
       .input(z.object({ id: z.string() }))
       .query(async ({ input }) => {
         const company = await db.getCompanyById(input.id);
-        return company;
+        return serializeCompanyForAdminRead(company);
       }),
     
-    getByPin: publicProcedure
+    getByPin: adminProcedure
       .input(z.object({ pin: z.string() }))
       .query(async ({ input }) => {
         const company = await db.getCompanyByPin(input.pin);
-        return company;
+        return serializeCompanyForAdminRead(company);
       }),
     
     create: adminProcedure
@@ -101,17 +148,31 @@ export const appRouter = router({
         operationalLots: z.array(z.object({
           lotCode: z.string(),
           lotName: z.string(),
-          paytWebhook: z.string(),
-          monthlyWebhook: z.string(),
+          paytWebhook: z.string().optional(),
+          monthlyWebhook: z.string().optional(),
         })).optional(),
         active: z.boolean().optional(),
         companyType: z.enum(['franchisor', 'franchisee', 'independent']).optional(),
         parentCompanyId: z.string().nullable().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { id, ...updateData } = input;
+        const { id, operationalLots, ...baseUpdateData } = input;
+        let updateData: any = baseUpdateData;
+
+        if (operationalLots) {
+          const existingCompany = await db.getCompanyById(id);
+
+          updateData = {
+            ...baseUpdateData,
+            operationalLots: mergeOperationalLotsForAdminUpdate(
+              operationalLots,
+              existingCompany?.operationalLots || []
+            ),
+          };
+        }
+
         const company = await db.updateCompany(id, updateData);
-        return company;
+        return serializeCompanyForAdminRead(company);
       }),
     
     delete: adminProcedure

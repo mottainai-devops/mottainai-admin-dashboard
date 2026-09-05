@@ -5,14 +5,62 @@ import { Company } from '../models/Company';
 import { User } from '../models/User';
 import { FixedBillingAgreement } from '../models/FixedBillingAgreement';
 
+export function serializePickupDetailForAdmin(pickup: any) {
+  const customerType = (pickup.customerType || '').toLowerCase();
+  const isMonthly = customerType.includes('monthly billing');
+  return {
+    _id: pickup._id?.toString(),
+    buildingId: pickup.buildingId,
+    fullName: pickup.customerName || null,
+    phoneNumber: pickup.customerPhone || null,
+    customerEmail: pickup.customerEmail || null,
+    customerAddress: pickup.customerAddress || null,
+    customerType: pickup.customerType,
+    binType: pickup.binType,
+    quantity: pickup.binQuantity,
+    binQtyPerPickup: pickup.binQuantity || 1,
+    amount: pickup.amount || 0,
+    totalDue: pickup.amount || 0,
+    paymentType: isMonthly ? 'monthly' : 'payt',
+    paymentStatus: pickup.zohoInvoiceId ? 'invoiced' : 'pending',
+    lotCode: pickup.lotCode || null,
+    lgaName: pickup.lgaName || null,
+    wardName: pickup.wardName || null,
+    stateCode: pickup.stateCode || null,
+    country: pickup.country || null,
+    firstPhoto: pickup.firstPhotoUrl || pickup.firstPhoto || null,
+    secondPhoto: pickup.secondPhotoUrl || pickup.secondPhoto || null,
+    incidentReport: pickup.incidentReport || null,
+    pickUpDate: pickup.pickUpDate,
+    pickupDate: pickup.pickupDate,
+    zohoInvoiceId: pickup.zohoInvoiceId || null,
+    createdAt: pickup.createdAt,
+  };
+}
+
+export function serializePickupMapMarkerForAdmin(marker: any) {
+  return {
+    buildingId: marker._id as string,
+    latitude: marker.latitude as number,
+    longitude: marker.longitude as number,
+    pickupCount: marker.pickupCount as number,
+    totalAmount: marker.totalAmount as number,
+    lastPickupDate: marker.lastPickupDate as Date,
+    binTypes: ((marker.binTypes as string[]) || []).filter(Boolean),
+    paytCount: marker.paytCount as number,
+    monthlyCount: marker.monthlyCount as number,
+    latestPickupId: marker.latestPickupId?.toString() as string,
+  };
+}
+
 export const pickupsRouter = router({
   // List pickup records with pagination and search
-  list: publicProcedure
+  list: adminProcedure
     .input(
       z.object({
         search: z.string().optional(),
         page: z.number().default(1),
-        limit: z.number().default(50),
+        limit: z.number().min(1).max(200).default(50),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
         companyId: z.string().optional(),
@@ -236,7 +284,7 @@ export const pickupsRouter = router({
     }),
 
   // Get pickup by ID with photo data from form submissions
-  getById: publicProcedure
+  getById: adminProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
       try {
@@ -246,59 +294,7 @@ export const pickupsRouter = router({
           return null;
         }
 
-        const ct2 = ((pickup as any).customerType || '').toLowerCase();
-        const isMonthlyById = ct2.includes('monthly billing');
-        const isBizById = ct2.includes('business') || ct2 === 'commercial';
-        const billingTypeById = isMonthlyById
-          ? (isBizById ? 'Monthly - Business' : 'Monthly - Residential')
-          : (isBizById ? 'PAYT - Business' : 'PAYT - Residential');
-        const p = pickup as any;
-        return {
-          _id: p._id,
-          buildingId: p.buildingId,
-          splitCode: p.buildingId,
-          // Customer info
-          fullName: p.customerName || null,
-          phoneNumber: p.customerPhone || null,
-          customerEmail: p.customerEmail || null,
-          customerAddress: p.customerAddress || null,
-          customerType: p.customerType,
-          // Bin info
-          binType: p.binType,
-          nameBin: p.binType,
-          quantity: p.binQuantity,
-          binQtyPerPickup: p.binQuantity || 1,
-          // Amount & billing
-          amount: p.amount || 0,
-          totalDue: p.amount || 0,
-          isMonthly: isMonthlyById,
-          billingType: billingTypeById,
-          paymentType: isMonthlyById ? 'monthly' : 'payt',
-          paymentStatus: p.zohoInvoiceId ? 'invoiced' : 'pending',
-          // Geographic
-          lotCode: p.lotCode || null,
-          lgaName: p.lgaName || null,
-          wardName: p.wardName || null,
-          stateCode: p.stateCode || null,
-          country: p.country || null,
-          // Photos
-          firstPhoto: p.firstPhoto,
-          secondPhoto: p.secondPhoto,
-          firstPhotoUrl: p.firstPhotoUrl,
-          secondPhotoUrl: p.secondPhotoUrl,
-          // Other
-          socioClass: p.socioClass,
-          incidentReport: p.incidentReport,
-          pickUpDate: p.pickUpDate,
-          pickupDate: p.pickupDate,
-          paymentDueDate: null,
-          userId: p.userId,
-          companyId: p.companyId,
-          companyName: p.companyName,
-          zohoInvoiceId: p.zohoInvoiceId,
-          transactionId: p._id.toString(),
-          createdAt: p.createdAt,
-        };
+        return serializePickupDetailForAdmin(pickup);
       } catch (error) {
         console.error('[Pickups] Error getting pickup by ID:', error);
         throw error;
@@ -380,7 +376,7 @@ export const pickupsRouter = router({
     }),
 
   // Map data — returns one marker per unique building with aggregated pickup stats
-  mapData: publicProcedure
+  mapData: adminProcedure
     .input(
       z.object({
         dateFrom: z.string().optional(),
@@ -439,7 +435,6 @@ export const pickupsRouter = router({
               _id: '$buildingId',
               latitude: { $first: '$latitude' },
               longitude: { $first: '$longitude' },
-              arcgisBuildingId: { $first: '$arcgisBuildingId' },
               pickupCount: { $sum: 1 },
               totalAmount: { $sum: { $ifNull: ['$amount', 0] } },
               lastPickupDate: { $max: '$createdAt' },
@@ -447,7 +442,6 @@ export const pickupsRouter = router({
               paytCount: { $sum: { $cond: [{ $eq: ['$isMonthly', false] }, 1, 0] } },
               monthlyCount: { $sum: { $cond: [{ $eq: ['$isMonthly', true] }, 1, 0] } },
               latestPickupId: { $last: '$_id' },
-              customerName: { $first: '$customerName' },
             },
           },
           { $sort: { pickupCount: -1 } },
@@ -455,20 +449,7 @@ export const pickupsRouter = router({
         ]);
 
         return {
-          markers: results.map((r: any) => ({
-            buildingId: r._id as string,
-            arcgisBuildingId: (r.arcgisBuildingId as string) || null,
-            latitude: r.latitude as number,
-            longitude: r.longitude as number,
-            pickupCount: r.pickupCount as number,
-            totalAmount: r.totalAmount as number,
-            lastPickupDate: r.lastPickupDate as Date,
-            binTypes: ((r.binTypes as string[]) || []).filter(Boolean),
-            paytCount: r.paytCount as number,
-            monthlyCount: r.monthlyCount as number,
-            latestPickupId: r.latestPickupId?.toString() as string,
-            customerName: (r.customerName as string) || null,
-          })),
+          markers: results.map(serializePickupMapMarkerForAdmin),
           unlocatedCount,
           totalCount,
         };
@@ -544,7 +525,7 @@ export const pickupsRouter = router({
     }),
 
   // Export all filtered records as CSV (no pagination limit)
-  exportCsv: publicProcedure
+  exportCsv: adminProcedure
     .input(
       z.object({
         dateFrom: z.string().optional(),

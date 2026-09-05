@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
+import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
@@ -12,9 +12,23 @@ import "./index.css";
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
-  // Authentication disabled for admin dashboard
-  // All endpoints use publicProcedure
-  return;
+  if (!(error instanceof TRPCClientError)) return;
+  if (typeof window === "undefined") return;
+
+  const errorCode = error.data?.code;
+  const isExpiredSession = errorCode === "UNAUTHORIZED" || error.message === UNAUTHED_ERR_MSG;
+  const isForbidden = errorCode === "FORBIDDEN" || error.message === NOT_ADMIN_ERR_MSG;
+
+  if (!isExpiredSession && !isForbidden) return;
+
+  localStorage.removeItem("auth_token");
+  sessionStorage.setItem(
+    "mottainai_admin_relogin_notice",
+    isExpiredSession
+      ? "Your session has expired. Please sign in again."
+      : "This account does not have administrative access. Please sign in with an authorized account."
+  );
+  window.location.assign("/login");
 };
 
 queryClient.getQueryCache().subscribe(event => {
