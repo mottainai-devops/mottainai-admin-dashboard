@@ -34,6 +34,7 @@ jobs:
           VITE_APP_LOGO: "/favicon.ico"
           VITE_ANALYTICS_ENDPOINT: ""
           VITE_ANALYTICS_WEBSITE_ID: ""
+          VITE_ARCGIS_BROWSER_KEY: ${{ secrets.VITE_ARCGIS_BROWSER_KEY }}
         run: pnpm build
 
       - name: Verify build title
