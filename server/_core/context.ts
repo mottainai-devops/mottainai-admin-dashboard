@@ -24,17 +24,22 @@ export async function createContext(
     try {
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, JWT_SECRET) as {
-        id: string;
-        username: string;
-        role: string;
+        id?: string;
+        userId?: string;
+        username?: string;
+        email?: string;
+        role?: string;
       };
-      user = {
-        _id: decoded.id,
-        username: decoded.username,
-        fullName: decoded.username,
-        email: null,
-        role: decoded.role,
-      } as unknown as User;
+      const userId = decoded.id || decoded.userId;
+      if (userId) {
+        user = {
+          _id: userId,
+          username: decoded.username || decoded.email || "mobile-user",
+          fullName: decoded.username || decoded.email || "mobile-user",
+          email: decoded.email || null,
+          role: decoded.role || "user",
+        } as unknown as User;
+      }
     } catch (error) {
       // Token invalid, fall through
     }
