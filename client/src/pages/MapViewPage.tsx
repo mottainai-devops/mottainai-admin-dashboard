@@ -36,6 +36,9 @@ import { format } from "date-fns";
 // To add a new ArcGIS layer in the future, append an entry here.
 // The layer control panel UI is generated automatically from this registry.
 const ARCGIS_BROWSER_KEY = import.meta.env.VITE_ARCGIS_BROWSER_KEY || "";
+// The Customer view is deliberately supplied at build time. Never fall back to
+// the historic public source service; an unset value disables this one layer.
+const ARCGIS_CUSTOMER_VIEW_URL = import.meta.env.VITE_ARCGIS_CUSTOMER_VIEW_URL || "";
 const GOOGLE_MAPS_BROWSER_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY || "";
 const GOOGLE_MAPS_SCRIPT_URL = GOOGLE_MAPS_BROWSER_KEY
   ? `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY)}&v=weekly&libraries=places,geocoding,geometry,visualization`
@@ -56,12 +59,13 @@ const ARCGIS_LAYER_REGISTRY = [
     minZoom: 15,
     description: "Nigeria Building Footprint polygons",
     requiresAuth: false,
+    outFields: "BuildingID,OBJECTID",
   },
   {
     id: "customer_points",
     label: "Customer Points",
     icon: Users,
-    url: "https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/Customer_Layer_gdb/FeatureServer/0",
+    url: ARCGIS_CUSTOMER_VIEW_URL,
     type: "point" as const,
     defaultVisible: false,
     strokeColor: "#059669",
@@ -71,6 +75,7 @@ const ARCGIS_LAYER_REGISTRY = [
     minZoom: 13,
     description: "Customer registration points",
     requiresAuth: true,
+    outFields: "OBJECTID",
   },
 ] as const;
 
@@ -147,7 +152,8 @@ async function fetchArcGISFeatures(
   url: string,
   bounds: google.maps.LatLngBounds,
   maxRecords = 500,
-  requiresAuth = false
+  requiresAuth = false,
+  outFields = "*"
 ): Promise<ArcGISFeature[]> {
   const ne = bounds.getNorthEast();
   const sw = bounds.getSouthWest();
@@ -160,7 +166,7 @@ async function fetchArcGISFeatures(
     inSR: "4326",
     outSR: "4326",   // ← request WGS84 so x/y are lng/lat degrees, not Web Mercator metres
     spatialRel: "esriSpatialRelIntersects",
-    outFields: "*",
+    outFields,
     returnGeometry: "true",
     f: "json",
     resultRecordCount: String(maxRecords),
@@ -428,8 +434,13 @@ export default function MapViewPage() {
         arcgisMarkersRef.current.set(layer.id as LayerId, []);
         continue;
       }
+      if (!layer.url) {
+        // The Customer view is an injected private endpoint. Do not fall back
+        // to the historic public source when it is absent from the build.
+        continue;
+      }
       try {
-        const features = await fetchArcGISFeatures(layer.url, bounds, 500, layer.requiresAuth);
+        const features = await fetchArcGISFeatures(layer.url, bounds, 500, layer.requiresAuth, layer.outFields);
         arcgisPolygonsRef.current.get(layer.id as LayerId)?.forEach((p) => p.setMap(null));
         arcgisMarkersRef.current.get(layer.id as LayerId)?.forEach((m) => m.setMap(null));
         const newPolygons: google.maps.Polygon[] = [];
@@ -456,25 +467,13 @@ export default function MapViewPage() {
             });
             newPolygons.push(polygon);
           } else if (layer.type === "point") {
-            // ─── CRITICAL FIX ─────────────────────────────────────────────────
-            // Customer Points geometry is Web Mercator (wkid:102100).
-            // geometry.x/y are in METRES (~700,000 range), NOT WGS84 degrees.
-            // The correct WGS84 coordinates are in feature.attributes.Lat / .Long.
-            const lat = feature.attributes?.Lat as number | undefined;
-            const lng = feature.attributes?.Long as number | undefined;
-            // ──────────────────────────────────────────────────────────────────
-            if (lat == null || lng == null || (lat === 0 && lng === 0)) return;
+            // Query output is explicitly WGS84. Use geometry only: the private
+            // browser view exposes no customer profile fields to the dashboard.
+            const lat = feature.geometry?.y;
+            const lng = feature.geometry?.x;
+            if (typeof lat !== "number" || typeof lng !== "number" || (lat === 0 && lng === 0)) return;
             // Sanity check: valid Nigeria bounding box
             if (lat < 4 || lat > 14 || lng < 2 || lng > 15) return;
-
-            // Build display name: prefer business_name, fall back to first+last name
-            const bizName = String(feature.attributes?.business_name || "").trim();
-            const firstName = String(feature.attributes?.first_name || "").trim();
-            const lastName = String(feature.attributes?.last_name || "").trim();
-            const displayName = bizName || [firstName, lastName].filter(Boolean).join(" ") || "Customer";
-
-            // Truncate long names to keep labels readable
-            const labelText = displayName.length > 22 ? displayName.slice(0, 20) + "…" : displayName;
 
             const currentZoomLevel = mapRef.current?.getZoom() ?? 0;
             const marker = new window.google.maps.Marker({
@@ -490,25 +489,19 @@ export default function MapViewPage() {
               },
               // Show label only at zoom 16+ to avoid clutter at lower zoom levels
               label: currentZoomLevel >= 16 ? {
-                text: labelText,
+                text: "Customer",
                 color: "#1e3a5f",
                 fontSize: "10px",
                 fontWeight: "600",
                 className: "customer-point-label",
               } : undefined,
               zIndex: 50,
-              title: displayName,
+              title: "Customer location",
             });
             marker.addListener("click", () => {
-              const phone = String(feature.attributes?.cust_phone || "");
-              const buildingId = String(feature.attributes?.building_id || "");
-              const custType = feature.attributes?.customer_type === "1" ? "Business" : "Residential";
               infoWindowRef.current?.setContent(`
-                <div style="font-family:sans-serif;font-size:13px;padding:6px 8px;min-width:180px;max-width:260px">
-                  <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#1e293b">${displayName}</div>
-                  <div style="display:inline-block;background:#e0f2fe;color:#0369a1;font-size:10px;font-weight:600;padding:1px 6px;border-radius:9px;margin-bottom:6px">${custType}</div>
-                  ${phone ? `<div style="color:#475569;margin-top:4px">📞 ${phone}</div>` : ""}
-                  ${buildingId ? `<div style="color:#64748b;font-size:11px;margin-top:4px">🏠 ${buildingId}</div>` : ""}
+                <div style="font-family:sans-serif;font-size:13px;padding:6px 8px">
+                  <div style="font-weight:700;font-size:14px;color:#1e293b">Customer location</div>
                 </div>
               `);
               infoWindowRef.current?.open(mapRef.current!, marker);
