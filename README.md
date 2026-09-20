@@ -31,3 +31,7 @@ The dashboard uses the Nigeria_Building_Footprints layer:
 - Service URL: https://services3.arcgis.com/VYBpf26AGQNwssLH/arcgis/rest/services/Nigeria_Building_Footprints/FeatureServer/0
 - Spatial Reference: WGS84 (EPSG:4326)
 Do NOT revert to the old New_Footprints_gdb_b1422 layer.
+
+### Customer points browser view
+
+Customer points must be loaded only from the private, read-only hosted view. The deployment workflow injects its endpoint from the `VITE_ARCGIS_CUSTOMER_VIEW_URL` repository secret and injects the separately scoped browser credential from `VITE_ARCGIS_BROWSER_KEY`. Do not put either value in source, documentation, chat, build logs, or a fallback literal. The map requests geometry and object IDs only; customer profile fields are intentionally excluded.

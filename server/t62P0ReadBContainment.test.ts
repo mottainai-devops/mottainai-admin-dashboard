@@ -40,8 +40,23 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
     expect(mapPageSource).not.toContain("trpc.maps.getScriptUrl");
     expect(mapPageSource).toContain("VITE_GOOGLE_MAPS_BROWSER_KEY");
     expect(mapPageSource).toContain("VITE_ARCGIS_BROWSER_KEY");
+    expect(mapPageSource).toContain("VITE_ARCGIS_CUSTOMER_VIEW_URL");
+    expect(mapPageSource).not.toContain("Customer_Layer_gdb/FeatureServer/0");
     expect(testingSource).toContain("process.env.ARCGIS_SERVER_KEY");
     expect(testingSource).not.toMatch(/ARCGIS_API_KEY\s*=\s*["']/);
+  });
+
+  it("queries the private Customer view with geometry and object IDs only", () => {
+    const mapPageSource = readServerSource("..", "client", "src", "pages", "MapViewPage.tsx");
+
+    expect(mapPageSource).toContain('outFields: "OBJECTID"');
+    expect(mapPageSource).toContain("const lat = feature.geometry?.y");
+    expect(mapPageSource).toContain("const lng = feature.geometry?.x");
+    expect(mapPageSource).not.toContain("feature.attributes?.cust_phone");
+    expect(mapPageSource).not.toContain("feature.attributes?.building_id");
+    expect(mapPageSource).not.toContain("feature.attributes?.business_name");
+    expect(mapPageSource).not.toContain("feature.attributes?.first_name");
+    expect(mapPageSource).not.toContain("feature.attributes?.last_name");
   });
 
   it("returns only redacted webhook monitor and health data", () => {

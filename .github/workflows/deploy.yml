@@ -69,6 +69,7 @@ jobs:
           VITE_ANALYTICS_ENDPOINT: ""
           VITE_ANALYTICS_WEBSITE_ID: ""
           VITE_ARCGIS_BROWSER_KEY: ${{ secrets.VITE_ARCGIS_BROWSER_KEY }}
+          VITE_ARCGIS_CUSTOMER_VIEW_URL: ${{ secrets.VITE_ARCGIS_CUSTOMER_VIEW_URL }}
         run: pnpm build
 
       - name: Verify build title
