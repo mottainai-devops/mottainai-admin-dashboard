@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "check:core": "node scripts/verify-t63-register.mjs && tsc --project tsconfig.core.json --pretty false",
+    "verify:release-control": "node scripts/verify-release-control.mjs",
     "ci:core": "pnpm install --frozen-lockfile && pnpm test && pnpm check:core && VITE_APP_TITLE=CI pnpm build",
     "format": "prettier --write .",
     "test": "vitest run",

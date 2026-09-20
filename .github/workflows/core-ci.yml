@@ -35,6 +35,9 @@ jobs:
       - name: Verify visible T63 register and security-critical core types
         run: pnpm check:core
 
+      - name: Verify release-control contract
+        run: pnpm verify:release-control
+
       - name: Build without deployment
         env:
           VITE_APP_TITLE: CI

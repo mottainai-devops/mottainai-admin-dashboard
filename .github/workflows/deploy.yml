@@ -1,18 +1,52 @@
 name: Deploy Admin Dashboard
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "Current protected main commit SHA approved for this production release"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mottainai-admin-dashboard-production
+  cancel-in-progress: false
 
 jobs:
+  release-preflight:
+    name: Verify Manual Release Request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require a current protected main revision
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          SELECTED_REF: ${{ github.ref }}
+          SELECTED_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -eu
+          test "$SELECTED_REF" = "refs/heads/main"
+          test "$RELEASE_SHA" = "$SELECTED_SHA"
+          CURRENT_MAIN_SHA=$(git ls-remote "https://github.com/${REPOSITORY}.git" refs/heads/main | cut -f1)
+          test -n "$CURRENT_MAIN_SHA"
+          test "$RELEASE_SHA" = "$CURRENT_MAIN_SHA"
+
   deploy:
     name: Build & Deploy to Production
+    needs: release-preflight
     runs-on: ubuntu-latest
+    environment:
+      name: production
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
