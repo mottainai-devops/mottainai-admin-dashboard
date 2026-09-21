@@ -30,9 +30,8 @@ export default function LotsManagement() {
   const { data: companies, isLoading: loadingCompanies } = trpc.companies.list.useQuery();
 
   // Fetch lots filtered by selected company
-  const { data: lotsData, isLoading: loadingLots } = trpc.lots.list.useQuery(
+  const { data: lotsData, isLoading: loadingLots } = trpc.lots.adminList.useQuery(
     {
-      userId: "admin-placeholder",
       companyId: selectedCompanyId === "all" ? undefined : selectedCompanyId,
     },
     { keepPreviousData: true }
