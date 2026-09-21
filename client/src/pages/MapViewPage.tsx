@@ -41,7 +41,7 @@ const ARCGIS_BROWSER_KEY = import.meta.env.VITE_ARCGIS_BROWSER_KEY || "";
 const ARCGIS_CUSTOMER_VIEW_URL = import.meta.env.VITE_ARCGIS_CUSTOMER_VIEW_URL || "";
 const GOOGLE_MAPS_BROWSER_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY || "";
 const GOOGLE_MAPS_SCRIPT_URL = GOOGLE_MAPS_BROWSER_KEY
-  ? `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY)}&v=weekly&libraries=places,geocoding,geometry,visualization`
+  ? `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY)}&v=weekly&libraries=places,visualization`
   : null;
 
 const ARCGIS_LAYER_REGISTRY = [

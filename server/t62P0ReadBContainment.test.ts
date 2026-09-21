@@ -34,11 +34,15 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
   it("removes the public Google script-key route and source-embedded ArcGIS credential delivery", () => {
     const rootRouterSource = readServerSource("routers.ts");
     const mapPageSource = readServerSource("..", "client", "src", "pages", "MapViewPage.tsx");
+    const deployWorkflowSource = readServerSource("..", ".github", "workflows", "deploy.yml");
     const testingSource = readServerSource("routers", "testing.ts");
 
     expect(rootRouterSource).not.toContain("getScriptUrl:");
     expect(mapPageSource).not.toContain("trpc.maps.getScriptUrl");
     expect(mapPageSource).toContain("VITE_GOOGLE_MAPS_BROWSER_KEY");
+    expect(mapPageSource).toContain("libraries=places,visualization");
+    expect(mapPageSource).not.toContain("libraries=places,geocoding,geometry,visualization");
+    expect(deployWorkflowSource).toContain("VITE_GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.VITE_GOOGLE_MAPS_BROWSER_KEY }}");
     expect(mapPageSource).toContain("VITE_ARCGIS_BROWSER_KEY");
     expect(mapPageSource).toContain("VITE_ARCGIS_CUSTOMER_VIEW_URL");
     expect(mapPageSource).not.toContain("Customer_Layer_gdb/FeatureServer/0");
