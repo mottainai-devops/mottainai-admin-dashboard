@@ -32,10 +32,11 @@ import { trpc } from "@/lib/trpc";
 import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
 import { buildMapDataInput } from "@/lib/mapViewQuery";
 import {
-  aggregateHeatmapCells,
+  createHeatmapRenderGate,
   determineLayerStatus,
   layerStatusLabel,
   layerStatusTone,
+  planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
   type MapLayerStatus,
@@ -69,7 +70,7 @@ const ARCGIS_LAYER_REGISTRY = [
     minZoom: 15,
     description: "Nigeria Building Footprint polygons",
     requiresAuth: false,
-    outFields: "BuildingID,OBJECTID",
+    outFields: "building_id,OBJECTID",
   },
   {
     id: "customer_points",
@@ -226,6 +227,8 @@ export default function MapViewPage() {
   const arcgisMarkersRef = useRef<Map<LayerId, google.maps.Marker[]>>(new Map());
   const pickupMarkersRef = useRef<google.maps.Marker[]>([]);
   const heatmapCirclesRef = useRef<google.maps.Circle[]>([]);
+  const heatmapRenderFrameRef = useRef<number | null>(null);
+  const heatmapRenderGateRef = useRef(createHeatmapRenderGate());
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -284,37 +287,69 @@ export default function MapViewPage() {
     arcgisMarkersRef.current.set(layerId, []);
   }, []);
 
-  const clearHeatmap = useCallback(() => {
-    heatmapCirclesRef.current.forEach((circle) => circle.setMap(null));
-    heatmapCirclesRef.current = [];
+  const cancelHeatmapRender = useCallback(() => {
+    heatmapRenderGateRef.current.cancel();
+    if (heatmapRenderFrameRef.current !== null) {
+      window.cancelAnimationFrame(heatmapRenderFrameRef.current);
+      heatmapRenderFrameRef.current = null;
+    }
   }, []);
 
-  // Google removed the legacy visualization HeatmapLayer. This core-Maps circle
-  // overlay retains a readable density view without loading a removed library.
+  const clearHeatmap = useCallback(() => {
+    cancelHeatmapRender();
+    heatmapCirclesRef.current.forEach((circle) => circle.setMap(null));
+    heatmapCirclesRef.current = [];
+  }, [cancelHeatmapRender]);
+
+  // Google removed the legacy visualization HeatmapLayer. Render a bounded,
+  // coarsened circle grid in short animation-frame batches so a dense viewport
+  // cannot monopolise the browser main thread. Turning the layer off cancels
+  // the active generation and removes every partial circle immediately.
   const buildHeatmap = useCallback((markers: MapMarker[]) => {
     if (!mapRef.current || !window.google?.maps) return;
     clearHeatmap();
-    const cells = aggregateHeatmapCells(markers.map((marker) => ({
+
+    const renderToken = heatmapRenderGateRef.current.begin();
+    const { cells } = planHeatmapRender(markers.map((marker) => ({
       latitude: marker.latitude,
       longitude: marker.longitude,
       weight: marker.pickupCount,
     })));
     const maximumWeight = Math.max(1, ...cells.map((cell) => cell.weight));
-    heatmapCirclesRef.current = cells.map((cell) => {
-      const intensity = cell.weight / maximumWeight;
-      return new window.google.maps.Circle({
-        center: { lat: cell.latitude, lng: cell.longitude },
-        map: mapRef.current!,
-        radius: 85 + intensity * 250,
-        strokeColor: "#f97316",
-        strokeOpacity: 0.18 + intensity * 0.28,
-        strokeWeight: 1,
-        fillColor: "#f97316",
-        fillOpacity: 0.08 + intensity * 0.28,
-        clickable: false,
-        zIndex: 20,
-      });
-    });
+    const batchSize = 20;
+    let nextCell = 0;
+
+    const renderNextBatch = () => {
+      const activeMap = mapRef.current;
+      if (!heatmapRenderGateRef.current.isCurrent(renderToken) || !activeMap) return;
+
+      const batchEnd = Math.min(nextCell + batchSize, cells.length);
+      for (; nextCell < batchEnd; nextCell += 1) {
+        const cell = cells[nextCell];
+        const intensity = cell.weight / maximumWeight;
+        const circle = new window.google.maps.Circle({
+          center: { lat: cell.latitude, lng: cell.longitude },
+          map: activeMap,
+          radius: 85 + intensity * 250,
+          strokeColor: "#f97316",
+          strokeOpacity: 0.18 + intensity * 0.28,
+          strokeWeight: 1,
+          fillColor: "#f97316",
+          fillOpacity: 0.08 + intensity * 0.28,
+          clickable: false,
+          zIndex: 20,
+        });
+        heatmapCirclesRef.current.push(circle);
+      }
+
+      if (nextCell < cells.length && heatmapRenderGateRef.current.isCurrent(renderToken)) {
+        heatmapRenderFrameRef.current = window.requestAnimationFrame(renderNextBatch);
+      } else {
+        heatmapRenderFrameRef.current = null;
+      }
+    };
+
+    heatmapRenderFrameRef.current = window.requestAnimationFrame(renderNextBatch);
   }, [clearHeatmap]);
 
   // ── tRPC ───────────────────────────────────────────────────────────────────
@@ -567,7 +602,7 @@ export default function MapViewPage() {
                 zIndex: 10,
               });
               polygon.addListener("click", (event: google.maps.MapMouseEvent) => {
-                const id = String(feature.attributes?.BuildingID || feature.attributes?.OBJECTID || "");
+                const id = String(feature.attributes?.building_id || feature.attributes?.OBJECTID || "");
                 infoWindowRef.current?.setContent(`<div style="font-family:sans-serif;font-size:13px;padding:4px"><strong>Building ID:</strong> ${id}</div>`);
                 infoWindowRef.current?.setPosition(event.latLng!);
                 infoWindowRef.current?.open(mapRef.current!);

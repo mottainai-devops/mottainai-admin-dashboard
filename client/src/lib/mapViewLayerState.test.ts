@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateHeatmapCells,
+  createHeatmapRenderGate,
   determineLayerStatus,
   layerStatusLabel,
+  planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
 } from "./mapViewLayerState";
@@ -77,5 +79,31 @@ describe("Map View layer lifecycle", () => {
 
     expect(cells).toHaveLength(2);
     expect(cells.map((cell) => cell.weight).sort((a, b) => a - b)).toEqual([1, 5]);
+  });
+
+  it("coarsens and caps a dense Heatmap plan before it can create unbounded map objects", () => {
+    const densePoints = Array.from({ length: 400 }, (_, index) => ({
+      latitude: 5 + Math.floor(index / 20) * 2,
+      longitude: 2 + (index % 20) * 2,
+      weight: 1,
+    }));
+
+    const plan = planHeatmapRender(densePoints, 24);
+
+    expect(plan.coarsened).toBe(true);
+    expect(plan.capped).toBe(true);
+    expect(plan.cells).toHaveLength(24);
+  });
+
+  it("invalidates a scheduled Heatmap render when the layer is turned off", () => {
+    const renderGate = createHeatmapRenderGate();
+    const scheduledRender = renderGate.begin();
+    expect(renderGate.isCurrent(scheduledRender)).toBe(true);
+
+    renderGate.cancel();
+    expect(renderGate.isCurrent(scheduledRender)).toBe(false);
+
+    const replacementRender = renderGate.begin();
+    expect(renderGate.isCurrent(replacementRender)).toBe(true);
   });
 });
