@@ -1,21 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateHeatmapCells,
+  createViewportSignature,
   createHeatmapRenderGate,
   determineLayerStatus,
   layerStatusLabel,
   planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
+  shouldRequestViewport,
 } from "./mapViewLayerState";
 
 describe("Map View layer lifecycle", () => {
-  it("does not present a switch as ready before an eligible layer has rendered objects", () => {
+  it("does not present a request that has not settled as an empty layer", () => {
     expect(determineLayerStatus({
       enabled: true,
       zoom: 14,
       minZoom: 13,
       hasEndpoint: true,
+      renderedCount: 0,
+    })).toMatchObject({ kind: "loading", message: "Waiting for map" });
+
+    expect(determineLayerStatus({
+      enabled: true,
+      zoom: 14,
+      minZoom: 13,
+      hasEndpoint: true,
+      settled: true,
       renderedCount: 0,
     })).toMatchObject({ kind: "empty", message: "No results in this view" });
 
@@ -61,6 +72,7 @@ describe("Map View layer lifecycle", () => {
       zoom: 16,
       minZoom: 15,
       hasEndpoint: true,
+      settled: true,
       renderedCount: 12,
     });
     expect(ready.kind).toBe("ready");
@@ -71,6 +83,7 @@ describe("Map View layer lifecycle", () => {
       zoom: 16,
       minZoom: 15,
       hasEndpoint: true,
+      settled: true,
       renderedCount: 500,
       partial: true,
     })).toMatchObject({ kind: "partial", message: "Partial results" });
@@ -81,6 +94,26 @@ describe("Map View layer lifecycle", () => {
     expect(shouldLoadLayer({ enabled: false, zoom: 16, minZoom: 13, hasEndpoint: true })).toBe(false);
     expect(shouldLoadLayer({ enabled: true, zoom: 12, minZoom: 13, hasEndpoint: true })).toBe(false);
     expect(shouldLoadLayer({ enabled: true, zoom: 16, minZoom: 13, hasEndpoint: false })).toBe(false);
+  });
+
+  it("coalesces duplicate idle requests but permits a completed viewport to refresh deliberately", () => {
+    const signature = createViewportSignature({
+      south: 6.590001,
+      west: 3.345001,
+      north: 6.600001,
+      east: 3.355001,
+    }, 19);
+
+    expect(shouldRequestViewport({ signature, inFlightSignature: signature })).toBe(false);
+    expect(shouldRequestViewport({ signature, inFlightSignature: signature, force: true })).toBe(false);
+    expect(shouldRequestViewport({ signature, completedSignature: signature })).toBe(false);
+    expect(shouldRequestViewport({ signature, completedSignature: signature, force: true })).toBe(true);
+    expect(shouldRequestViewport({
+      signature,
+      completedSignature: createViewportSignature({ south: 6.59, west: 3.34, north: 6.60, east: 3.35 }, 19),
+    })).toBe(true);
+    expect(createViewportSignature({ south: 6.59, west: 3.34, north: 6.60, east: 3.35 }, 19, "customer:on"))
+      .not.toBe(createViewportSignature({ south: 6.59, west: 3.34, north: 6.60, east: 3.35 }, 19, "customer:off"));
   });
 
   it("aggregates pickup intensity into bounded local heatmap cells", () => {

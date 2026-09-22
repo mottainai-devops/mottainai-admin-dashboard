@@ -23,6 +23,7 @@ export interface LayerStatusInput {
   minZoom: number;
   hasEndpoint: boolean;
   loading?: boolean;
+  settled?: boolean;
   renderedCount?: number;
   partial?: boolean;
   failedMessage?: string;
@@ -34,6 +35,7 @@ export function determineLayerStatus({
   minZoom,
   hasEndpoint,
   loading = false,
+  settled = false,
   renderedCount = 0,
   partial = false,
   failedMessage,
@@ -47,6 +49,7 @@ export function determineLayerStatus({
   }
   if (loading) return { kind: "loading", message: "Loading" };
   if (failedMessage) return { kind: "failed", message: failedMessage };
+  if (!settled) return { kind: "loading", message: "Waiting for map" };
   if (partial) return { kind: "partial", count: renderedCount, message: "Partial results" };
   if (renderedCount === 0) return { kind: "empty", count: 0, message: "No results in this view" };
   return { kind: "ready", count: renderedCount, message: `${renderedCount} loaded` };
@@ -97,6 +100,44 @@ export function shouldLoadLayer({
   hasEndpoint,
 }: Pick<LayerStatusInput, "enabled" | "zoom" | "minZoom" | "hasEndpoint">): boolean {
   return enabled && zoom >= minZoom && hasEndpoint;
+}
+
+export interface ViewportBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+/**
+ * Rounded map bounds coalesce duplicate Google Maps idle events while retaining
+ * enough precision for the dashboard's zoom-gated overlay layers.
+ */
+export function createViewportSignature(bounds: ViewportBounds, zoom: number, context = ""): string {
+  const coordinate = (value: number) => value.toFixed(5);
+  return [
+    Math.round(zoom * 100) / 100,
+    coordinate(bounds.south),
+    coordinate(bounds.west),
+    coordinate(bounds.north),
+    coordinate(bounds.east),
+    context,
+  ].join("|");
+}
+
+/**
+ * A repeated idle event must not cancel a request for the same viewport or
+ * turn a settled successful result into a false empty status.
+ */
+export function shouldRequestViewport(input: {
+  signature: string;
+  inFlightSignature?: string | null;
+  completedSignature?: string | null;
+  force?: boolean;
+}): boolean {
+  if (input.signature === input.inFlightSignature) return false;
+  if (!input.force && input.signature === input.completedSignature) return false;
+  return true;
 }
 
 export interface HeatmapPoint {

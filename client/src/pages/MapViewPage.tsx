@@ -33,12 +33,14 @@ import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
 import { buildMapDataInput } from "@/lib/mapViewQuery";
 import {
   createHeatmapRenderGate,
+  createViewportSignature,
   determineLayerStatus,
   layerStatusLabel,
   layerStatusTone,
   planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
+  shouldRequestViewport,
   type MapLayerStatus,
 } from "@/lib/mapViewLayerState";
 import { format } from "date-fns";
@@ -129,6 +131,7 @@ interface ArcGISFeatureResponse {
 
 interface LayerRuntime {
   loading: boolean;
+  settled: boolean;
   renderedCount: number;
   partial: boolean;
   failure?: string;
@@ -235,6 +238,8 @@ export default function MapViewPage() {
   const arcgisLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const arcgisRequestControllerRef = useRef<AbortController | null>(null);
   const arcgisRequestVersionRef = useRef(0);
+  const arcgisInFlightViewportRef = useRef<string | null>(null);
+  const arcgisCompletedViewportRef = useRef<string | null>(null);
   const mapListenersRef = useRef<google.maps.MapsEventListener[]>([]);
   // Stable ref that always points to the latest loadArcGISLayers without
   // causing the idle listener to become stale when layerVisible/layerOpacity change.
@@ -247,7 +252,7 @@ export default function MapViewPage() {
     Object.fromEntries(
       ARCGIS_LAYER_REGISTRY.map((layer) => [
         layer.id,
-        { loading: false, renderedCount: 0, partial: false },
+        { loading: false, settled: false, renderedCount: 0, partial: false },
       ]),
     ) as Record<LayerId, LayerRuntime>,
   );
@@ -525,17 +530,33 @@ export default function MapViewPage() {
   }, [layerVisible.pickup_markers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load ArcGIS Layers ─────────────────────────────────────────────────────
-  const loadArcGISLayers = useCallback(async () => {
+  const loadArcGISLayers = useCallback(async (force = false) => {
     if (!mapRef.current) return;
     const bounds = mapRef.current.getBounds();
     if (!bounds) return;
 
     const zoom = mapRef.current.getZoom() ?? 0;
+    const southWest = bounds.getSouthWest();
+    const northEast = bounds.getNorthEast();
+    const viewportSignature = createViewportSignature({
+      south: southWest.lat(),
+      west: southWest.lng(),
+      north: northEast.lat(),
+      east: northEast.lng(),
+    }, zoom, arcgisVisibilitySignature);
+    if (!shouldRequestViewport({
+      signature: viewportSignature,
+      inFlightSignature: arcgisInFlightViewportRef.current,
+      completedSignature: arcgisCompletedViewportRef.current,
+      force,
+    })) return;
+
     const requestVersion = arcgisRequestVersionRef.current + 1;
     arcgisRequestVersionRef.current = requestVersion;
     arcgisRequestControllerRef.current?.abort();
     const controller = new AbortController();
     arcgisRequestControllerRef.current = controller;
+    arcgisInFlightViewportRef.current = viewportSignature;
     const isCurrentRequest = () =>
       !controller.signal.aborted && arcgisRequestVersionRef.current === requestVersion;
 
@@ -551,6 +572,7 @@ export default function MapViewPage() {
         ...previous,
         [layer.id]: {
           loading: false,
+          settled: false,
           renderedCount: 0,
           partial: false,
           failure: !enabled ? undefined : (!layer.url ? "Configuration unavailable" : undefined),
@@ -562,13 +584,18 @@ export default function MapViewPage() {
       const enabled = layerVisible[layer.id] ?? layer.defaultVisible;
       return shouldLoadLayer({ enabled, zoom, minZoom: layer.minZoom, hasEndpoint: Boolean(layer.url) });
     });
-    if (eligibleLayers.length === 0) return;
+    if (eligibleLayers.length === 0) {
+      arcgisInFlightViewportRef.current = null;
+      arcgisCompletedViewportRef.current = viewportSignature;
+      setArcgisLoading(false);
+      return;
+    }
 
     setArcgisLoading(true);
     eligibleLayers.forEach((layer) => {
       setLayerRuntime((previous) => ({
         ...previous,
-        [layer.id]: { ...previous[layer.id], loading: true, failure: undefined },
+        [layer.id]: { ...previous[layer.id], loading: true, settled: false, failure: undefined },
       }));
     });
 
@@ -664,6 +691,7 @@ export default function MapViewPage() {
             ...previous,
             [layer.id]: {
               loading: false,
+              settled: true,
               renderedCount: newPolygons.length + newMarkers.length,
               partial: response.exceededTransferLimit,
             },
@@ -676,15 +704,20 @@ export default function MapViewPage() {
             [layer.id]: {
               ...previous[layer.id],
               loading: false,
+              settled: true,
               failure: sanitiseLayerFailure(error),
             },
           }));
         }
       }));
     } finally {
-      if (isCurrentRequest()) setArcgisLoading(false);
+      if (isCurrentRequest()) {
+        arcgisInFlightViewportRef.current = null;
+        arcgisCompletedViewportRef.current = viewportSignature;
+        setArcgisLoading(false);
+      }
     }
-  }, [clearArcGISLayerObjects, layerOpacity, layerVisible]);
+  }, [arcgisVisibilitySignature, clearArcGISLayerObjects, layerOpacity, layerVisible]);
 
   // Keep the ref in sync so the idle listener always calls the latest version
   // without the listener itself needing to be re-registered on every render.
@@ -720,6 +753,7 @@ export default function MapViewPage() {
         minZoom: layer.minZoom,
         hasEndpoint: Boolean(layer.url),
         loading: runtime.loading,
+        settled: runtime.settled,
         renderedCount: runtime.renderedCount,
         partial: runtime.partial,
         failedMessage: runtime.failure,
@@ -796,7 +830,7 @@ export default function MapViewPage() {
   // ── Helpers ────────────────────────────────────────────────────────────────
   const handleRefresh = useCallback(() => {
     refetchMapData();
-    loadArcGISLayers();
+    void loadArcGISLayers(true);
   }, [refetchMapData, loadArcGISLayers]);
 
   const handleToggleStreetView = useCallback(() => {
