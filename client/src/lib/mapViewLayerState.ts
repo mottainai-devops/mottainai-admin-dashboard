@@ -111,9 +111,19 @@ export interface HeatmapCell {
   weight: number;
 }
 
+export const DEFAULT_HEATMAP_CELL_SIZE = 0.006;
+export const MAX_HEATMAP_RENDERED_CELLS = 160;
+
+export interface HeatmapRenderPlan {
+  cells: HeatmapCell[];
+  cellSize: number;
+  coarsened: boolean;
+  capped: boolean;
+}
+
 export function aggregateHeatmapCells(
   points: HeatmapPoint[],
-  cellSize = 0.006,
+  cellSize = DEFAULT_HEATMAP_CELL_SIZE,
 ): HeatmapCell[] {
   const cells = new Map<string, HeatmapCell>();
   points.forEach((point) => {
@@ -125,4 +135,64 @@ export function aggregateHeatmapCells(
     cells.set(key, current);
   });
   return Array.from(cells.values());
+}
+
+/**
+ * Limits the number of Google Maps objects required for a Heatmap render.
+ * The grid is progressively coarsened before the final deterministic cap is
+ * applied, so a dense viewport cannot monopolise the browser main thread.
+ */
+export function planHeatmapRender(
+  points: HeatmapPoint[],
+  maxCells = MAX_HEATMAP_RENDERED_CELLS,
+  initialCellSize = DEFAULT_HEATMAP_CELL_SIZE,
+): HeatmapRenderPlan {
+  if (!Number.isFinite(maxCells) || maxCells < 1) {
+    throw new Error("Heatmap render requires at least one cell");
+  }
+
+  let cellSize = initialCellSize;
+  let cells = aggregateHeatmapCells(points, cellSize);
+  let coarsened = false;
+
+  // Doubling at most eight times prevents an unbounded loop while allowing a
+  // wide, dense viewport to collapse naturally into an intelligible overview.
+  for (let attempt = 0; cells.length > maxCells && attempt < 8; attempt += 1) {
+    cellSize *= 2;
+    cells = aggregateHeatmapCells(points, cellSize);
+    coarsened = true;
+  }
+
+  const capped = cells.length > maxCells;
+  return {
+    cells: capped
+      ? [...cells]
+          .sort((left, right) => right.weight - left.weight || left.latitude - right.latitude || left.longitude - right.longitude)
+          .slice(0, maxCells)
+      : cells,
+    cellSize,
+    coarsened,
+    capped,
+  };
+}
+
+/**
+ * A generation gate makes a scheduled Heatmap batch invalid the moment the
+ * layer is turned off, refreshed, or replaced by a newer render.
+ */
+export function createHeatmapRenderGate() {
+  let generation = 0;
+
+  return {
+    begin() {
+      generation += 1;
+      return generation;
+    },
+    cancel() {
+      generation += 1;
+    },
+    isCurrent(token: number) {
+      return generation === token;
+    },
+  };
 }
