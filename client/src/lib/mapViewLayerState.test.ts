@@ -42,6 +42,19 @@ describe("Map View layer lifecycle", () => {
     expect(sanitised).not.toContain("secret");
   });
 
+  it("reports an explicit loading state while an eligible layer request is in flight", () => {
+    const status = determineLayerStatus({
+      enabled: true,
+      zoom: 15,
+      minZoom: 15,
+      hasEndpoint: true,
+      loading: true,
+    });
+
+    expect(status).toMatchObject({ kind: "loading", message: "Loading" });
+    expect(layerStatusLabel(status)).toBe("Loading");
+  });
+
   it("distinguishes ready and partial overlay states", () => {
     const ready = determineLayerStatus({
       enabled: true,

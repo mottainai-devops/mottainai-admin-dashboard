@@ -727,6 +727,18 @@ export default function MapViewPage() {
     })) as Record<LayerId, MapLayerStatus>,
   [currentZoom, layerRuntime, layerVisible]);
 
+  const loadingLayerLabels = ARCGIS_LAYER_REGISTRY
+    .filter((layer) => layerStatuses[layer.id].kind === "loading")
+    .map((layer) => layer.label);
+  const isMapLoading = mapDataLoading || arcgisLoading;
+  const loadingMessage = mapDataLoading
+    ? "Updating pickup markers…"
+    : loadingLayerLabels.length === 1
+      ? `Loading ${loadingLayerLabels[0]}…`
+      : loadingLayerLabels.length > 1
+        ? `Loading ${loadingLayerLabels.length} map layers…`
+        : "Refreshing map layers…";
+
   const waitingLayer = ARCGIS_LAYER_REGISTRY.find(
     (layer) => layerStatuses[layer.id].kind === "waiting_for_zoom",
   );
@@ -1036,11 +1048,20 @@ export default function MapViewPage() {
             </div>
           )}
 
-          {/* Loading indicator */}
-          {(arcgisLoading || mapDataLoading) && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg flex items-center gap-2 text-sm text-gray-700 pointer-events-none">
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-              {mapDataLoading ? "Loading pickup data…" : "Loading ArcGIS layers…"}
+          {/* Loading indicator — stays visible while a request is in flight and
+              identifies the active layer instead of making the map appear stalled. */}
+          {isMapLoading && (
+            <div
+              className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-white/95 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg flex items-center gap-2 text-sm text-gray-700 pointer-events-none"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span className="relative flex h-4 w-4" aria-hidden="true">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-60" />
+                <Loader2 className="relative h-4 w-4 animate-spin text-blue-600" />
+              </span>
+              <span>{loadingMessage}</span>
             </div>
           )}
 
@@ -1228,10 +1249,15 @@ interface LayerRowProps {
 }
 
 function LayerRow({ icon, label, description, visible, status, onToggle, colorSwatch }: LayerRowProps) {
+  const isLoading = status?.kind === "loading";
+
   return (
-    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+    <div
+      className={`flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors ${isLoading ? "bg-blue-50/60" : ""}`}
+      aria-busy={isLoading || undefined}
+    >
       <div
-        className="w-3 h-3 rounded-sm flex-shrink-0"
+        className={`w-3 h-3 rounded-sm flex-shrink-0 ${isLoading ? "animate-pulse" : ""}`}
         style={{ background: colorSwatch, opacity: 0.85 }}
       />
       <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -1239,7 +1265,12 @@ function LayerRow({ icon, label, description, visible, status, onToggle, colorSw
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-gray-800 truncate">{label}</div>
           <p className="text-xs text-gray-400 truncate">{description}</p>
-          {status && <p className={`text-xs truncate ${layerStatusTone(status.kind)}`}>{layerStatusLabel(status)}</p>}
+          {status && (
+            <p className={`text-xs truncate flex items-center gap-1 ${layerStatusTone(status.kind)}`} aria-live="polite">
+              {isLoading && <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" aria-hidden="true" />}
+              <span>{layerStatusLabel(status)}</span>
+            </p>
+          )}
         </div>
       </div>
       <Switch
