@@ -13,6 +13,7 @@ import {
   serializeBatchReinvoicePreviewRecord,
 } from "./routers/billing";
 import {
+  buildUnlocatedMapQuery,
   pickupsRouter,
   serializePickupDetailForAdmin,
   serializePickupMapMarkerForAdmin,
@@ -164,6 +165,25 @@ describe("T62-P0 high-severity read authorization and re-login UX", () => {
         );
       }
     }
+  });
+
+  it("preserves the selected company scope when counting unlocated map records", () => {
+    const companyScope = { $or: [{ companyId: "company-1" }, { companyName: "Company One" }] };
+    expect(buildUnlocatedMapQuery(companyScope)).toEqual({
+      $and: [
+        companyScope,
+        { $or: [{ latitude: { $exists: false } }, { latitude: null }, { longitude: null }] },
+      ],
+    });
+  });
+
+  it("keeps the Field Worker filter in the Map View request contract", () => {
+    const mapQuerySource = readServerSource("..", "client", "src", "lib", "mapViewQuery.ts");
+    const pickupRouterSource = readServerSource("routers", "pickups.ts");
+
+    expect(mapQuerySource).toContain("fieldWorkerId: filters.fieldWorkerId");
+    expect(pickupRouterSource).toContain("fieldWorkerId: z.string().optional()");
+    expect(pickupRouterSource).toContain("searchQuery.userId = input.fieldWorkerId");
   });
 
   it("turns an expired session into a clear re-login message and preserves a distinct forbidden-role message", () => {

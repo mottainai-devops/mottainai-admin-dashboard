@@ -40,8 +40,10 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
     expect(rootRouterSource).not.toContain("getScriptUrl:");
     expect(mapPageSource).not.toContain("trpc.maps.getScriptUrl");
     expect(mapPageSource).toContain("VITE_GOOGLE_MAPS_BROWSER_KEY");
-    expect(mapPageSource).toContain("libraries=places,visualization");
-    expect(mapPageSource).not.toContain("libraries=places,geocoding,geometry,visualization");
+    expect(mapPageSource).toContain("libraries=places");
+    expect(mapPageSource).not.toContain("libraries=places,visualization");
+    expect(mapPageSource).not.toContain("new window.google.maps.visualization");
+    expect(mapPageSource).not.toContain("libraries=places,geocoding,geometry");
     expect(deployWorkflowSource).toContain("VITE_GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.VITE_GOOGLE_MAPS_BROWSER_KEY }}");
     expect(mapPageSource).toContain("VITE_ARCGIS_BROWSER_KEY");
     expect(mapPageSource).toContain("VITE_ARCGIS_CUSTOMER_VIEW_URL");
@@ -61,6 +63,16 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
     expect(mapPageSource).not.toContain("feature.attributes?.business_name");
     expect(mapPageSource).not.toContain("feature.attributes?.first_name");
     expect(mapPageSource).not.toContain("feature.attributes?.last_name");
+  });
+
+  it("keeps browser errors and Map View layer failures redacted", () => {
+    const errorBoundarySource = readServerSource("..", "client", "src", "components", "ErrorBoundary.tsx");
+    const mapPageSource = readServerSource("..", "client", "src", "pages", "MapViewPage.tsx");
+
+    expect(errorBoundarySource).not.toContain("error?.stack");
+    expect(errorBoundarySource).not.toContain("error.stack");
+    expect(mapPageSource).toContain("sanitiseLayerFailure");
+    expect(mapPageSource).not.toContain("console.error(`[MapView] ArcGIS layer");
   });
 
   it("returns only redacted webhook monitor and health data", () => {
