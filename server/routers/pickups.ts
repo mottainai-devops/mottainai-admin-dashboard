@@ -53,6 +53,15 @@ export function serializePickupMapMarkerForAdmin(marker: any) {
   };
 }
 
+export function buildUnlocatedMapQuery(searchQuery: Record<string, unknown>) {
+  return {
+    $and: [
+      searchQuery,
+      { $or: [{ latitude: { $exists: false } }, { latitude: null }, { longitude: null }] },
+    ],
+  };
+}
+
 export const pickupsRouter = router({
   // List pickup records with pagination and search
   list: adminProcedure
@@ -68,7 +77,7 @@ export const pickupsRouter = router({
         lotId: z.string().optional(),
         binType: z.string().optional(),
         paymentType: z.enum(["PAYT", "Monthly"]).optional(),
-        source: z.enum(["webapp_current", "webapp_old", "mobile_app", "field_worker", "unknown"]).optional(),
+        source: z.enum(["webapp_current", "webapp_old", "mobile_app", "field_worker", "survey123", "unknown"]).optional(),
         arcgisBuildingId: z.string().optional(),
       }).optional()
     )
@@ -382,6 +391,7 @@ export const pickupsRouter = router({
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
         companyId: z.string().optional(),
+        fieldWorkerId: z.string().optional(),
         lotId: z.string().optional(),
         binType: z.string().optional(),
         paymentType: z.enum(['PAYT', 'Monthly']).optional(),
@@ -407,6 +417,7 @@ export const pickupsRouter = router({
         if (input?.paymentType) searchQuery.isMonthly = input.paymentType === 'Monthly';
         if (input?.source) searchQuery.source = input.source;
         if (input?.arcgisBuildingId) searchQuery.arcgisBuildingId = input.arcgisBuildingId;
+        if (input?.fieldWorkerId) searchQuery.userId = input.fieldWorkerId;
 
         if (input?.companyId) {
           const company = await Company.findById(input.companyId).lean() as any;
@@ -423,13 +434,11 @@ export const pickupsRouter = router({
         }
 
         const totalCount = await FormSubmission.countDocuments(searchQuery);
-        const unlocatedCount = await FormSubmission.countDocuments({
-          ...searchQuery,
-          $or: [{ latitude: { $exists: false } }, { latitude: null }, { longitude: null }],
-        });
+        const unlocatedCount = await FormSubmission.countDocuments(buildUnlocatedMapQuery(searchQuery));
 
         const results = await FormSubmission.aggregate([
           { $match: { ...searchQuery, latitude: { $exists: true, $ne: null }, longitude: { $exists: true, $ne: null } } },
+          { $sort: { createdAt: -1, _id: -1 } },
           {
             $group: {
               _id: '$buildingId',
@@ -441,7 +450,7 @@ export const pickupsRouter = router({
               binTypes: { $addToSet: '$binType' },
               paytCount: { $sum: { $cond: [{ $eq: ['$isMonthly', false] }, 1, 0] } },
               monthlyCount: { $sum: { $cond: [{ $eq: ['$isMonthly', true] }, 1, 0] } },
-              latestPickupId: { $last: '$_id' },
+              latestPickupId: { $first: '$_id' },
             },
           },
           { $sort: { pickupCount: -1 } },
@@ -535,7 +544,7 @@ export const pickupsRouter = router({
         lotId: z.string().optional(),
         binType: z.string().optional(),
         paymentType: z.enum(['PAYT', 'Monthly']).optional(),
-        source: z.enum(['webapp_current', 'webapp_old', 'mobile_app', 'field_worker', 'unknown']).optional(),
+        source: z.enum(['webapp_current', 'webapp_old', 'mobile_app', 'field_worker', 'survey123', 'unknown']).optional(),
         arcgisBuildingId: z.string().optional(),
         search: z.string().optional(),
       }).optional()

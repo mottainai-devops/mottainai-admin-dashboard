@@ -30,6 +30,16 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
+import { buildMapDataInput } from "@/lib/mapViewQuery";
+import {
+  aggregateHeatmapCells,
+  determineLayerStatus,
+  layerStatusLabel,
+  layerStatusTone,
+  sanitiseLayerFailure,
+  shouldLoadLayer,
+  type MapLayerStatus,
+} from "@/lib/mapViewLayerState";
 import { format } from "date-fns";
 
 // ─── ArcGIS Layer Registry ────────────────────────────────────────────────────
@@ -41,7 +51,7 @@ const ARCGIS_BROWSER_KEY = import.meta.env.VITE_ARCGIS_BROWSER_KEY || "";
 const ARCGIS_CUSTOMER_VIEW_URL = import.meta.env.VITE_ARCGIS_CUSTOMER_VIEW_URL || "";
 const GOOGLE_MAPS_BROWSER_KEY = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY || "";
 const GOOGLE_MAPS_SCRIPT_URL = GOOGLE_MAPS_BROWSER_KEY
-  ? `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY)}&v=weekly&libraries=places,visualization`
+  ? `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY)}&v=weekly&libraries=places`
   : null;
 
 const ARCGIS_LAYER_REGISTRY = [
@@ -111,6 +121,18 @@ interface ArcGISFeature {
   };
 }
 
+interface ArcGISFeatureResponse {
+  features: ArcGISFeature[];
+  exceededTransferLimit: boolean;
+}
+
+interface LayerRuntime {
+  loading: boolean;
+  renderedCount: number;
+  partial: boolean;
+  failure?: string;
+}
+
 interface MapMarker {
   buildingId: string;
   latitude: number;
@@ -153,8 +175,9 @@ async function fetchArcGISFeatures(
   bounds: google.maps.LatLngBounds,
   maxRecords = 500,
   requiresAuth = false,
-  outFields = "*"
-): Promise<ArcGISFeature[]> {
+  outFields = "*",
+  signal?: AbortSignal,
+): Promise<ArcGISFeatureResponse> {
   const ne = bounds.getNorthEast();
   const sw = bounds.getSouthWest();
   const envelope = `${sw.lng()},${sw.lat()},${ne.lng()},${ne.lat()}`;
@@ -184,11 +207,15 @@ async function fetchArcGISFeatures(
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
+    signal,
   });
   if (!res.ok) throw new Error(`ArcGIS fetch failed: ${res.status}`);
   const data = await res.json();
   if (data.error) throw new Error(`ArcGIS error: ${data.error.message}`);
-  return (data.features || []) as ArcGISFeature[];
+  return {
+    features: (data.features || []) as ArcGISFeature[],
+    exceededTransferLimit: data.exceededTransferLimit === true,
+  };
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -198,19 +225,29 @@ export default function MapViewPage() {
   const arcgisPolygonsRef = useRef<Map<LayerId, google.maps.Polygon[]>>(new Map());
   const arcgisMarkersRef = useRef<Map<LayerId, google.maps.Marker[]>>(new Map());
   const pickupMarkersRef = useRef<google.maps.Marker[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const heatmapRef = useRef<any>(null);
+  const heatmapCirclesRef = useRef<google.maps.Circle[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const searchBoxRef = useRef<google.maps.places.SearchBox | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const arcgisLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const arcgisRequestControllerRef = useRef<AbortController | null>(null);
+  const arcgisRequestVersionRef = useRef(0);
+  const mapListenersRef = useRef<google.maps.MapsEventListener[]>([]);
   // Stable ref that always points to the latest loadArcGISLayers without
   // causing the idle listener to become stale when layerVisible/layerOpacity change.
-  const loadArcGISLayersRef = useRef<() => void>(() => {});
+  const loadArcGISLayersRef = useRef<() => Promise<void>>(async () => {});
 
   const [mapsReady, setMapsReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [arcgisLoading, setArcgisLoading] = useState(false);
+  const [layerRuntime, setLayerRuntime] = useState<Record<LayerId, LayerRuntime>>(() =>
+    Object.fromEntries(
+      ARCGIS_LAYER_REGISTRY.map((layer) => [
+        layer.id,
+        { loading: false, renderedCount: 0, partial: false },
+      ]),
+    ) as Record<LayerId, LayerRuntime>,
+  );
   const [currentZoom, setCurrentZoom] = useState(14);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [streetViewEnabled, setStreetViewEnabled] = useState(false);
@@ -230,6 +267,9 @@ export default function MapViewPage() {
 
   const [layerPanelOpen, setLayerPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const arcgisVisibilitySignature = ARCGIS_LAYER_REGISTRY
+    .map((layer) => `${layer.id}:${layerVisible[layer.id] ?? layer.defaultVisible}`)
+    .join("|");
   // Deserialise filter params from URL (round-trip from /pickup-records)
   const [filters, setFilters] = useState<PickupFilters>(() =>
     paramsToFilters(new URLSearchParams(window.location.search))
@@ -237,17 +277,48 @@ export default function MapViewPage() {
   const [selectedPickupId, setSelectedPickupId] = useState<string | null>(null);
   const [stats, setStats] = useState({ buildings: 0, totalPickups: 0, unlocated: 0, totalAmount: 0 });
 
+  const clearArcGISLayerObjects = useCallback((layerId: LayerId) => {
+    arcgisPolygonsRef.current.get(layerId)?.forEach((polygon) => polygon.setMap(null));
+    arcgisMarkersRef.current.get(layerId)?.forEach((marker) => marker.setMap(null));
+    arcgisPolygonsRef.current.set(layerId, []);
+    arcgisMarkersRef.current.set(layerId, []);
+  }, []);
+
+  const clearHeatmap = useCallback(() => {
+    heatmapCirclesRef.current.forEach((circle) => circle.setMap(null));
+    heatmapCirclesRef.current = [];
+  }, []);
+
+  // Google removed the legacy visualization HeatmapLayer. This core-Maps circle
+  // overlay retains a readable density view without loading a removed library.
+  const buildHeatmap = useCallback((markers: MapMarker[]) => {
+    if (!mapRef.current || !window.google?.maps) return;
+    clearHeatmap();
+    const cells = aggregateHeatmapCells(markers.map((marker) => ({
+      latitude: marker.latitude,
+      longitude: marker.longitude,
+      weight: marker.pickupCount,
+    })));
+    const maximumWeight = Math.max(1, ...cells.map((cell) => cell.weight));
+    heatmapCirclesRef.current = cells.map((cell) => {
+      const intensity = cell.weight / maximumWeight;
+      return new window.google.maps.Circle({
+        center: { lat: cell.latitude, lng: cell.longitude },
+        map: mapRef.current!,
+        radius: 85 + intensity * 250,
+        strokeColor: "#f97316",
+        strokeOpacity: 0.18 + intensity * 0.28,
+        strokeWeight: 1,
+        fillColor: "#f97316",
+        fillOpacity: 0.08 + intensity * 0.28,
+        clickable: false,
+        zIndex: 20,
+      });
+    });
+  }, [clearHeatmap]);
+
   // ── tRPC ───────────────────────────────────────────────────────────────────
-  const mapDataInput = useMemo(() => ({
-    dateFrom: filters.dateFrom?.toISOString(),
-    dateTo: filters.dateTo?.toISOString(),
-    companyId: filters.companyId,
-    lotId: filters.lotId,
-    binType: filters.binType,
-    paymentType: (filters.paymentType === "all" ? undefined : filters.paymentType) as "PAYT" | "Monthly" | undefined,
-    source: (filters.source === "all" ? undefined : filters.source) as string | undefined,
-    arcgisBuildingId: filters.arcgisBuildingId,
-  }), [filters]);
+  const mapDataInput = useMemo(() => buildMapDataInput(filters), [filters]);
 
   const { data: mapData, isLoading: mapDataLoading, refetch: refetchMapData } = trpc.pickups.mapData.useQuery(
     mapDataInput,
@@ -291,23 +362,25 @@ export default function MapViewPage() {
     infoWindowRef.current = new window.google.maps.InfoWindow();
     // Street View is off by default; toggled via the toolbar button
     map.setOptions({ streetViewControl: false });
-    map.addListener("zoom_changed", () => setCurrentZoom(map.getZoom() ?? 14));
+    mapListenersRef.current = [
+      map.addListener("zoom_changed", () => setCurrentZoom(map.getZoom() ?? 14)),
+    ];
 
     // Debounced ArcGIS load on idle — uses ref so the listener always calls the
     // latest version of loadArcGISLayers without becoming stale.
-    map.addListener("idle", () => {
+    mapListenersRef.current.push(map.addListener("idle", () => {
       if (arcgisLoadTimerRef.current) clearTimeout(arcgisLoadTimerRef.current);
       arcgisLoadTimerRef.current = setTimeout(() => loadArcGISLayersRef.current(), 600);
-    });
+    }));
 
     // ── Places SearchBox ──────────────────────────────────────────────────
     if (searchInputRef.current && window.google.maps.places) {
       const searchBox = new window.google.maps.places.SearchBox(searchInputRef.current);
       searchBoxRef.current = searchBox;
-      map.addListener("bounds_changed", () => {
+      mapListenersRef.current.push(map.addListener("bounds_changed", () => {
         searchBox.setBounds(map.getBounds() as google.maps.LatLngBounds);
-      });
-      searchBox.addListener("places_changed", () => {
+      }));
+      mapListenersRef.current.push(searchBox.addListener("places_changed", () => {
         const places = searchBox.getPlaces();
         if (!places || places.length === 0) return;
         const bounds = new window.google.maps.LatLngBounds();
@@ -320,9 +393,24 @@ export default function MapViewPage() {
           }
         });
         map.fitBounds(bounds);
-      });
+      }));
     }
-  }, [mapsReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => {
+      if (arcgisLoadTimerRef.current) clearTimeout(arcgisLoadTimerRef.current);
+      arcgisRequestControllerRef.current?.abort();
+      mapListenersRef.current.forEach((listener) => listener.remove());
+      mapListenersRef.current = [];
+      pickupMarkersRef.current.forEach((marker) => marker.setMap(null));
+      pickupMarkersRef.current = [];
+      ARCGIS_LAYER_REGISTRY.forEach((layer) => clearArcGISLayerObjects(layer.id));
+      clearHeatmap();
+      infoWindowRef.current?.close();
+      infoWindowRef.current = null;
+      searchBoxRef.current = null;
+      mapRef.current = null;
+    };
+  }, [mapsReady, clearArcGISLayerObjects, clearHeatmap]);
 
   // ── Render pickup markers when mapData changes ─────────────────────────────
   useEffect(() => {
@@ -347,9 +435,9 @@ export default function MapViewPage() {
     if (layerVisible.heatmap) {
       buildHeatmap(mapData?.markers ?? []);
     } else {
-      if (heatmapRef.current) { heatmapRef.current.setMap(null); heatmapRef.current = null; }
+      clearHeatmap();
     }
-  }, [layerVisible.heatmap, mapData, mapsReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [layerVisible.heatmap, mapData, mapsReady, buildHeatmap, clearHeatmap]);
 
   useEffect(() => {
     ARCGIS_LAYER_REGISTRY.forEach((layer) => {
@@ -401,78 +489,99 @@ export default function MapViewPage() {
     });
   }, [layerVisible.pickup_markers]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Heatmap ────────────────────────────────────────────────────────────────
-  const buildHeatmap = useCallback((markers: MapMarker[]) => {
-    if (!mapRef.current || !window.google?.maps?.visualization) return;
-    if (heatmapRef.current) heatmapRef.current.setMap(null);
-    heatmapRef.current = new window.google.maps.visualization.HeatmapLayer({
-      data: markers.map((m) => ({
-        location: new window.google.maps.LatLng(m.latitude, m.longitude),
-        weight: m.pickupCount,
-      })),
-      map: mapRef.current,
-      radius: 30,
-      opacity: 0.7,
-    });
-  }, []);
-
-   // ── Load ArcGIS Layers ─────────────────────────────────────────────────────
+  // ── Load ArcGIS Layers ─────────────────────────────────────────────────────
   const loadArcGISLayers = useCallback(async () => {
     if (!mapRef.current) return;
-    const zoom = mapRef.current.getZoom() ?? 0;
     const bounds = mapRef.current.getBounds();
     if (!bounds) return;
-    // Set loading once before the loop — not per-layer — to avoid mid-loop re-renders
-    setArcgisLoading(true);
-    try {
-    for (const layer of ARCGIS_LAYER_REGISTRY) {
-      const visible = layerVisible[layer.id] ?? layer.defaultVisible;
-      if (!visible || zoom < layer.minZoom) {
-        arcgisPolygonsRef.current.get(layer.id as LayerId)?.forEach((p) => p.setMap(null));
-        arcgisPolygonsRef.current.set(layer.id as LayerId, []);
-        arcgisMarkersRef.current.get(layer.id as LayerId)?.forEach((m) => m.setMap(null));
-        arcgisMarkersRef.current.set(layer.id as LayerId, []);
-        continue;
-      }
-      if (!layer.url) {
-        // The Customer view is an injected private endpoint. Do not fall back
-        // to the historic public source when it is absent from the build.
-        continue;
-      }
-      try {
-        const features = await fetchArcGISFeatures(layer.url, bounds, 500, layer.requiresAuth, layer.outFields);
-        arcgisPolygonsRef.current.get(layer.id as LayerId)?.forEach((p) => p.setMap(null));
-        arcgisMarkersRef.current.get(layer.id as LayerId)?.forEach((m) => m.setMap(null));
-        const newPolygons: google.maps.Polygon[] = [];
-        const newMarkers: google.maps.Marker[] = [];
-        const opacityFactor = (layerOpacity[layer.id] ?? 70) / 100;
 
-        features.forEach((feature) => {
-          if (layer.type === "polygon" && feature.geometry?.rings) {
-            const polygon = new window.google.maps.Polygon({
-              paths: feature.geometry.rings.map((ring) => ring.map(([lng, lat]) => ({ lat, lng }))),
-              map: mapRef.current!,
-              strokeColor: layer.strokeColor,
-              strokeOpacity: 0.8,
-              strokeWeight: layer.strokeWeight,
-              fillColor: layer.fillColor,
-              fillOpacity: layer.fillOpacity * opacityFactor,
-              zIndex: 10,
-            });
-            polygon.addListener("click", (e: google.maps.MapMouseEvent) => {
-              const id = String(feature.attributes?.BuildingID || feature.attributes?.OBJECTID || "");
-              infoWindowRef.current?.setContent(`<div style="font-family:sans-serif;font-size:13px;padding:4px"><strong>Building ID:</strong> ${id}</div>`);
-              infoWindowRef.current?.setPosition(e.latLng!);
-              infoWindowRef.current?.open(mapRef.current!);
-            });
-            newPolygons.push(polygon);
-          } else if (layer.type === "point") {
+    const zoom = mapRef.current.getZoom() ?? 0;
+    const requestVersion = arcgisRequestVersionRef.current + 1;
+    arcgisRequestVersionRef.current = requestVersion;
+    arcgisRequestControllerRef.current?.abort();
+    const controller = new AbortController();
+    arcgisRequestControllerRef.current = controller;
+    const isCurrentRequest = () =>
+      !controller.signal.aborted && arcgisRequestVersionRef.current === requestVersion;
+
+    const immediatelyUnavailable = ARCGIS_LAYER_REGISTRY.filter((layer) => {
+      const enabled = layerVisible[layer.id] ?? layer.defaultVisible;
+      return !shouldLoadLayer({ enabled, zoom, minZoom: layer.minZoom, hasEndpoint: Boolean(layer.url) });
+    });
+
+    immediatelyUnavailable.forEach((layer) => {
+      clearArcGISLayerObjects(layer.id);
+      const enabled = layerVisible[layer.id] ?? layer.defaultVisible;
+      setLayerRuntime((previous) => ({
+        ...previous,
+        [layer.id]: {
+          loading: false,
+          renderedCount: 0,
+          partial: false,
+          failure: !enabled ? undefined : (!layer.url ? "Configuration unavailable" : undefined),
+        },
+      }));
+    });
+
+    const eligibleLayers = ARCGIS_LAYER_REGISTRY.filter((layer) => {
+      const enabled = layerVisible[layer.id] ?? layer.defaultVisible;
+      return shouldLoadLayer({ enabled, zoom, minZoom: layer.minZoom, hasEndpoint: Boolean(layer.url) });
+    });
+    if (eligibleLayers.length === 0) return;
+
+    setArcgisLoading(true);
+    eligibleLayers.forEach((layer) => {
+      setLayerRuntime((previous) => ({
+        ...previous,
+        [layer.id]: { ...previous[layer.id], loading: true, failure: undefined },
+      }));
+    });
+
+    try {
+      await Promise.all(eligibleLayers.map(async (layer) => {
+        try {
+          const response = await fetchArcGISFeatures(
+            layer.url,
+            bounds,
+            500,
+            layer.requiresAuth,
+            layer.outFields,
+            controller.signal,
+          );
+          if (!isCurrentRequest() || !mapRef.current) return;
+
+          const newPolygons: google.maps.Polygon[] = [];
+          const newMarkers: google.maps.Marker[] = [];
+          const opacityFactor = (layerOpacity[layer.id] ?? 70) / 100;
+
+          response.features.forEach((feature) => {
+            if (layer.type === "polygon" && feature.geometry?.rings?.length) {
+              const polygon = new window.google.maps.Polygon({
+                paths: feature.geometry.rings.map((ring) => ring.map(([lng, lat]) => ({ lat, lng }))),
+                map: mapRef.current!,
+                strokeColor: layer.strokeColor,
+                strokeOpacity: 0.8,
+                strokeWeight: layer.strokeWeight,
+                fillColor: layer.fillColor,
+                fillOpacity: layer.fillOpacity * opacityFactor,
+                zIndex: 10,
+              });
+              polygon.addListener("click", (event: google.maps.MapMouseEvent) => {
+                const id = String(feature.attributes?.BuildingID || feature.attributes?.OBJECTID || "");
+                infoWindowRef.current?.setContent(`<div style="font-family:sans-serif;font-size:13px;padding:4px"><strong>Building ID:</strong> ${id}</div>`);
+                infoWindowRef.current?.setPosition(event.latLng!);
+                infoWindowRef.current?.open(mapRef.current!);
+              });
+              newPolygons.push(polygon);
+              return;
+            }
+
+            if (layer.type !== "point") return;
             // Query output is explicitly WGS84. Use geometry only: the private
             // browser view exposes no customer profile fields to the dashboard.
             const lat = feature.geometry?.y;
             const lng = feature.geometry?.x;
             if (typeof lat !== "number" || typeof lng !== "number" || (lat === 0 && lng === 0)) return;
-            // Sanity check: valid Nigeria bounding box
             if (lat < 4 || lat > 14 || lng < 2 || lng > 15) return;
 
             const currentZoomLevel = mapRef.current?.getZoom() ?? 0;
@@ -487,7 +596,6 @@ export default function MapViewPage() {
                 strokeWeight: layer.strokeWeight,
                 scale: 6,
               },
-              // Show label only at zoom 16+ to avoid clutter at lower zoom levels
               label: currentZoomLevel >= 16 ? {
                 text: "Customer",
                 color: "#1e3a5f",
@@ -507,26 +615,86 @@ export default function MapViewPage() {
               infoWindowRef.current?.open(mapRef.current!, marker);
             });
             newMarkers.push(marker);
-          }
-        });
+          });
 
-        arcgisPolygonsRef.current.set(layer.id as LayerId, newPolygons);
-        arcgisMarkersRef.current.set(layer.id as LayerId, newMarkers);
-      } catch (err) {
-        console.error(`[MapView] ArcGIS layer ${layer.id} failed:`, err);
-      }
-    } // end for loop
+          if (!isCurrentRequest()) {
+            newPolygons.forEach((polygon) => polygon.setMap(null));
+            newMarkers.forEach((marker) => marker.setMap(null));
+            return;
+          }
+          clearArcGISLayerObjects(layer.id);
+          arcgisPolygonsRef.current.set(layer.id, newPolygons);
+          arcgisMarkersRef.current.set(layer.id, newMarkers);
+          setLayerRuntime((previous) => ({
+            ...previous,
+            [layer.id]: {
+              loading: false,
+              renderedCount: newPolygons.length + newMarkers.length,
+              partial: response.exceededTransferLimit,
+            },
+          }));
+        } catch (error) {
+          if (!isCurrentRequest()) return;
+          clearArcGISLayerObjects(layer.id);
+          setLayerRuntime((previous) => ({
+            ...previous,
+            [layer.id]: {
+              ...previous[layer.id],
+              loading: false,
+              failure: sanitiseLayerFailure(error),
+            },
+          }));
+        }
+      }));
     } finally {
-      // Set loading false once after ALL layers are done, not per-layer
-      setArcgisLoading(false);
+      if (isCurrentRequest()) setArcgisLoading(false);
     }
-  }, [layerVisible, layerOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clearArcGISLayerObjects, layerOpacity, layerVisible]);
 
   // Keep the ref in sync so the idle listener always calls the latest version
   // without the listener itself needing to be re-registered on every render.
   useEffect(() => {
     loadArcGISLayersRef.current = loadArcGISLayers;
   }, [loadArcGISLayers]);
+
+  // A switch is an explicit user intent: do not wait for a later map-idle event
+  // before loading an eligible overlay. Zoom changes use the same path.
+  useEffect(() => {
+    if (!mapsReady || !mapRef.current) return;
+    void loadArcGISLayersRef.current();
+  }, [mapsReady, currentZoom, arcgisVisibilitySignature]);
+
+  // Opacity changes apply to already-rendered polygons without issuing another
+  // provider request or waiting for the map to move.
+  useEffect(() => {
+    ARCGIS_LAYER_REGISTRY.filter((layer) => layer.type === "polygon").forEach((layer) => {
+      const opacityFactor = (layerOpacity[layer.id] ?? 70) / 100;
+      arcgisPolygonsRef.current.get(layer.id)?.forEach((polygon) => {
+        polygon.setOptions({ fillOpacity: layer.fillOpacity * opacityFactor });
+      });
+    });
+  }, [layerOpacity]);
+
+  const layerStatuses = useMemo(() =>
+    Object.fromEntries(ARCGIS_LAYER_REGISTRY.map((layer) => {
+      const runtime = layerRuntime[layer.id];
+      const enabled = layerVisible[layer.id] ?? layer.defaultVisible;
+      return [layer.id, determineLayerStatus({
+        enabled,
+        zoom: currentZoom,
+        minZoom: layer.minZoom,
+        hasEndpoint: Boolean(layer.url),
+        loading: runtime.loading,
+        renderedCount: runtime.renderedCount,
+        partial: runtime.partial,
+        failedMessage: runtime.failure,
+      })];
+    })) as Record<LayerId, MapLayerStatus>,
+  [currentZoom, layerRuntime, layerVisible]);
+
+  const waitingLayer = ARCGIS_LAYER_REGISTRY.find(
+    (layer) => layerStatuses[layer.id].kind === "waiting_for_zoom",
+  );
 
   // ── GPS / My Location ──────────────────────────────────────────────────────
   const handleMyLocation = useCallback(() => {
@@ -705,18 +873,17 @@ export default function MapViewPage() {
                           <span className="text-gray-500">Zoom level</span>
                           <span className="font-semibold text-gray-800">{currentZoom}</span>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">Customer Points</span>
-                          <span className={`font-semibold ${currentZoom >= 13 ? "text-green-600" : "text-orange-500"}`}>
-                            {currentZoom >= 13 ? "Active" : `Zoom ${13 - currentZoom} more`}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">Building Footprints</span>
-                          <span className={`font-semibold ${currentZoom >= 15 ? "text-green-600" : "text-orange-500"}`}>
-                            {currentZoom >= 15 ? "Active" : `Zoom ${15 - currentZoom} more`}
-                          </span>
-                        </div>
+                        {ARCGIS_LAYER_REGISTRY.map((layer) => {
+                          const status = layerStatuses[layer.id];
+                          return (
+                            <div key={layer.id} className="flex items-center justify-between gap-3 text-sm">
+                              <span className="text-gray-500">{layer.label}</span>
+                              <span className={`font-semibold text-right ${layerStatusTone(status.kind)}`}>
+                                {layerStatusLabel(status)}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                     <div className="px-4 pb-4 mt-auto">
@@ -851,9 +1018,9 @@ export default function MapViewPage() {
           )}
 
           {/* Zoom hint for ArcGIS layers */}
-          {currentZoom < 13 && (layerVisible.building_footprints || layerVisible.customer_points) && (
+          {waitingLayer && (
             <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 shadow text-xs text-amber-700 pointer-events-none">
-              Zoom in to level 13+ to load ArcGIS layers
+              Zoom in to load {waitingLayer.label}
             </div>
           )}
 
@@ -967,6 +1134,7 @@ export default function MapViewPage() {
                         label={layer.label}
                         description={`${layer.description} · zoom ${layer.minZoom}+`}
                         visible={visible}
+                        status={layerStatuses[layer.id]}
                         onToggle={() => toggleLayer(layer.id)}
                         colorSwatch={layer.fillColor}
                       />
@@ -989,10 +1157,10 @@ export default function MapViewPage() {
                   );
                 })}
 
-                {currentZoom < 13 && (
+                {waitingLayer && (
                   <div className="mt-2 text-xs text-amber-600 bg-amber-50 rounded px-2 py-1.5 flex items-center gap-1.5">
                     <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                    Zoom in to level 13+ to load ArcGIS layers
+                    Zoom in to load {waitingLayer.label}
                   </div>
                 )}
               </div>
@@ -1019,11 +1187,12 @@ interface LayerRowProps {
   label: string;
   description: string;
   visible: boolean;
+  status?: MapLayerStatus;
   onToggle: () => void;
   colorSwatch: string;
 }
 
-function LayerRow({ icon, label, description, visible, onToggle, colorSwatch }: LayerRowProps) {
+function LayerRow({ icon, label, description, visible, status, onToggle, colorSwatch }: LayerRowProps) {
   return (
     <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
       <div
@@ -1035,6 +1204,7 @@ function LayerRow({ icon, label, description, visible, onToggle, colorSwatch }: 
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-gray-800 truncate">{label}</div>
           <p className="text-xs text-gray-400 truncate">{description}</p>
+          {status && <p className={`text-xs truncate ${layerStatusTone(status.kind)}`}>{layerStatusLabel(status)}</p>}
         </div>
       </div>
       <Switch

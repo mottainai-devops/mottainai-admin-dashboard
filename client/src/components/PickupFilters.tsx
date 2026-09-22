@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -28,7 +27,7 @@ export interface PickupFilters {
   lotId?: string;
   binType?: string;
   paymentType?: "PAYT" | "Monthly" | "all";
-  source?: "webapp_current" | "webapp_old" | "mobile_app" | "field_worker" | "unknown" | "all";
+  source?: "webapp_current" | "webapp_old" | "mobile_app" | "field_worker" | "survey123" | "unknown" | "all";
   arcgisBuildingId?: string;
 }
 
@@ -38,9 +37,6 @@ interface PickupFiltersProps {
 }
 
 export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFiltersProps) {
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(filters.dateFrom);
-  const [dateTo, setDateTo] = useState<Date | undefined>(filters.dateTo);
-
   const { data: companies } = trpc.companies.list.useQuery();
   const { data: filterOptions } = trpc.pickups.getFilterOptions.useQuery();
   
@@ -53,17 +49,7 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
   const binTypes = filterOptions?.binTypes || [];
   const availableLots = filterOptions?.lots || [];
 
-  const handleApplyFilters = () => {
-    onFiltersChange({
-      ...filters,
-      dateFrom,
-      dateTo,
-    });
-  };
-
   const handleClearFilters = () => {
-    setDateFrom(undefined);
-    setDateTo(undefined);
     onFiltersChange({
       dateFrom: undefined,
       dateTo: undefined,
@@ -76,8 +62,8 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
     });
   };
 
-  const hasActiveFilters = 
-    dateFrom || dateTo || filters.companyId || filters.fieldWorkerId || filters.lotId || filters.binType || 
+  const hasActiveFilters =
+    filters.dateFrom || filters.dateTo || filters.companyId || filters.fieldWorkerId || filters.lotId || filters.binType ||
     (filters.paymentType && filters.paymentType !== "all") || (filters.source && filters.source !== "all") ||
     filters.arcgisBuildingId;
 
@@ -95,14 +81,14 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
                   className="w-full justify-start text-left font-normal"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateFrom ? format(dateFrom, "PPP") : "Pick a date"}
+                  {filters.dateFrom ? format(filters.dateFrom, "PPP") : "Pick a date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={dateFrom}
-                  onSelect={setDateFrom}
+                  selected={filters.dateFrom}
+                  onSelect={(dateFrom) => onFiltersChange({ ...filters, dateFrom })}
                   initialFocus
                 />
               </PopoverContent>
@@ -119,14 +105,14 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
                   className="w-full justify-start text-left font-normal"
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateTo ? format(dateTo, "PPP") : "Pick a date"}
+                  {filters.dateTo ? format(filters.dateTo, "PPP") : "Pick a date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-full p-0" align="start">
                 <Calendar
                   mode="single"
-                  selected={dateTo}
-                  onSelect={setDateTo}
+                  selected={filters.dateTo}
+                  onSelect={(dateTo) => onFiltersChange({ ...filters, dateTo })}
                   initialFocus
                 />
               </PopoverContent>
@@ -151,11 +137,14 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Companies</SelectItem>
-                {Array.isArray(companies) && companies.map((company) => (
-                  <SelectItem key={company._id} value={company._id}>
-                    {company.companyName}
-                  </SelectItem>
-                ))}
+                {Array.isArray(companies) && companies.map((company) => {
+                  if (!company) return null;
+                  return (
+                    <SelectItem key={company._id} value={company._id}>
+                      {company.companyName}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -286,7 +275,7 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
               onValueChange={(value) =>
                 onFiltersChange({
                   ...filters,
-                  source: value as "webapp_current" | "webapp_old" | "mobile_app" | "field_worker" | "unknown" | "all",
+                  source: value as "webapp_current" | "webapp_old" | "mobile_app" | "field_worker" | "survey123" | "unknown" | "all",
                 })
               }
             >
@@ -299,35 +288,32 @@ export function PickupFiltersComponent({ filters, onFiltersChange }: PickupFilte
                 <SelectItem value="webapp_old">Webapp (Old)</SelectItem>
                 <SelectItem value="mobile_app">Mobile App</SelectItem>
                 <SelectItem value="field_worker">FieldWorker</SelectItem>
+                <SelectItem value="survey123">Survey123</SelectItem>
                 <SelectItem value="unknown">Unknown</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2 mt-4">
-          <Button onClick={handleApplyFilters} className="flex-1 md:flex-none">
-            Apply Filters
-          </Button>
-          {hasActiveFilters && (
+        {hasActiveFilters && (
+          <div className="mt-4">
             <Button
               variant="outline"
               onClick={handleClearFilters}
-              className="flex-1 md:flex-none"
+              className="w-full"
             >
               <X className="h-4 w-4 mr-2" />
               Clear Filters
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Active Filters Summary */}
         {hasActiveFilters && (
           <div className="mt-4 text-sm text-muted-foreground">
             <span className="font-medium">Active filters:</span>
-            {dateFrom && <span className="ml-2">From: {format(dateFrom, "PP")}</span>}
-            {dateTo && <span className="ml-2">To: {format(dateTo, "PP")}</span>}
+            {filters.dateFrom && <span className="ml-2">From: {format(filters.dateFrom, "PP")}</span>}
+            {filters.dateTo && <span className="ml-2">To: {format(filters.dateTo, "PP")}</span>}
             {filters.companyId && <span className="ml-2">Company selected</span>}
             {filters.lotId && <span className="ml-2">Lot selected</span>}
             {filters.binType && <span className="ml-2">Bin: {filters.binType}</span>}
