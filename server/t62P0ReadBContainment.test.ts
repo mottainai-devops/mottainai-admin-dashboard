@@ -57,6 +57,7 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
 
     expect(mapPageSource).toContain('outFields: "OBJECTID"');
     expect(mapPageSource).toContain("normaliseArcGISPoint(feature.geometry)");
+    expect(mapPageSource).toContain("buildArcGISLayerQueryUrl(url)");
     expect(mapPageSource).not.toContain("feature.attributes?.cust_phone");
     expect(mapPageSource).not.toContain("feature.attributes?.business_name");
     expect(mapPageSource).not.toContain("feature.attributes?.first_name");

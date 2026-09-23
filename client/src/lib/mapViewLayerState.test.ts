@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateHeatmapCells,
+  buildArcGISLayerQueryUrl,
   createViewportSignature,
   createHeatmapRenderGate,
   determineLayerStatus,
@@ -178,5 +179,22 @@ describe("Map View layer lifecycle", () => {
     expect(normaliseArcGISPoint({ x: 0, y: 0 })).toBeNull();
     expect(normaliseArcGISPoint({ x: 50, y: 30 })).toBeNull();
     expect(normaliseArcGISPoint({ x: 30_000_000, y: 0 })).toBeNull();
+  });
+
+  it("normalises a Feature Service root to its declared Customer layer query", () => {
+    expect(buildArcGISLayerQueryUrl("https://example.invalid/arcgis/rest/services/Customer/FeatureServer"))
+      .toBe("https://example.invalid/arcgis/rest/services/Customer/FeatureServer/0/query");
+  });
+
+  it("preserves a numeric Feature Service layer before appending query", () => {
+    expect(buildArcGISLayerQueryUrl("https://example.invalid/arcgis/rest/services/Customer/FeatureServer/3"))
+      .toBe("https://example.invalid/arcgis/rest/services/Customer/FeatureServer/3/query");
+  });
+
+  it("fails closed for malformed or unsupported ArcGIS endpoints", () => {
+    expect(() => buildArcGISLayerQueryUrl("not-a-url")).toThrow("invalid");
+    expect(() => buildArcGISLayerQueryUrl("http://example.invalid/FeatureServer")).toThrow("unsupported");
+    expect(() => buildArcGISLayerQueryUrl("https://example.invalid/FeatureServer/not-a-layer")).toThrow("unsupported");
+    expect(() => buildArcGISLayerQueryUrl("https://example.invalid/FeatureServer?layer=0")).toThrow("unsupported");
   });
 });

@@ -32,6 +32,7 @@ import { trpc } from "@/lib/trpc";
 import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
 import { buildMapDataInput } from "@/lib/mapViewQuery";
 import {
+  buildArcGISLayerQueryUrl,
   createHeatmapRenderGate,
   createViewportSignature,
   determineLayerStatus,
@@ -208,7 +209,8 @@ async function fetchArcGISFeatures(
     body.set("token", ARCGIS_BROWSER_KEY);
   }
 
-  const res = await fetch(`${url}/query`, {
+  const queryUrl = buildArcGISLayerQueryUrl(url);
+  const res = await fetch(queryUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),

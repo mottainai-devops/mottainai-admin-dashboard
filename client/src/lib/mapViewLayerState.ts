@@ -296,3 +296,40 @@ export function normaliseArcGISPoint(geometry: ArcGISPointGeometry | null | unde
     ? { latitude: y, longitude: x }
     : webMercatorToWgs84(x, y);
 }
+
+/**
+ * Converts the configured Feature Service endpoint into a specific layer-query
+ * URL. ArcGIS service roots may return a successful but empty response to a
+ * `/query` request, so the customer layer must always target its declared
+ * numeric layer. Unsupported endpoint shapes fail closed rather than falling
+ * back to an unrelated public service.
+ */
+export function buildArcGISLayerQueryUrl(endpoint: string, defaultLayerId = 0): string {
+  if (!Number.isInteger(defaultLayerId) || defaultLayerId < 0) {
+    throw new Error("ArcGIS default layer must be a non-negative integer");
+  }
+
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new Error("ArcGIS layer endpoint is invalid");
+  }
+
+  if (url.protocol !== "https:" || url.search || url.hash) {
+    throw new Error("ArcGIS layer endpoint is unsupported");
+  }
+
+  const pathname = url.pathname.replace(/\/+$/, "");
+  if (/\/FeatureServer$/i.test(pathname)) {
+    url.pathname = `${pathname}/${defaultLayerId}/query`;
+    return url.toString();
+  }
+
+  if (/\/FeatureServer\/\d+$/i.test(pathname)) {
+    url.pathname = `${pathname}/query`;
+    return url.toString();
+  }
+
+  throw new Error("ArcGIS layer endpoint is unsupported");
+}
