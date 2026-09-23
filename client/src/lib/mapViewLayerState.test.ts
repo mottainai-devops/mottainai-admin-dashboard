@@ -5,6 +5,7 @@ import {
   createHeatmapRenderGate,
   determineLayerStatus,
   layerStatusLabel,
+  normaliseArcGISPoint,
   planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
@@ -151,5 +152,31 @@ describe("Map View layer lifecycle", () => {
 
     const replacementRender = renderGate.begin();
     expect(renderGate.isCurrent(replacementRender)).toBe(true);
+  });
+
+  it("keeps an in-bounds WGS84 Customer Point unchanged", () => {
+    expect(normaliseArcGISPoint({ x: 3, y: 6 })).toEqual({ latitude: 6, longitude: 3 });
+  });
+
+  it("converts a recognised Web Mercator Customer Point before rendering", () => {
+    const worldLimit = 20_037_508.342789244;
+    const latitude = 6;
+    const longitude = 3;
+    const projected = {
+      x: (longitude / 180) * worldLimit,
+      y: Math.log(Math.tan(Math.PI / 4 + (latitude * Math.PI / 180) / 2)) * worldLimit / Math.PI,
+    };
+
+    const point = normaliseArcGISPoint(projected);
+    expect(point?.latitude).toBeCloseTo(latitude, 6);
+    expect(point?.longitude).toBeCloseTo(longitude, 6);
+  });
+
+  it("rejects malformed, zero, and out-of-area Customer Point geometry", () => {
+    expect(normaliseArcGISPoint(undefined)).toBeNull();
+    expect(normaliseArcGISPoint({ x: "3", y: 6 })).toBeNull();
+    expect(normaliseArcGISPoint({ x: 0, y: 0 })).toBeNull();
+    expect(normaliseArcGISPoint({ x: 50, y: 30 })).toBeNull();
+    expect(normaliseArcGISPoint({ x: 30_000_000, y: 0 })).toBeNull();
   });
 });

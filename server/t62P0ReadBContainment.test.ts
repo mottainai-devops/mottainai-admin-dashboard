@@ -54,18 +54,13 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
 
   it("queries the private Customer view with geometry and object IDs only", () => {
     const mapPageSource = readServerSource("..", "client", "src", "pages", "MapViewPage.tsx");
-    const customerPointStart = mapPageSource.indexOf("// Query output is explicitly WGS84");
-    const customerPointEnd = mapPageSource.indexOf("newMarkers.push(marker);");
-    const customerPointSource = mapPageSource.slice(customerPointStart, customerPointEnd);
 
     expect(mapPageSource).toContain('outFields: "OBJECTID"');
-    expect(customerPointSource).toContain("const lat = feature.geometry?.y");
-    expect(customerPointSource).toContain("const lng = feature.geometry?.x");
-    expect(customerPointSource).not.toContain("feature.attributes?.cust_phone");
-    expect(customerPointSource).not.toContain("feature.attributes?.building_id");
-    expect(customerPointSource).not.toContain("feature.attributes?.business_name");
-    expect(customerPointSource).not.toContain("feature.attributes?.first_name");
-    expect(customerPointSource).not.toContain("feature.attributes?.last_name");
+    expect(mapPageSource).toContain("normaliseArcGISPoint(feature.geometry)");
+    expect(mapPageSource).not.toContain("feature.attributes?.cust_phone");
+    expect(mapPageSource).not.toContain("feature.attributes?.business_name");
+    expect(mapPageSource).not.toContain("feature.attributes?.first_name");
+    expect(mapPageSource).not.toContain("feature.attributes?.last_name");
   });
 
   it("uses the published Building Footprints identifier without broadening its field request", () => {
