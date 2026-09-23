@@ -37,6 +37,7 @@ import {
   determineLayerStatus,
   layerStatusLabel,
   layerStatusTone,
+  normaliseArcGISPoint,
   planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
@@ -639,16 +640,15 @@ export default function MapViewPage() {
             }
 
             if (layer.type !== "point") return;
-            // Query output is explicitly WGS84. Use geometry only: the private
-            // browser view exposes no customer profile fields to the dashboard.
-            const lat = feature.geometry?.y;
-            const lng = feature.geometry?.x;
-            if (typeof lat !== "number" || typeof lng !== "number" || (lat === 0 && lng === 0)) return;
-            if (lat < 4 || lat > 14 || lng < 2 || lng > 15) return;
+            // The private view returns geometry only. Prefer requested WGS84
+            // coordinates and safely normalise a recognised Web Mercator
+            // response without exposing profile fields or relaxing boundaries.
+            const point = normaliseArcGISPoint(feature.geometry);
+            if (!point) return;
 
             const currentZoomLevel = mapRef.current?.getZoom() ?? 0;
             const marker = new window.google.maps.Marker({
-              position: { lat, lng },
+              position: { lat: point.latitude, lng: point.longitude },
               map: mapRef.current!,
               icon: {
                 path: window.google.maps.SymbolPath.CIRCLE,

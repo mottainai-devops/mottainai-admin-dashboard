@@ -237,3 +237,62 @@ export function createHeatmapRenderGate() {
     },
   };
 }
+
+export interface ArcGISPointGeometry {
+  x?: unknown;
+  y?: unknown;
+}
+
+export interface MapPoint {
+  latitude: number;
+  longitude: number;
+}
+
+// Customer Points is intentionally rendered only inside this operational
+// guardrail. It prevents an unexpected spatial reference from placing a point
+// somewhere unrelated on the Dashboard map.
+const NIGERIA_POINT_BOUNDS = {
+  minLatitude: 4,
+  maxLatitude: 14,
+  minLongitude: 2,
+  maxLongitude: 15,
+} as const;
+
+const WEB_MERCATOR_WORLD_LIMIT = 20_037_508.342789244;
+
+function isWithinNigeriaBounds(latitude: number, longitude: number): boolean {
+  return Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= NIGERIA_POINT_BOUNDS.minLatitude
+    && latitude <= NIGERIA_POINT_BOUNDS.maxLatitude
+    && longitude >= NIGERIA_POINT_BOUNDS.minLongitude
+    && longitude <= NIGERIA_POINT_BOUNDS.maxLongitude;
+}
+
+function webMercatorToWgs84(x: number, y: number): MapPoint | null {
+  if (Math.abs(x) > WEB_MERCATOR_WORLD_LIMIT || Math.abs(y) > WEB_MERCATOR_WORLD_LIMIT) {
+    return null;
+  }
+
+  const longitude = (x / WEB_MERCATOR_WORLD_LIMIT) * 180;
+  const latitude = (180 / Math.PI) * (2 * Math.atan(Math.exp((y / WEB_MERCATOR_WORLD_LIMIT) * Math.PI)) - Math.PI / 2);
+  return isWithinNigeriaBounds(latitude, longitude) ? { latitude, longitude } : null;
+}
+
+/**
+ * Converts a queried ArcGIS point into a safe Google Maps position. The view is
+ * requested in WGS84, but this fallback safely handles a projected Web Mercator
+ * response without relaxing the existing operating-area guardrail.
+ */
+export function normaliseArcGISPoint(geometry: ArcGISPointGeometry | null | undefined): MapPoint | null {
+  const x = geometry?.x;
+  const y = geometry?.y;
+  if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) {
+    return null;
+  }
+  if (x === 0 && y === 0) return null;
+
+  return isWithinNigeriaBounds(y, x)
+    ? { latitude: y, longitude: x }
+    : webMercatorToWgs84(x, y);
+}
