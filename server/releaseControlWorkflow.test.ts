@@ -29,7 +29,9 @@ describe("release-control workflow", () => {
     const workflow = readFileSync(workflowPath, "utf8");
 
     expect(workflow).toContain("node scripts/write-release-manifest.mjs");
-    expect(workflow).toContain("Deployed static asset provenance verified.");
+    expect(workflow).toContain("cp -r scripts deploy-package/");
+    expect(workflow).toContain("node scripts/verify-release-manifest.mjs");
+    expect(workflow).not.toContain("<<'NODE'");
     expect(workflow).toContain("Running server release revision verified.");
     expect(workflow).toContain("Public release revision verified.");
     expect(workflow).toContain(
