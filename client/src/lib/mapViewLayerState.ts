@@ -297,6 +297,71 @@ export function normaliseArcGISPoint(geometry: ArcGISPointGeometry | null | unde
     : webMercatorToWgs84(x, y);
 }
 
+// The private browser view exposes these fields only after the owner-approved
+// R-077 scope change. Keep this list exact: do not request wildcard fields or
+// make a profile attribute available merely because it exists in the source.
+export const CUSTOMER_POINT_OUT_FIELDS = [
+  "OBJECTID",
+  "business_name",
+  "address2",
+  "user_identification_number",
+  "customer_type",
+] as const;
+
+export const CUSTOMER_POINT_OUT_FIELDS_PARAMETER = CUSTOMER_POINT_OUT_FIELDS.join(",");
+
+export interface CustomerPointPopupAttributes {
+  business_name?: unknown;
+  address2?: unknown;
+  user_identification_number?: unknown;
+  customer_type?: unknown;
+}
+
+const CUSTOMER_POINT_POPUP_FIELDS: Array<{
+  attribute: keyof CustomerPointPopupAttributes;
+  label: string;
+}> = [
+  { attribute: "business_name", label: "Business name" },
+  { attribute: "address2", label: "Address" },
+  { attribute: "user_identification_number", label: "User identification number" },
+  { attribute: "customer_type", label: "Customer type" },
+];
+
+function escapePopupText(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
+}
+
+function customerPopupValue(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") return "Not recorded";
+  return escapePopupText(value.trim());
+}
+
+/**
+ * Renders only the approved Customer Point display attributes as escaped text.
+ * It intentionally ignores every unapproved attribute present in a response.
+ */
+export function buildCustomerPointPopupContent(attributes: CustomerPointPopupAttributes): string {
+  const rows = CUSTOMER_POINT_POPUP_FIELDS.map(({ attribute, label }) => `
+    <div style="margin-top:4px">
+      <dt style="font-weight:600;color:#475569">${label}</dt>
+      <dd style="margin:1px 0 0;color:#0f172a">${customerPopupValue(attributes[attribute])}</dd>
+    </div>
+  `).join("");
+
+  return `
+    <div style="font-family:sans-serif;font-size:13px;padding:6px 8px;max-width:260px">
+      <div style="font-weight:700;font-size:14px;color:#1e293b">Customer location</div>
+      <dl style="margin:6px 0 0">${rows}</dl>
+    </div>
+  `;
+}
+
 /**
  * Converts the configured Feature Service endpoint into a specific layer-query
  * URL. ArcGIS service roots may return a successful but empty response to a
