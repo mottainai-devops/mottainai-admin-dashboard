@@ -51,7 +51,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -72,6 +72,11 @@ jobs:
           VITE_ARCGIS_CUSTOMER_VIEW_URL: ${{ secrets.VITE_ARCGIS_CUSTOMER_VIEW_URL }}
           VITE_GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.VITE_GOOGLE_MAPS_BROWSER_KEY }}
         run: pnpm build
+
+      - name: Create release provenance manifest
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: node scripts/write-release-manifest.mjs
 
       - name: Verify build title
         run: |
@@ -136,6 +141,39 @@ jobs:
             # Use --checksum so files with same name+size but different content are overwritten.
             rsync -a --checksum /var/www/mottainai-dashboard-new/ /var/www/mottainai-dashboard/
 
+            echo "=== Verifying deployed static asset provenance ==="
+            EXPECTED_RELEASE_SHA="${{ inputs.release_sha }}"
+            RELEASE_MANIFEST=/var/www/mottainai-dashboard/dist/public/release-manifest.json
+            node - "$RELEASE_MANIFEST" "$EXPECTED_RELEASE_SHA" <<'NODE'
+            const { createHash } = require("node:crypto");
+            const { readFileSync } = require("node:fs");
+            const { dirname, resolve, sep } = require("node:path");
+
+            const [manifestPath, expectedReleaseSha] = process.argv.slice(2);
+            const publicDir = dirname(manifestPath);
+            const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+            if (manifest.releaseSha !== expectedReleaseSha) {
+              throw new Error("Deployed manifest release revision does not match the approved release");
+            }
+            if (!Array.isArray(manifest.assets) || manifest.assets.length === 0) {
+              throw new Error("Deployed manifest contains no static assets");
+            }
+            for (const asset of manifest.assets) {
+              if (!asset || typeof asset.path !== "string" || typeof asset.sha256 !== "string") {
+                throw new Error("Deployed manifest contains an invalid asset entry");
+              }
+              const assetPath = resolve(publicDir, asset.path);
+              if (!assetPath.startsWith(`${publicDir}${sep}`) || !asset.path.startsWith("assets/")) {
+                throw new Error("Deployed manifest asset path is unsafe");
+              }
+              const actualHash = createHash("sha256").update(readFileSync(assetPath)).digest("hex");
+              if (actualHash !== asset.sha256) {
+                throw new Error("Deployed static asset hash does not match the release manifest");
+              }
+            }
+            console.log("Deployed static asset provenance verified.");
+            NODE
+
             echo "=== Restarting PM2 process ==="
             pm2 restart mottainai-dashboard --update-env
             pm2 save
@@ -162,6 +200,11 @@ jobs:
               fi
             done
 
+            echo "=== Verifying running server release revision ==="
+            curl -fsS --retry 3 --retry-all-errors --max-time 15 \
+              "http://localhost:${SERVER_PORT}/release-manifest.json?release_sha=${EXPECTED_RELEASE_SHA}" \
+              | node -e 'let body=""; process.stdin.setEncoding("utf8"); process.stdin.on("data", chunk => body += chunk); process.stdin.on("end", () => { const manifest = JSON.parse(body); if (manifest.releaseSha !== process.argv[1]) { throw new Error("Running server revision does not match approved release"); } console.log("Running server release revision verified."); });' "$EXPECTED_RELEASE_SHA"
+
             echo "=== Cleanup ==="
             rm -rf /var/www/mottainai-dashboard-new /tmp/dashboard-deploy.tar.gz
             echo "=== Verifying deployed title ==="
@@ -172,5 +215,10 @@ jobs:
             else
               echo "Title verification passed: $DEPLOYED_TITLE"
             fi
+
+            echo "=== Verifying public release revision ==="
+            curl -fsS --retry 3 --retry-all-errors --max-time 30 \
+              "https://admin.kowope.xyz/release-manifest.json?release_sha=${EXPECTED_RELEASE_SHA}" \
+              | node -e 'let body=""; process.stdin.setEncoding("utf8"); process.stdin.on("data", chunk => body += chunk); process.stdin.on("end", () => { const manifest = JSON.parse(body); if (manifest.releaseSha !== process.argv[1]) { throw new Error("Public release revision does not match approved release"); } console.log("Public release revision verified."); });' "$EXPECTED_RELEASE_SHA"
             echo "Deploy complete!"
           ENDSSH
