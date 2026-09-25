@@ -24,4 +24,16 @@ describe("release-control workflow", () => {
     expect(workflow).toContain("needs: release-preflight");
     expect(workflow).toContain("environment:\n      name: production");
   });
+
+  it("fails a release when the deployed static assets or public revision are not the approved build", () => {
+    const workflow = readFileSync(workflowPath, "utf8");
+
+    expect(workflow).toContain("node scripts/write-release-manifest.mjs");
+    expect(workflow).toContain("Deployed static asset provenance verified.");
+    expect(workflow).toContain("Running server release revision verified.");
+    expect(workflow).toContain("Public release revision verified.");
+    expect(workflow).toContain(
+      "release-manifest.json?release_sha=${EXPECTED_RELEASE_SHA}"
+    );
+  });
 });
