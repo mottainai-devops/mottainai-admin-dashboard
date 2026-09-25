@@ -363,6 +363,81 @@ export function buildCustomerPointPopupContent(attributes: CustomerPointPopupAtt
 }
 
 /**
+ * Produces the owner-approved persistent marker text without widening the
+ * private-view field contract. Google Maps treats MarkerLabel text as text,
+ * rather than HTML; this helper also avoids whitespace-only labels.
+ */
+export function customerPointMarkerLabel(attributes: CustomerPointPopupAttributes): string {
+  const businessName = attributes.business_name;
+  return typeof businessName === "string" && businessName.trim() !== ""
+    ? businessName.trim()
+    : "Customer";
+}
+
+export interface CustomerMarkerLabelCandidate {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+}
+
+interface CustomerMarkerLabelBounds {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+const CUSTOMER_MARKER_LABEL_FONT_WIDTH = 6.5;
+const CUSTOMER_MARKER_LABEL_MIN_WIDTH = 44;
+const CUSTOMER_MARKER_LABEL_MAX_WIDTH = 240;
+const CUSTOMER_MARKER_LABEL_HEIGHT = 18;
+const CUSTOMER_MARKER_LABEL_HORIZONTAL_OFFSET = 9;
+const CUSTOMER_MARKER_LABEL_VERTICAL_OFFSET = 14;
+
+function customerMarkerLabelBounds(candidate: CustomerMarkerLabelCandidate): CustomerMarkerLabelBounds {
+  const width = Math.min(
+    CUSTOMER_MARKER_LABEL_MAX_WIDTH,
+    Math.max(CUSTOMER_MARKER_LABEL_MIN_WIDTH, candidate.label.length * CUSTOMER_MARKER_LABEL_FONT_WIDTH + 10),
+  );
+
+  return {
+    left: candidate.x + CUSTOMER_MARKER_LABEL_HORIZONTAL_OFFSET,
+    right: candidate.x + CUSTOMER_MARKER_LABEL_HORIZONTAL_OFFSET + width,
+    top: candidate.y - CUSTOMER_MARKER_LABEL_VERTICAL_OFFSET,
+    bottom: candidate.y - CUSTOMER_MARKER_LABEL_VERTICAL_OFFSET + CUSTOMER_MARKER_LABEL_HEIGHT,
+  };
+}
+
+function customerMarkerLabelsOverlap(a: CustomerMarkerLabelBounds, b: CustomerMarkerLabelBounds): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/**
+ * Keeps persistent labels legible in dense views. A deterministic screen-order
+ * plan retains the full approved business name when it has room; it never
+ * substitutes an available business name with a generic value to resolve a
+ * collision. Suppressed labels are recalculated after map movement or zoom.
+ */
+export function planCustomerMarkerLabelVisibility(
+  candidates: CustomerMarkerLabelCandidate[],
+): Set<string> {
+  const acceptedBounds: CustomerMarkerLabelBounds[] = [];
+  const visible = new Set<string>();
+
+  [...candidates]
+    .sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id))
+    .forEach((candidate) => {
+      const bounds = customerMarkerLabelBounds(candidate);
+      if (acceptedBounds.some((existing) => customerMarkerLabelsOverlap(existing, bounds))) return;
+      acceptedBounds.push(bounds);
+      visible.add(candidate.id);
+    });
+
+  return visible;
+}
+
+/**
  * Converts the configured Feature Service endpoint into a specific layer-query
  * URL. ArcGIS service roots may return a successful but empty response to a
  * `/query` request, so the customer layer must always target its declared

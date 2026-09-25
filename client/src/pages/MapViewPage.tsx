@@ -34,6 +34,7 @@ import { buildMapDataInput } from "@/lib/mapViewQuery";
 import {
   buildArcGISLayerQueryUrl,
   buildCustomerPointPopupContent,
+  customerPointMarkerLabel,
   CUSTOMER_POINT_OUT_FIELDS_PARAMETER,
   createHeatmapRenderGate,
   createViewportSignature,
@@ -41,6 +42,7 @@ import {
   layerStatusLabel,
   layerStatusTone,
   normaliseArcGISPoint,
+  planCustomerMarkerLabelVisibility,
   planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
@@ -84,7 +86,7 @@ const ARCGIS_LAYER_REGISTRY = [
     icon: Users,
     url: ARCGIS_CUSTOMER_VIEW_URL,
     type: "point" as const,
-    defaultVisible: false,
+    defaultVisible: true,
     strokeColor: "#059669",
     fillColor: "#10b981",
     fillOpacity: 0.9,
@@ -97,6 +99,13 @@ const ARCGIS_LAYER_REGISTRY = [
 ] as const;
 
 type LayerId = (typeof ARCGIS_LAYER_REGISTRY)[number]["id"];
+
+type CustomerMarkerLabelState = {
+  id: string;
+  label: string;
+  marker: google.maps.Marker;
+  position: google.maps.LatLngLiteral;
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Customer data is centred on Ibadan, Oyo State (lat ~7.36, lng ~3.88)
@@ -233,6 +242,8 @@ export default function MapViewPage() {
   const mapRef = useRef<google.maps.Map | null>(null);
   const arcgisPolygonsRef = useRef<Map<LayerId, google.maps.Polygon[]>>(new Map());
   const arcgisMarkersRef = useRef<Map<LayerId, google.maps.Marker[]>>(new Map());
+  const customerMarkerLabelsRef = useRef<CustomerMarkerLabelState[]>([]);
+  const customerLabelLayoutFrameRef = useRef<number | null>(null);
   const pickupMarkersRef = useRef<google.maps.Marker[]>([]);
   const heatmapCirclesRef = useRef<google.maps.Circle[]>([]);
   const heatmapRenderFrameRef = useRef<number | null>(null);
@@ -295,7 +306,41 @@ export default function MapViewPage() {
     arcgisMarkersRef.current.get(layerId)?.forEach((marker) => marker.setMap(null));
     arcgisPolygonsRef.current.set(layerId, []);
     arcgisMarkersRef.current.set(layerId, []);
+    if (layerId === "customer_points") customerMarkerLabelsRef.current = [];
   }, []);
+
+  const refreshCustomerMarkerLabelVisibility = useCallback(() => {
+    const map = mapRef.current;
+    const projection = map?.getProjection();
+    if (!map || !projection) return;
+
+    const zoomScale = 2 ** (map.getZoom() ?? 0);
+    const candidates = customerMarkerLabelsRef.current.map(({ id, label, position }) => {
+      const worldPoint = projection.fromLatLngToPoint(position);
+      return worldPoint ? { id, label, x: worldPoint.x * zoomScale, y: worldPoint.y * zoomScale } : null;
+    }).filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+    const visibleIds = planCustomerMarkerLabelVisibility(candidates);
+
+    customerMarkerLabelsRef.current.forEach(({ id, label, marker }) => {
+      marker.setLabel(visibleIds.has(id) ? {
+        text: label,
+        color: "#0f172a",
+        fontSize: "11px",
+        fontWeight: "700",
+        className: "customer-business-name-label",
+      } : undefined);
+    });
+  }, []);
+
+  const scheduleCustomerMarkerLabelLayout = useCallback(() => {
+    if (customerLabelLayoutFrameRef.current !== null) {
+      window.cancelAnimationFrame(customerLabelLayoutFrameRef.current);
+    }
+    customerLabelLayoutFrameRef.current = window.requestAnimationFrame(() => {
+      customerLabelLayoutFrameRef.current = null;
+      refreshCustomerMarkerLabelVisibility();
+    });
+  }, [refreshCustomerMarkerLabelVisibility]);
 
   const cancelHeatmapRender = useCallback(() => {
     heatmapRenderGateRef.current.cancel();
@@ -416,6 +461,7 @@ export default function MapViewPage() {
     mapListenersRef.current.push(map.addListener("idle", () => {
       if (arcgisLoadTimerRef.current) clearTimeout(arcgisLoadTimerRef.current);
       arcgisLoadTimerRef.current = setTimeout(() => loadArcGISLayersRef.current(), 600);
+      scheduleCustomerMarkerLabelLayout();
     }));
 
     // ── Places SearchBox ──────────────────────────────────────────────────
@@ -443,6 +489,10 @@ export default function MapViewPage() {
 
     return () => {
       if (arcgisLoadTimerRef.current) clearTimeout(arcgisLoadTimerRef.current);
+      if (customerLabelLayoutFrameRef.current !== null) {
+        window.cancelAnimationFrame(customerLabelLayoutFrameRef.current);
+        customerLabelLayoutFrameRef.current = null;
+      }
       arcgisRequestControllerRef.current?.abort();
       mapListenersRef.current.forEach((listener) => listener.remove());
       mapListenersRef.current = [];
@@ -455,7 +505,7 @@ export default function MapViewPage() {
       searchBoxRef.current = null;
       mapRef.current = null;
     };
-  }, [mapsReady, clearArcGISLayerObjects, clearHeatmap]);
+  }, [mapsReady, clearArcGISLayerObjects, clearHeatmap, scheduleCustomerMarkerLabelLayout]);
 
   // ── Render pickup markers when mapData changes ─────────────────────────────
   useEffect(() => {
@@ -619,6 +669,7 @@ export default function MapViewPage() {
 
           const newPolygons: google.maps.Polygon[] = [];
           const newMarkers: google.maps.Marker[] = [];
+          const customerMarkerLabels: CustomerMarkerLabelState[] = [];
           const opacityFactor = (layerOpacity[layer.id] ?? 70) / 100;
 
           response.features.forEach((feature) => {
@@ -650,9 +701,11 @@ export default function MapViewPage() {
             const point = normaliseArcGISPoint(feature.geometry);
             if (!point) return;
 
-            const currentZoomLevel = mapRef.current?.getZoom() ?? 0;
+            const label = customerPointMarkerLabel(feature.attributes);
+            const position = { lat: point.latitude, lng: point.longitude };
+            const markerId = String(feature.attributes?.OBJECTID ?? `${point.latitude}:${point.longitude}`);
             const marker = new window.google.maps.Marker({
-              position: { lat: point.latitude, lng: point.longitude },
+              position,
               map: mapRef.current!,
               icon: {
                 path: window.google.maps.SymbolPath.CIRCLE,
@@ -661,14 +714,15 @@ export default function MapViewPage() {
                 strokeColor: layer.strokeColor,
                 strokeWeight: layer.strokeWeight,
                 scale: 6,
+                labelOrigin: new window.google.maps.Point(12, -12),
               },
-              label: currentZoomLevel >= 16 ? {
-                text: "Customer",
+              label: {
+                text: label,
                 color: "#1e3a5f",
-                fontSize: "10px",
-                fontWeight: "600",
-                className: "customer-point-label",
-              } : undefined,
+                fontSize: "11px",
+                fontWeight: "700",
+                className: "customer-business-name-label",
+              },
               zIndex: 50,
               title: "Customer location",
             });
@@ -677,6 +731,7 @@ export default function MapViewPage() {
               infoWindowRef.current?.open(mapRef.current!, marker);
             });
             newMarkers.push(marker);
+            customerMarkerLabels.push({ id: markerId, label, marker, position });
           });
 
           if (!isCurrentRequest()) {
@@ -687,6 +742,10 @@ export default function MapViewPage() {
           clearArcGISLayerObjects(layer.id);
           arcgisPolygonsRef.current.set(layer.id, newPolygons);
           arcgisMarkersRef.current.set(layer.id, newMarkers);
+          if (layer.id === "customer_points") {
+            customerMarkerLabelsRef.current = customerMarkerLabels;
+            scheduleCustomerMarkerLabelLayout();
+          }
           setLayerRuntime((previous) => ({
             ...previous,
             [layer.id]: {
@@ -717,7 +776,7 @@ export default function MapViewPage() {
         setArcgisLoading(false);
       }
     }
-  }, [arcgisVisibilitySignature, clearArcGISLayerObjects, layerOpacity, layerVisible]);
+  }, [arcgisVisibilitySignature, clearArcGISLayerObjects, layerOpacity, layerVisible, scheduleCustomerMarkerLabelLayout]);
 
   // Keep the ref in sync so the idle listener always calls the latest version
   // without the listener itself needing to be re-registered on every render.

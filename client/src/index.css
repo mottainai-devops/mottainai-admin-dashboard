@@ -134,6 +134,19 @@
 }
 
 @layer components {
+  .customer-business-name-label {
+    color: #0f172a !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    text-shadow:
+      -1px -1px 0 rgb(255 255 255 / 96%),
+      1px -1px 0 rgb(255 255 255 / 96%),
+      -1px 1px 0 rgb(255 255 255 / 96%),
+      1px 1px 0 rgb(255 255 255 / 96%);
+    white-space: nowrap;
+  }
+
   /**
    * Custom container utility that centers content and adds responsive padding.
    *
