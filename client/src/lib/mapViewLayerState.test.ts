@@ -3,12 +3,14 @@ import {
   aggregateHeatmapCells,
   buildArcGISLayerQueryUrl,
   buildCustomerPointPopupContent,
+  customerPointMarkerLabel,
   CUSTOMER_POINT_OUT_FIELDS_PARAMETER,
   createViewportSignature,
   createHeatmapRenderGate,
   determineLayerStatus,
   layerStatusLabel,
   normaliseArcGISPoint,
+  planCustomerMarkerLabelVisibility,
   planHeatmapRender,
   sanitiseLayerFailure,
   shouldLoadLayer,
@@ -220,6 +222,37 @@ describe("Map View layer lifecycle", () => {
     });
 
     expect((popup.match(/Not recorded/g) ?? [])).toHaveLength(4);
+  });
+
+  it("uses the approved business name as the persistent Customer marker label", () => {
+    expect(customerPointMarkerLabel({ business_name: "Example business" })).toBe("Example business");
+    expect(customerPointMarkerLabel({ business_name: "  Example business  " })).toBe("Example business");
+  });
+
+  it("uses Customer only when the approved business-name value is genuinely unavailable", () => {
+    expect(customerPointMarkerLabel({ business_name: "" })).toBe("Customer");
+    expect(customerPointMarkerLabel({ business_name: "  " })).toBe("Customer");
+    expect(customerPointMarkerLabel({ business_name: null })).toBe("Customer");
+  });
+
+  it("keeps non-overlapping approved business-name labels visible", () => {
+    const visible = planCustomerMarkerLabelVisibility([
+      { id: "one", label: "Example business one", x: 0, y: 0 },
+      { id: "two", label: "Example business two", x: 300, y: 80 },
+    ]);
+
+    expect(visible).toEqual(new Set(["one", "two"]));
+  });
+
+  it("uses a deterministic collision plan without replacing a business name with Customer", () => {
+    const labels = [
+      { id: "stable-a", label: "Example business one", x: 10, y: 10 },
+      { id: "stable-b", label: "Example business two", x: 12, y: 11 },
+    ];
+
+    expect(planCustomerMarkerLabelVisibility(labels)).toEqual(new Set(["stable-a"]));
+    expect(planCustomerMarkerLabelVisibility([...labels].reverse())).toEqual(new Set(["stable-a"]));
+    expect(labels[1].label).toBe("Example business two");
   });
 
   it("normalises a Feature Service root to its declared Customer layer query", () => {

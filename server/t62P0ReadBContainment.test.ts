@@ -62,10 +62,12 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
     expect(mapViewLayerStateSource).toContain('"user_identification_number"');
     expect(mapViewLayerStateSource).toContain('"customer_type"');
     expect(mapViewLayerStateSource).toContain("buildCustomerPointPopupContent");
+    expect(mapViewLayerStateSource).toContain("customerPointMarkerLabel");
+    expect(mapViewLayerStateSource).toContain("return typeof businessName");
     expect(mapPageSource).toContain("normaliseArcGISPoint(feature.geometry)");
     expect(mapPageSource).toContain("buildArcGISLayerQueryUrl(url)");
+    expect(mapPageSource).toContain("customerPointMarkerLabel(feature.attributes)");
     expect(mapPageSource).not.toContain("feature.attributes?.cust_phone");
-    expect(mapPageSource).not.toContain("feature.attributes?.business_name");
     expect(mapPageSource).not.toContain("feature.attributes?.first_name");
     expect(mapPageSource).not.toContain("feature.attributes?.last_name");
   });
