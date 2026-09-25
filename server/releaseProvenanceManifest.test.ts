@@ -12,6 +12,10 @@ import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 
 const scriptPath = resolve(process.cwd(), "scripts/write-release-manifest.mjs");
+const verifierPath = resolve(
+  process.cwd(),
+  "scripts/verify-release-manifest.mjs"
+);
 const createdDirectories: string[] = [];
 
 function makeBuild() {
@@ -70,5 +74,43 @@ describe("release provenance manifest", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("40-character Git commit SHA");
+  });
+
+  it("verifies the manifest revision and every deployed static asset", () => {
+    const publicDir = makeBuild();
+    const releaseSha = "b".repeat(40);
+    const buildResult = spawnSync(process.execPath, [scriptPath], {
+      env: {
+        ...process.env,
+        RELEASE_SHA: releaseSha,
+        RELEASE_PUBLIC_DIR: publicDir,
+      },
+      encoding: "utf8",
+    });
+    expect(buildResult.status).toBe(0);
+
+    const manifestPath = join(publicDir, "release-manifest.json");
+    const verifyResult = spawnSync(
+      process.execPath,
+      [verifierPath, manifestPath, releaseSha],
+      { encoding: "utf8" }
+    );
+    expect(verifyResult.status).toBe(0);
+    expect(verifyResult.stdout).toContain(
+      "Deployed static asset provenance verified."
+    );
+
+    writeFileSync(
+      join(publicDir, "assets", "index-example.js"),
+      "changed",
+      "utf8"
+    );
+    const changedAssetResult = spawnSync(
+      process.execPath,
+      [verifierPath, manifestPath, releaseSha],
+      { encoding: "utf8" }
+    );
+    expect(changedAssetResult.status).not.toBe(0);
+    expect(changedAssetResult.stderr).toContain("static asset hash");
   });
 });

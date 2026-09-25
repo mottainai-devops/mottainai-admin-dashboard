@@ -95,6 +95,7 @@ jobs:
           cp package.json pnpm-lock.yaml deploy-package/
           cp -r server deploy-package/
           cp -r shared deploy-package/
+          cp -r scripts deploy-package/
           cp start.sh deploy-package/
           chmod +x deploy-package/start.sh
           tar -czf dashboard-deploy.tar.gz -C deploy-package .
@@ -144,35 +145,7 @@ jobs:
             echo "=== Verifying deployed static asset provenance ==="
             EXPECTED_RELEASE_SHA="${{ inputs.release_sha }}"
             RELEASE_MANIFEST=/var/www/mottainai-dashboard/dist/public/release-manifest.json
-            node - "$RELEASE_MANIFEST" "$EXPECTED_RELEASE_SHA" <<'NODE'
-            const { createHash } = require("node:crypto");
-            const { readFileSync } = require("node:fs");
-            const { dirname, resolve, sep } = require("node:path");
-
-            const [manifestPath, expectedReleaseSha] = process.argv.slice(2);
-            const publicDir = dirname(manifestPath);
-            const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-            if (manifest.releaseSha !== expectedReleaseSha) {
-              throw new Error("Deployed manifest release revision does not match the approved release");
-            }
-            if (!Array.isArray(manifest.assets) || manifest.assets.length === 0) {
-              throw new Error("Deployed manifest contains no static assets");
-            }
-            for (const asset of manifest.assets) {
-              if (!asset || typeof asset.path !== "string" || typeof asset.sha256 !== "string") {
-                throw new Error("Deployed manifest contains an invalid asset entry");
-              }
-              const assetPath = resolve(publicDir, asset.path);
-              if (!assetPath.startsWith(`${publicDir}${sep}`) || !asset.path.startsWith("assets/")) {
-                throw new Error("Deployed manifest asset path is unsafe");
-              }
-              const actualHash = createHash("sha256").update(readFileSync(assetPath)).digest("hex");
-              if (actualHash !== asset.sha256) {
-                throw new Error("Deployed static asset hash does not match the release manifest");
-              }
-            }
-            console.log("Deployed static asset provenance verified.");
-            NODE
+            node scripts/verify-release-manifest.mjs "$RELEASE_MANIFEST" "$EXPECTED_RELEASE_SHA"
 
             echo "=== Restarting PM2 process ==="
             pm2 restart mottainai-dashboard --update-env
