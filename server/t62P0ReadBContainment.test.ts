@@ -52,10 +52,16 @@ describe("T62 P0-read B map credential and webhook response containment", () => 
     expect(testingSource).not.toMatch(/ARCGIS_API_KEY\s*=\s*["']/);
   });
 
-  it("queries the private Customer view with geometry and object IDs only", () => {
+  it("queries the private Customer view with only the approved popup fields", () => {
     const mapPageSource = readServerSource("..", "client", "src", "pages", "MapViewPage.tsx");
+    const mapViewLayerStateSource = readServerSource("..", "client", "src", "lib", "mapViewLayerState.ts");
 
-    expect(mapPageSource).toContain('outFields: "OBJECTID"');
+    expect(mapPageSource).toContain("outFields: CUSTOMER_POINT_OUT_FIELDS_PARAMETER");
+    expect(mapViewLayerStateSource).toContain('"business_name"');
+    expect(mapViewLayerStateSource).toContain('"address2"');
+    expect(mapViewLayerStateSource).toContain('"user_identification_number"');
+    expect(mapViewLayerStateSource).toContain('"customer_type"');
+    expect(mapViewLayerStateSource).toContain("buildCustomerPointPopupContent");
     expect(mapPageSource).toContain("normaliseArcGISPoint(feature.geometry)");
     expect(mapPageSource).toContain("buildArcGISLayerQueryUrl(url)");
     expect(mapPageSource).not.toContain("feature.attributes?.cust_phone");

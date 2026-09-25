@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateHeatmapCells,
   buildArcGISLayerQueryUrl,
+  buildCustomerPointPopupContent,
+  CUSTOMER_POINT_OUT_FIELDS_PARAMETER,
   createViewportSignature,
   createHeatmapRenderGate,
   determineLayerStatus,
@@ -179,6 +181,45 @@ describe("Map View layer lifecycle", () => {
     expect(normaliseArcGISPoint({ x: 0, y: 0 })).toBeNull();
     expect(normaliseArcGISPoint({ x: 50, y: 30 })).toBeNull();
     expect(normaliseArcGISPoint({ x: 30_000_000, y: 0 })).toBeNull();
+  });
+
+  it("requests exactly the owner-approved Customer popup fields", () => {
+    expect(CUSTOMER_POINT_OUT_FIELDS_PARAMETER).toBe(
+      "OBJECTID,business_name,address2,user_identification_number,customer_type",
+    );
+    expect(CUSTOMER_POINT_OUT_FIELDS_PARAMETER).not.toContain("address,");
+    expect(CUSTOMER_POINT_OUT_FIELDS_PARAMETER).not.toContain("google_address");
+  });
+
+  it("renders only escaped approved Customer popup values", () => {
+    const popup = buildCustomerPointPopupContent({
+      business_name: "Example <script>alert(1)</script>",
+      address2: "12 & 14 Example Street",
+      user_identification_number: "<unsafe-id>",
+      customer_type: "Pay as you throw",
+      cust_phone: "unapproved phone",
+    } as Record<string, unknown>);
+
+    expect(popup).toContain("Business name");
+    expect(popup).toContain("Address");
+    expect(popup).toContain("User identification number");
+    expect(popup).toContain("Customer type");
+    expect(popup).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(popup).toContain("12 &amp; 14 Example Street");
+    expect(popup).toContain("&lt;unsafe-id&gt;");
+    expect(popup).not.toContain("<script>");
+    expect(popup).not.toContain("unapproved phone");
+  });
+
+  it("uses a safe fallback when an approved Customer popup value is empty", () => {
+    const popup = buildCustomerPointPopupContent({
+      business_name: "",
+      address2: null,
+      user_identification_number: undefined,
+      customer_type: " ",
+    });
+
+    expect((popup.match(/Not recorded/g) ?? [])).toHaveLength(4);
   });
 
   it("normalises a Feature Service root to its declared Customer layer query", () => {

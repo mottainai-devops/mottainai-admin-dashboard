@@ -33,6 +33,8 @@ import { buildViewSwitchUrl, paramsToFilters } from "@/lib/filterUrlParams";
 import { buildMapDataInput } from "@/lib/mapViewQuery";
 import {
   buildArcGISLayerQueryUrl,
+  buildCustomerPointPopupContent,
+  CUSTOMER_POINT_OUT_FIELDS_PARAMETER,
   createHeatmapRenderGate,
   createViewportSignature,
   determineLayerStatus,
@@ -90,7 +92,7 @@ const ARCGIS_LAYER_REGISTRY = [
     minZoom: 13,
     description: "Customer registration points",
     requiresAuth: true,
-    outFields: "OBJECTID",
+    outFields: CUSTOMER_POINT_OUT_FIELDS_PARAMETER,
   },
 ] as const;
 
@@ -671,11 +673,7 @@ export default function MapViewPage() {
               title: "Customer location",
             });
             marker.addListener("click", () => {
-              infoWindowRef.current?.setContent(`
-                <div style="font-family:sans-serif;font-size:13px;padding:6px 8px">
-                  <div style="font-weight:700;font-size:14px;color:#1e293b">Customer location</div>
-                </div>
-              `);
+              infoWindowRef.current?.setContent(buildCustomerPointPopupContent(feature.attributes));
               infoWindowRef.current?.open(mapRef.current!, marker);
             });
             newMarkers.push(marker);
